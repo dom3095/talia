@@ -77,7 +77,26 @@ fantasia, dichiarato nell'intestazione):
 - `fascicolo_critico/` — 21-nonies ma motivazione da revoca (🔴), oltre 12 mesi
   (🔴), nessun art. 7 (🔴), stesso firmatario (🟡).
 
-Manca ancora un PDF scansionato per il test OCR reale (vedi TAL-3) e la
-validazione su ~10 fascicoli reali (TAL-12).
+Manca ancora un PDF scansionato per il test OCR reale (vedi TAL-3).
+
+## Lezioni dal primo fascicolo reale (TAL-12, 1/10)
+
+Il primo fascicolo reale (revoca di selezione interna, provincia AG — PDF **non**
+committati, fonti in `data/samples/1/sources.json`) ha fatto emergere e correggere
+tre bug:
+
+1. **Boilerplate dei bandi.** "L'amministrazione si riserva di revocare…" faceva
+   classificare il bando come autotutela → classificazione a punteggio pesato
+   (`punteggi_ruolo`): segnali forti ("in autotutela", 21-quinquies/nonies) vs
+   deboli (sostantivo "revoca"; l'infinito "revocare" è escluso).
+2. **Ordine dei file.** Con più candidati autotutela vinceva il primo in ordine
+   alfabetico → ora vince il punteggio massimo.
+3. **Secondo nome omesso.** "Pietro Amorosia" vs "Pietro Nicola Amorosia" non
+   matchavano nel check 6 (falso 🟢) → matching per sottoinsieme (≥2 token comuni,
+   un insieme contenuto nell'altro). Il solo cognome condiviso resta non-match.
+
+Inoltre: trattino reso opzionale in "21(-)quinquies/nonies" (gli atti reali lo
+omettono spesso). Annotato per follow-up: le date dei CCNL citati ("16.11.2022")
+possono inquinare la stima delle date del check 2.
 
 [→ 03 Stack](03-stack.md)

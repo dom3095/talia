@@ -43,12 +43,11 @@ e il check LLM (TAL-11).
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
 | [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | E1 | 🔤 NLP | P2 |
-| [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | E1 | ⚖️ LEX | P1 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| — | _(vuoto)_ | | |
+| [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |

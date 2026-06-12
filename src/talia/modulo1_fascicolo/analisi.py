@@ -18,31 +18,61 @@ from ..engine.models import TestoAtto
 from ..engine.pdf_text import estrai_testo
 from .report import AttoMeta, Report
 
-# Parole che qualificano un atto come autotutela (revoca/annullamento d'ufficio).
-_SEGNALI_AUTOTUTELA = re.compile(
-    r"21\s*-\s*(?:quinquies|nonies)|annullament\w*\s+d'?\s*ufficio|in\s+autotutela|"
-    r"\brevoc\w+\b|\bannullament\w+\b",
+# Classificazione del ruolo degli atti: punteggio pesato, non semplice conteggio.
+# Lezione dal primo fascicolo reale (Palma di Montechiaro): i bandi contengono
+# boilerplate come "l'amministrazione si riserva di revocare..." — il verbo
+# "revocare" da solo NON può qualificare un atto come autotutela.
+
+# Segnali forti di autotutela (peso 3): formule che compaiono solo in atti che
+# *sono* revoche/annullamenti, non che ne parlano in ipotesi.
+_FORTI_AUTOTUTELA = re.compile(
+    r"in\s+autotutela|annullament\w*\s+d'?\s*ufficio|"
+    r"21\s*-?\s*quinquies|21\s*-?\s*nonies",
     re.IGNORECASE,
 )
-# Parole che qualificano un atto come originario (indizione/aggiudicazione).
-_SEGNALI_ORIGINARIO = re.compile(
-    r"indizion\w*|bando di concorso|determina\w*\s+a\s+contrarre|aggiudicazion\w*|"
-    r"approvazione del bando",
+# Segnali deboli (peso 1): il sostantivo "revoca/annullamento" (mai l'infinito
+# "revocare", tipico delle clausole di riserva).
+_DEBOLI_AUTOTUTELA = re.compile(r"\brevoc[ah]e?\b|\bannullamento\b", re.IGNORECASE)
+
+# Segnali forti di atto originario (peso 2): indizione/approvazione della procedura.
+_FORTI_ORIGINARIO = re.compile(
+    r"indizion\w*|approvazione\s+(?:del\s+bando|(?:dell')?avviso)|"
+    r"determina\w*\s+a\s+contrarre|aggiudicazion\w*",
     re.IGNORECASE,
 )
+# Segnali deboli (peso 1): menzioni della procedura (compaiono anche nell'atto
+# di revoca, che la richiama).
+_DEBOLI_ORIGINARIO = re.compile(
+    r"bando\s+di\s+(?:concorso|gara|selezione)|avviso\s+di\s+selezione",
+    re.IGNORECASE,
+)
+
+PESO_FORTE_AUTOTUTELA = 3
+PESO_FORTE_ORIGINARIO = 2
+
+
+def punteggi_ruolo(testo: TestoAtto) -> tuple[int, int]:
+    """Punteggi (autotutela, originario) di un atto. Esposto per i test."""
+    t = testo.testo
+    aut = PESO_FORTE_AUTOTUTELA * len(_FORTI_AUTOTUTELA.findall(t)) + len(
+        _DEBOLI_AUTOTUTELA.findall(t)
+    )
+    orig = PESO_FORTE_ORIGINARIO * len(_FORTI_ORIGINARIO.findall(t)) + len(
+        _DEBOLI_ORIGINARIO.findall(t)
+    )
+    return aut, orig
 
 
 def classifica_ruolo(testo: TestoAtto) -> RuoloAtto:
     """Euristica deterministica sul ruolo di un atto nel fascicolo.
 
-    Conta i segnali di autotutela vs originario; in pareggio o assenza ritorna
-    SCONOSCIUTO (la selezione del contesto applica poi un fallback).
+    Confronta i punteggi pesati; in pareggio o assenza ritorna SCONOSCIUTO
+    (la selezione del contesto applica poi un fallback).
     """
-    n_aut = len(_SEGNALI_AUTOTUTELA.findall(testo.testo))
-    n_orig = len(_SEGNALI_ORIGINARIO.findall(testo.testo))
-    if n_aut > n_orig:
+    aut, orig = punteggi_ruolo(testo)
+    if aut > orig:
         return RuoloAtto.AUTOTUTELA
-    if n_orig > n_aut:
+    if orig > aut:
         return RuoloAtto.ORIGINARIO
     return RuoloAtto.SCONOSCIUTO
 
@@ -50,23 +80,28 @@ def classifica_ruolo(testo: TestoAtto) -> RuoloAtto:
 def costruisci_contesto(atti: list[AttoAnalizzato]) -> ContestoFascicolo:
     """Seleziona atto di autotutela e atto originario dal fascicolo.
 
-    Autotutela: il primo atto con ruolo AUTOTUTELA; in mancanza, l'ultimo atto
-    fornito (per il caso d'uso, di solito è l'atto in esame). Originario: il
-    primo atto ORIGINARIO diverso dall'autotutela.
+    Autotutela: tra gli atti con ruolo AUTOTUTELA, quello con punteggio massimo
+    (l'ordine dei file non deve contare); in mancanza, l'ultimo atto fornito.
+    Originario: tra gli atti ORIGINARIO diversi dall'autotutela, quello con
+    punteggio massimo.
     """
     if not atti:
         raise ValueError("Il fascicolo non contiene atti.")
 
-    autotutela = next(
-        (a for a in atti if a.ruolo is RuoloAtto.AUTOTUTELA), atti[-1]
+    candidati_aut = [a for a in atti if a.ruolo is RuoloAtto.AUTOTUTELA]
+    autotutela = (
+        max(candidati_aut, key=lambda a: punteggi_ruolo(a.testo)[0])
+        if candidati_aut
+        else atti[-1]
     )
-    originario = next(
-        (
-            a
-            for a in atti
-            if a.ruolo is RuoloAtto.ORIGINARIO and a is not autotutela
-        ),
-        None,
+
+    candidati_orig = [
+        a for a in atti if a.ruolo is RuoloAtto.ORIGINARIO and a is not autotutela
+    ]
+    originario = (
+        max(candidati_orig, key=lambda a: punteggi_ruolo(a.testo)[1])
+        if candidati_orig
+        else None
     )
     return ContestoFascicolo(atto_autotutela=autotutela, atto_originario=originario)
 

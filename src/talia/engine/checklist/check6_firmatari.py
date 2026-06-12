@@ -34,12 +34,25 @@ class CheckCoerenzaFirmatari(Check):
         firmatari_orig = contesto.atto_originario.entita.firmatari
         firmatari_autt = contesto.atto_autotutela.entita.firmatari
 
-        # Indicizza per nome normalizzato per individuare le sovrapposizioni.
-        per_nome_orig = {nome_normalizzato(e.valore): e for e in firmatari_orig}
-        per_nome_autt = {nome_normalizzato(e.valore): e for e in firmatari_autt}
-        comuni = set(per_nome_orig) & set(per_nome_autt)
+        # Confronto a coppie con matching per sottoinsieme: "Pietro Amorosia" e
+        # "Pietro Nicola Amorosia" sono la stessa persona (secondo nome omesso).
+        # Lezione dal primo fascicolo reale: l'uguaglianza esatta dei token
+        # produceva un falso verde.
+        coppie: list[tuple] = []
+        visti_autt: set[int] = set()
+        for ent_orig in firmatari_orig:
+            for j, ent_autt in enumerate(firmatari_autt):
+                if j in visti_autt:
+                    continue
+                if _stesso_firmatario(
+                    nome_normalizzato(ent_orig.valore),
+                    nome_normalizzato(ent_autt.valore),
+                ):
+                    coppie.append((ent_orig, ent_autt))
+                    visti_autt.add(j)
+                    break
 
-        if not comuni:
+        if not coppie:
             return self._esito(
                 Stato.VERDE,
                 "I firmatari dell'atto originario e dell'annullamento non coincidono.",
@@ -47,9 +60,7 @@ class CheckCoerenzaFirmatari(Check):
 
         citazioni = []
         nomi = []
-        for chiave in comuni:
-            ent_orig = per_nome_orig[chiave]
-            ent_autt = per_nome_autt[chiave]
+        for ent_orig, ent_autt in coppie:
             nomi.append(ent_autt.valore)
             citazioni.append(ent_orig.come_citazione(contesto.atto_originario.testo))
             citazioni.append(ent_autt.come_citazione(contesto.atto_autotutela.testo))
@@ -61,6 +72,19 @@ class CheckCoerenzaFirmatari(Check):
             "auto-annullamento, da verificare (può essere fisiologico nei piccoli comuni).",
             citazioni,
         )
+
+
+def _stesso_firmatario(a: frozenset[str], b: frozenset[str]) -> bool:
+    """Due nomi normalizzati indicano la stessa persona?
+
+    Criterio prudente: almeno 2 token in comune (nome+cognome) e uno dei due
+    insiemi contenuto nell'altro (gestisce il secondo nome omesso). Evita falsi
+    match su singolo cognome condiviso (omonimie parziali frequenti nei piccoli
+    comuni).
+    """
+    if not a or not b:
+        return False
+    return len(a & b) >= 2 and (a <= b or b <= a)
 
 
 registra(CheckCoerenzaFirmatari())
