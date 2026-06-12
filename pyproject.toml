@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "talia"
+version = "0.1.0"
+description = "TALIA — Trasparenza Atti Locali: Indicatori e Analisi. Red flags negli atti delle PA siciliane."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Progetto TALIA" }]
+keywords = ["civic-tech", "trasparenza", "pubblica-amministrazione", "sicilia"]
+
+# Dipendenze core: volutamente minimali. Il motore deterministico (entità,
+# checklist, report) gira con la sola standard library + queste.
+dependencies = []
+
+[project.optional-dependencies]
+# Estrazione testo da PDF nativi e OCR delle scansioni (TAL-3).
+pdf = [
+    "pdfplumber>=0.11",
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.17",
+    "Pillow>=10.0",
+]
+# NER avanzato sul testo italiano (raffinamento estrazione entità/firmatari).
+nlp = ["spacy>=3.7"]
+# Strumenti di sviluppo: lint, format, test.
+dev = [
+    "ruff>=0.5",
+    "pytest>=8.0",
+]
+# Comodità: installa tutto il necessario all'uso end-to-end.
+all = ["talia[pdf,nlp,dev]"]
+
+[project.scripts]
+talia = "talia.modulo1_fascicolo.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/F = pycodestyle/pyflakes, I = isort, UP = pyupgrade, B = bugbear.
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
