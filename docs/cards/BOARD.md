@@ -3,7 +3,9 @@
 Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio di ogni card nei file
 `TAL-*.md` di questa cartella.
 
-**Stato attuale:** repo appena inizializzata, zero codice. Focus tappa 1 (prototipo Modulo 1).
+**Stato attuale:** prototipo Modulo 1 end-to-end implementato su branch
+`feat/TAL-1-modulo1-prototipo` (in review). Mancano la validazione su fascicoli reali (TAL-12)
+e il check LLM (TAL-11).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -40,16 +42,6 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-1](TAL-1.md) | Setup progetto Python + tooling | E0 | ⚙️ OPS | P0 |
-| [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | E0 | ⚙️ OPS | P0 |
-| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | E1 | 🔤 NLP | P0 |
-| [TAL-4](TAL-4.md) | Estrazione entità: date, importi, CIG | E1 | 🔤 NLP | P0 |
-| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | E1 | 🔤 NLP | P1 |
-| [TAL-6](TAL-6.md) | Check 1: base giuridica revoca/annullamento | E1 | 🔤 NLP | P1 |
-| [TAL-7](TAL-7.md) | Check 2: termini autotutela (12 mesi) | E1 | 🔤 NLP | P1 |
-| [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | E1 | 🔤 NLP | P1 |
-| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | E1 | 🔤 NLP | P1 |
-| [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | E1 | 📊 FE | P1 |
 | [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | E1 | 🔤 NLP | P2 |
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | E1 | ⚖️ LEX | P1 |
 
@@ -61,7 +53,16 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| — | _(vuoto)_ | | |
+| [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
+| [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
+| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca scansione campione per test OCR reale |
+| [TAL-4](TAL-4.md) | Estrazione entità: date, importi, CIG | 🔤 NLP | |
+| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica) |
+| [TAL-6](TAL-6.md) | Check 1: base giuridica revoca/annullamento | 🔤 NLP | parole spia da validare con ⚖️ LEX |
+| [TAL-7](TAL-7.md) | Check 2: termini autotutela (12 mesi) | 🔤 NLP | assunzione sulle date da validare con ⚖️ LEX |
+| [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | 🔤 NLP | |
+| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | senza incrocio tempistica graduatoria |
+| [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | 📊 FE | formato scelto: HTML statico + JSON + CLI |
 
 ### ✅ Done
 | ID | Titolo | Note |

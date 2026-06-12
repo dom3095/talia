@@ -20,6 +20,7 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 | [08 — Roadmap](08-roadmap.md) | Tappe dal prototipo allo scale-up |
 | [09 — Avvertenze legali](09-avvertenze-legali.md) | Posizionamento, diffamazione, privacy |
 | [10 — Glossario](10-glossario.md) | Sigle e termini (CIG, UREGA, CGA, autotutela…) |
+| [11 — Implementazione motore](11-implementazione-motore.md) | Layout del codice, decisioni di design, pipeline Modulo 1 |
 
 ## Link rapidi
 
@@ -29,5 +30,8 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 
 ## Stato del progetto
 
-🟡 **Fase: prototipo Modulo 1.** Repo appena inizializzata. Nessun codice ancora.
-Prossimo obiettivo: script che da 2-3 PDF (indizione + annullamento) produce il report checklist §4.
+🟢 **Fase: prototipo Modulo 1 implementato** (branch `feat/TAL-1-modulo1-prototipo`, in review).
+Pipeline end-to-end: PDF/testo → entità → checklist (check 1, 2, 5, 6) → report
+markdown/JSON/HTML con citazioni e disclaimer. CLI: `talia analizza fascicolo/`.
+Dettagli: [11 — Implementazione motore](11-implementazione-motore.md).
+Prossimi passi: validazione su fascicoli reali (TAL-12) e check 3 con LLM (TAL-11).
