@@ -99,4 +99,17 @@ Inoltre: trattino reso opzionale in "21(-)quinquies/nonies" (gli atti reali lo
 omettono spesso). Annotato per follow-up: le date dei CCNL citati ("16.11.2022")
 possono inquinare la stima delle date del check 2.
 
+## Attori e procedimenti (TAL-13)
+
+`engine/attori.py` estrae **attori** (ruolo istituzionale → nome, anche da firme
+digitali "NOME COGNOME / Provider") e **riferimenti ad atti** (tipo, numero/anno,
+data) per ricostruire la catena del procedimento — base del futuro check 7.
+Lo script interno `scripts/estrai_attori.py` produce il report per fascicolo
+(⚠️ nomi reali: mai committare l'output) con un livello **NER spaCy opzionale**
+per scoprire pattern non coperti dalle regex.
+
+Esito sul fascicolo reale 1: il deterministico ricostruisce attori e catena
+completa; il NER `it_core_news_sm` è troppo rumoroso sul lessico giuridico e
+resta strumento di discovery, fuori dal motore (riprovare con `it_core_news_lg`).
+
 [→ 03 Stack](03-stack.md)

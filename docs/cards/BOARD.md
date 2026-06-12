@@ -62,6 +62,7 @@ e il check LLM (TAL-11).
 | [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | 🔤 NLP | |
 | [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | senza incrocio tempistica graduatoria |
 | [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | 📊 FE | formato scelto: HTML statico + JSON + CLI |
+| [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | 🔤 NLP | NER sm rumoroso: resta discovery, non in motore |
 
 ### ✅ Done
 | ID | Titolo | Note |
