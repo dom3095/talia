@@ -83,4 +83,5 @@ piccoli comuni. Vedi [`docs/wiki/09-avvertenze-legali.md`](docs/wiki/09-avverten
 
 ## Licenza
 
-AGPL-3.0-or-later (vedi [TAL-40](docs/cards/TAL-40.md) per la decisione finale).
+[AGPL-3.0-or-later](LICENSE): chi offre TALIA come servizio deve ripubblicare le
+modifiche — il progetto resta un bene comune.

@@ -36,7 +36,7 @@ Obiettivo: da un fascicolo in `data/samples/` (indizione + annullamento) → rep
 - [ ] Modello LLM locale: Llama vs Mistral vs Qwen (TAL-11)
 - [ ] DB access: SQL grezzo vs SQLAlchemy (TAL-21)
 - [x] Formato report: **HTML statico + JSON + markdown via CLI** (TAL-10) — Streamlit resta per il Modulo 3
-- [ ] Licenza open source: MIT vs AGPL (TAL-40)
+- [x] Licenza open source: **AGPL-3.0** (decisa il 12/06/2026; file `LICENSE` nel repo) — resta in TAL-40 solo README/contributing
 
 ## 🧱 Pre-requisiti non tecnici
 
