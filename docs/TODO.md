@@ -6,20 +6,22 @@ Vista rapida. La fonte di verità è la board: [`docs/cards/BOARD.md`](cards/BOA
 
 Obiettivo: da un fascicolo in `data/samples/` (indizione + annullamento) → report checklist con citazioni e disclaimer.
 
-- [ ] **TAL-1** Setup progetto Python + tooling · ⚙️ OPS · P0
-- [ ] **TAL-2** CI GitHub Actions (lint + test) · ⚙️ OPS · P0
-- [ ] **TAL-3** Estrazione testo PDF (nativo + OCR) · 🔤 NLP · P0
-- [ ] **TAL-4** Estrazione entità: date, importi, CIG · 🔤 NLP · P0
-- [ ] **TAL-6** Check 1: base giuridica revoca/annullamento · 🔤 NLP · P1
-- [ ] **TAL-7** Check 2: termini autotutela (12 mesi) · 🔤 NLP · P1
-- [ ] **TAL-10** Report Modulo 1 (verde/giallo/rosso) · 📊 FE · P1
-- [ ] **TAL-12** Validazione su 10 fascicoli reali · ⚖️ LEX · P1
+> Implementato su branch `feat/TAL-1-modulo1-prototipo` (in review). 45 test verdi, lint pulito.
+
+- [x] **TAL-1** Setup progetto Python + tooling · ⚙️ OPS · P0
+- [x] **TAL-2** CI GitHub Actions (lint + test) · ⚙️ OPS · P0 *(verde da confermare al primo PR)*
+- [x] **TAL-3** Estrazione testo PDF (nativo + OCR) · 🔤 NLP · P0
+- [x] **TAL-4** Estrazione entità: date, importi, CIG · 🔤 NLP · P0
+- [x] **TAL-6** Check 1: base giuridica revoca/annullamento · 🔤 NLP · P1
+- [x] **TAL-7** Check 2: termini autotutela (12 mesi) · 🔤 NLP · P1
+- [x] **TAL-10** Report Modulo 1 (verde/giallo/rosso) · 📊 FE · P1
+- [ ] **TAL-12** Validazione su 10 fascicoli reali · ⚖️ LEX · P1 *(servono fascicoli reali)*
 
 ## ⏭️ Subito dopo
 
-- [ ] **TAL-5** Firmatari + norme citate
-- [ ] **TAL-8** Check 5: comunicazione avvio (art. 7)
-- [ ] **TAL-9** Check 6: coerenza firmatari
+- [x] **TAL-5** Firmatari + norme citate *(euristica deterministica, senza spaCy)*
+- [x] **TAL-8** Check 5: comunicazione avvio (art. 7)
+- [x] **TAL-9** Check 6: coerenza firmatari
 - [ ] **TAL-11** Check 3: qualità motivazione (LLM, solo flaggati)
 
 ## 📦 Backlog per tappa
@@ -33,7 +35,7 @@ Obiettivo: da un fascicolo in `data/samples/` (indizione + annullamento) → rep
 - [ ] Vector store RAG: FAISS vs Chroma (TAL-11)
 - [ ] Modello LLM locale: Llama vs Mistral vs Qwen (TAL-11)
 - [ ] DB access: SQL grezzo vs SQLAlchemy (TAL-21)
-- [ ] Formato report: HTML statico vs Streamlit vs JSON+template (TAL-10)
+- [x] Formato report: **HTML statico + JSON + markdown via CLI** (TAL-10) — Streamlit resta per il Modulo 3
 - [ ] Licenza open source: MIT vs AGPL (TAL-40)
 
 ## 🧱 Pre-requisiti non tecnici

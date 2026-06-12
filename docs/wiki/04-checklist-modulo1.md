@@ -18,9 +18,19 @@ verde/giallo/rosso con citazione testuale e riferimento normativo.
 ## Note implementative
 
 - **Check 1, 2, 5, 6** → deterministici (regex + estrazione date/firmatari). Prioritari, facili da testare.
-- **Check 3** → unico che richiede LLM. Da fare per ultimo, solo sui flaggati.
+  ✅ **Implementati** in `src/talia/engine/checklist/` (vedi [11 — Implementazione](11-implementazione-motore.md)).
+- **Check 3** → unico che richiede LLM. Da fare per ultimo, solo sui flaggati (TAL-11).
 - **Check 4** → estrazione/classificazione, alimenta statistiche, **non** è una red flag.
 - **Check 7** → dipende dal Modulo 2 (scraping). Inizialmente stub.
+
+### Stato implementazione (Sprint 1)
+
+| Check | Modulo | Esiti possibili | Note |
+|-------|--------|-----------------|------|
+| 1 base giuridica | `check1_base_giuridica.py` | 🟢🟡🔴 | coerenza via parole spia, da validare con ⚖️ LEX |
+| 2 termini 12 mesi | `check2_termini.py` | 🟢🟡🔴⚪ | solo annullamenti; date mancanti → 🟡, mai crash |
+| 5 avvio art. 7 | `check5_avvio.py` | 🟢🔴 | assenza di menzione ≠ omissione provata |
+| 6 firmatari | `check6_firmatari.py` | 🟢🟡⚪ | sovrapposizione → 🟡 conservativo |
 
 ## Distinzione fondamentale: revoca ≠ annullamento
 
