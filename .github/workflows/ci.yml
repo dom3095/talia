@@ -1,0 +1,43 @@
+# CI TALIA — lint + test su ogni push/PR (TAL-2). Budget zero: GitHub Actions free tier.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Tesseract serve ai test OCR (oggi skippati se assenti, ma il runner è pronto).
+      - name: Installa Tesseract (lingua ita)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-ita
+
+      - name: Installa il pacchetto
+        run: pip install -e '.[dev]'
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Test (pytest)
+        run: pytest -q
+
+# Futuro (TAL-20): workflow `cron` per lo scraping continuo, es.
+#
+#  scraping:
+#    schedule:
+#      - cron: "0 4 * * *"   # ogni notte alle 04:00 UTC
+#    ...
