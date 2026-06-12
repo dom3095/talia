@@ -114,6 +114,25 @@ def test_check6_firmatari_diversi_verde():
     assert CheckCoerenzaFirmatari().valuta(ctx).stato is Stato.VERDE
 
 
+def test_check6_secondo_nome_omesso_match():
+    # Regressione dal primo fascicolo reale: "Pietro Amorosia" e
+    # "Pietro Nicola Amorosia" sono la stessa persona → 🟡, non falso 🟢.
+    ctx = _contesto(
+        "revoca in autotutela\nF.to Dott. Pietro Amorosia",
+        originario="approvazione avviso\nF.to Dott. Pietro Nicola Amorosia",
+    )
+    assert CheckCoerenzaFirmatari().valuta(ctx).stato is Stato.GIALLO
+
+
+def test_check6_solo_cognome_condiviso_non_match():
+    # Prudenza: il solo cognome in comune (parenti/omonimi) non basta.
+    ctx = _contesto(
+        "revoca in autotutela\nF.to Dott. Mario Rossi",
+        originario="indizione\nF.to Dott.ssa Anna Rossi",
+    )
+    assert CheckCoerenzaFirmatari().valuta(ctx).stato is Stato.VERDE
+
+
 def test_check6_non_applicabile_senza_originario():
     ctx = _contesto("annullamento\nF.to Dott. Mario Rossi")
     assert CheckCoerenzaFirmatari().applicabile(ctx) is False

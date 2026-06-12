@@ -31,7 +31,8 @@ SOGLIA_GIORNI = 365
 # Tolleranza attorno alla soglia entro cui l'esito è 🟡 ("al limite") invece di 🔴.
 TOLLERANZA_GIORNI = 30
 
-_RE_ANNULLAMENTO = re.compile(r"21\s*-\s*nonies", re.IGNORECASE)
+# Trattino opzionale: negli atti reali si trova anche "21 nonies" / "21nonies".
+_RE_ANNULLAMENTO = re.compile(r"21\s*-?\s*nonies", re.IGNORECASE)
 
 
 class CheckTerminiAutotutela(Check):

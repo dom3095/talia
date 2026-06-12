@@ -23,9 +23,10 @@ from .base import Check, EsitoCheck, registra
 
 _RIFERIMENTI = ("Art. 21-quinquies L. 241/1990", "Art. 21-nonies L. 241/1990")
 
-# Riconoscimento degli istituti (tollera spazi attorno al trattino).
-_RE_REVOCA = re.compile(r"21\s*-\s*quinquies", re.IGNORECASE)
-_RE_ANNULLAMENTO = re.compile(r"21\s*-\s*nonies", re.IGNORECASE)
+# Riconoscimento degli istituti. Il trattino è opzionale: negli atti reali si
+# trova "21-quinquies", "21 quinquies" e perfino "21quinquies" (OCR).
+_RE_REVOCA = re.compile(r"21\s*-?\s*quinquies", re.IGNORECASE)
+_RE_ANNULLAMENTO = re.compile(r"21\s*-?\s*nonies", re.IGNORECASE)
 
 # Parole spia della motivazione. Liste volutamente brevi e prudenti: in caso di
 # segnali assenti l'esito è 🟡 (da verificare), mai un giudizio netto.

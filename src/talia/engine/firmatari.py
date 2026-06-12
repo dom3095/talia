@@ -25,8 +25,9 @@ _SUFFISSI = (
 )
 
 # 1) Articolo con suffisso, anche senza prefisso "art." (es. "21-nonies").
+#    Trattino opzionale: negli atti reali compare anche "21 nonies".
 _ART_SUFFISSO_RE = re.compile(
-    rf"\b(?:art(?:icolo)?\.?\s*)?\d{{1,3}}\s*-\s*(?:{_SUFFISSI})\b", re.IGNORECASE
+    rf"\b(?:art(?:icolo)?\.?\s*)?\d{{1,3}}\s*-?\s*(?:{_SUFFISSI})\b", re.IGNORECASE
 )
 
 # 2) Articolo semplice: richiede la parola "art."/"articolo" per non agganciare
