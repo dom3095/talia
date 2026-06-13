@@ -1,10 +1,9 @@
 """Test TAL-14: check-7 GDPR data breach."""
 
-import pytest
 from talia.engine.checklist.check7_gdpr import CheckGdprBreach, _breach_descritto
 from talia.engine.fascicolo import AttoAnalizzato, ContestoFascicolo, RuoloAtto
-from talia.engine.pdf_text import da_testo
 from talia.engine.models import Stato
+from talia.engine.pdf_text import da_testo
 
 
 def _contesto(testo_autotutela: str) -> ContestoFascicolo:

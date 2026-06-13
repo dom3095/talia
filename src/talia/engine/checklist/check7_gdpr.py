@@ -88,7 +88,10 @@ class CheckGdprBreach(Check):
 
         match_breach = _breach_descritto(testo)
         if match_breach is None:
-            return self._esito(Stato.NON_APPLICABILE, "Nessuna descrizione di divulgazione di dati personali rilevata.")
+            return self._esito(
+                Stato.NON_APPLICABILE,
+                "Nessuna descrizione di divulgazione di dati personali rilevata.",
+            )
 
         citazione_breach = Citazione(
             testo=atto.estratto(match_breach.start(), match_breach.end()),
@@ -101,7 +104,8 @@ class CheckGdprBreach(Check):
         if match_notifica:
             return self._esito(
                 Stato.VERDE,
-                "L'atto descrive una violazione di dati personali e menziona la notifica al Garante.",
+                "L'atto descrive una violazione di dati personali"
+                " e menziona la notifica al Garante.",
                 [
                     citazione_breach,
                     Citazione(
