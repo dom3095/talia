@@ -27,6 +27,13 @@ _RE_COMUNICAZIONE = re.compile(r"comunicazione\s+(?:di\s+)?avvio", re.IGNORECASE
 _RE_ART7 = re.compile(r"art(?:icolo)?\.?\s*7\b", re.IGNORECASE)
 _RE_241 = re.compile(r"\b241\b")
 
+# PA che sostituisce la notifica individuale con la pubblicazione sul sito.
+# Rilevante quando i partecipanti sono noti (selezioni interne, concorsi avviati).
+_RE_PUBBL_SITO = re.compile(
+    r"pubblicazione\s+sul\s+sito.{0,60}valore?\s+di\s+notifica",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 class CheckComunicazioneAvvio(Check):
     id = "check-5"
@@ -51,11 +58,34 @@ class CheckComunicazioneAvvio(Check):
                     )
                 ],
             )
-        return self._esito(
-            Stato.ROSSO,
-            "Nessuna menzione della comunicazione di avvio del procedimento "
-            "(art. 7 L. 241/1990) nei confronti dei partecipanti: da verificare.",
+        # Cerca se l'atto dichiara esplicitamente di notificare via pubblicazione
+        # sul sito invece della comunicazione individuale.
+        match_pubbl = _RE_PUBBL_SITO.search(testo)
+        citazioni_extra = (
+            [
+                Citazione(
+                    testo=atto.estratto(match_pubbl.start(), match_pubbl.end()),
+                    offset_inizio=match_pubbl.start(),
+                    offset_fine=match_pubbl.end(),
+                    pagina=atto.pagina_per_offset(match_pubbl.start()),
+                )
+            ]
+            if match_pubbl
+            else []
         )
+        spiegazione = (
+            "Nessuna comunicazione individuale di avvio del procedimento "
+            "(art. 7 L. 241/1990) nei confronti dei partecipanti. "
+            + (
+                "L'atto prevede la sola pubblicazione sul sito come forma di notifica: "
+                "per procedure con candidati noti (selezioni interne, concorsi già "
+                "avviati), questa scelta è da verificare con un esperto legale."
+                if match_pubbl
+                else "Da verificare: l'assenza di menzione non prova l'omissione, "
+                "ma è un segnale da approfondire."
+            )
+        )
+        return self._esito(Stato.ROSSO, spiegazione, citazioni_extra)
 
 
 def _art7_241(testo: str) -> re.Match | None:
