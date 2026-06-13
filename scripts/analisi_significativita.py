@@ -7,21 +7,23 @@ Output solo su stdout — mai committare i risultati (contengono dati personali)
 """
 
 import sys
-import json
-from pathlib import Path
 from collections import Counter, defaultdict
+from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from talia.engine.pdf_text import estrai_testo
-from talia.engine.entita import estrai_entita
-from talia.engine.firmatari import nome_normalizzato
-from talia.engine.attori import estrai_attori, estrai_riferimenti_atti
-from talia.engine.firmatari import nome_normalizzato
-from talia.modulo1_fascicolo.analisi import classifica_ruolo, punteggi_ruolo, costruisci_contesto
-from talia.engine.fascicolo import AttoAnalizzato, RuoloAtto
-from talia.engine.checklist.base import esegui_checklist
+from talia.engine.attori import estrai_attori, estrai_riferimenti_atti  # noqa: E402
+from talia.engine.checklist.base import esegui_checklist  # noqa: E402
+from talia.engine.entita import estrai_entita  # noqa: E402
+from talia.engine.fascicolo import AttoAnalizzato, RuoloAtto  # noqa: E402
+from talia.engine.firmatari import nome_normalizzato  # noqa: E402
+from talia.engine.pdf_text import estrai_testo  # noqa: E402
+from talia.modulo1_fascicolo.analisi import (  # noqa: E402
+    classifica_ruolo,
+    costruisci_contesto,
+    punteggi_ruolo,
+)
 
 
 def sezione(titolo: str) -> None:
@@ -115,7 +117,7 @@ def analizza(cartella: Path) -> None:
     ruolo_a_nomi: dict[str, list[str]] = defaultdict(list)
     tutti_attori_per_atto = []
 
-    for nome_file, atto, ruolo, entita in tutti_entita:
+    for nome_file, atto, ruolo, _entita in tutti_entita:
         attori = estrai_attori(atto)
         tutti_attori_per_atto.append((nome_file, attori))
         print(f"\n  {nome_file}  [{ruolo.value}]")
@@ -135,7 +137,7 @@ def analizza(cartella: Path) -> None:
     fs_a_ruoli: dict[frozenset, set[str]] = defaultdict(set)
     fs_a_conti: dict[frozenset, int] = Counter()
 
-    for nome_file, attori in tutti_attori_per_atto:
+    for _nome_file, attori in tutti_attori_per_atto:
         for a in attori:
             if not a.nome:
                 continue
@@ -163,7 +165,7 @@ def analizza(cartella: Path) -> None:
     chiave_a_atti: dict[str, list[str]] = defaultdict(list)
     tutti_rif_per_atto = []
 
-    for nome_file, atto, ruolo, entita in tutti_entita:
+    for nome_file, atto, ruolo, _entita in tutti_entita:
         rif = estrai_riferimenti_atti(atto)
         tutti_rif_per_atto.append((nome_file, rif))
         print(f"\n  {nome_file}  [{ruolo.value}]")
@@ -269,7 +271,10 @@ def analizza(cartella: Path) -> None:
         print("  ~ Catena procedurale non rilevata (rif. cross-atto assenti).")
 
     if multi_ruolo:
-        print(f"  ⚠️  {len(multi_ruolo)} persona/e con ruoli multipli → potenziale conflitto da approfondire.")
+        print(
+            f"  ⚠️  {len(multi_ruolo)} persona/e con ruoli multipli"
+            " → potenziale conflitto da approfondire."
+        )
 
     if rossi:
         print(f"  ⚠️  {len(rossi)} check rossi → segnalazioni concrete da verificare:")
