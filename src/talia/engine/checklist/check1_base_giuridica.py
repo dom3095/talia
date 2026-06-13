@@ -21,12 +21,20 @@ from ..fascicolo import ContestoFascicolo
 from ..models import Citazione, Stato
 from .base import Check, EsitoCheck, registra
 
-_RIFERIMENTI = ("Art. 21-quinquies L. 241/1990", "Art. 21-nonies L. 241/1990")
+_RIFERIMENTI = (
+    "Art. 21-quinquies L. 241/1990 (revoca per sopravvenuti motivi di opportunità)",
+    "Art. 21-nonies L. 241/1990 (annullamento d'ufficio per illegittimità originaria)",
+    "Art. 21-octies L. 241/1990 (annullabilità per vizi formali — istituto distinto)",
+)
 
 # Riconoscimento degli istituti. Il trattino è opzionale: negli atti reali si
 # trova "21-quinquies", "21 quinquies" e perfino "21quinquies" (OCR).
 _RE_REVOCA = re.compile(r"21\s*-?\s*quinquies", re.IGNORECASE)
 _RE_ANNULLAMENTO = re.compile(r"21\s*-?\s*nonies", re.IGNORECASE)
+# 21-octies = annullabilità per vizi di forma/procedura: istituto distinto da
+# revoca e annullamento in autotutela; la sua presenza in un atto strutturato
+# come "revoca" è una potenziale incoerenza giuridica.
+_RE_OCTIES = re.compile(r"21\s*-?\s*octies", re.IGNORECASE)
 
 # Parole spia della motivazione. Liste volutamente brevi e prudenti: in caso di
 # segnali assenti l'esito è 🟡 (da verificare), mai un giudizio netto.
@@ -64,13 +72,27 @@ class CheckBaseGiuridica(Check):
 
         match_revoca = _RE_REVOCA.search(testo)
         match_annullamento = _RE_ANNULLAMENTO.search(testo)
+        match_octies = _RE_OCTIES.search(testo)
 
         # Caso 🔴: nessun riferimento normativo dell'autotutela.
         if not match_revoca and not match_annullamento:
+            if match_octies:
+                return self._esito(
+                    Stato.ROSSO,
+                    "Non è citata la base giuridica della revoca (art. 21-quinquies) "
+                    "né dell'annullamento d'ufficio (art. 21-nonies). "
+                    "L'atto richiama art. 21-octies (annullabilità per vizi di "
+                    "forma/procedura), che è un istituto distinto e non costituisce "
+                    "fondamento dell'autotutela discrezionale: verificare con un esperto "
+                    "legale se il fondamento giuridico adottato sia corretto.",
+                    [_cita(atto, match_octies)],
+                )
             return self._esito(
                 Stato.ROSSO,
                 "Non è citata alcuna base giuridica dell'autotutela "
-                "(art. 21-quinquies o 21-nonies L. 241/1990).",
+                "(art. 21-quinquies per la revoca o art. 21-nonies per l'annullamento "
+                "d'ufficio). L'atto rimanda genericamente alla L. 241/1990 senza "
+                "specificare l'articolo: la base giuridica è incompleta.",
             )
 
         # Caso 🟡: citati entrambi gli istituti → dichiarazione ambigua.
