@@ -12,6 +12,7 @@ L'estrazione dei nomi è inevitabilmente euristica: serve sempre il disclaimer.
 from __future__ import annotations
 
 import re
+from dataclasses import replace as dc_replace
 
 from .models import Entita, TestoAtto, TipoEntita
 
@@ -19,7 +20,6 @@ from .models import Entita, TestoAtto, TipoEntita
 # Norme citate
 # ---------------------------------------------------------------------------
 
-# Numerali ordinali usati negli articoli di legge (art. 21-nonies, ecc.).
 _SUFFISSI = (
     "bis|ter|quater|quinquies|sexies|septies|octies|nonies|decies|undecies|duodecies"
 )
@@ -34,37 +34,96 @@ _ART_SUFFISSO_RE = re.compile(
 #    qualunque numero.
 _ART_SEMPLICE_RE = re.compile(r"\bart(?:icolo)?\.?\s*\d{1,3}\b", re.IGNORECASE)
 
-# 3) Riferimento a legge/decreto con numero/anno (D.lgs. 36/2023, L. 241/1990,
-#    L.R. 12/2011, legge 190/2012, ...).
+# 3) Riferimento a legge/decreto con numero/anno.
 _LEGGE_RE = re.compile(
     r"\b(?:d\.?\s*lgs\.?|decreto\s+legislativo|d\.?\s*l\.?|l\.?\s*r\.?|legge|l\.)"
     r"\s*(?:n\.?\s*)?\d{1,4}\s*/\s*\d{2,4}\b",
     re.IGNORECASE,
 )
 
-_PATTERN_NORME = (_ART_SUFFISSO_RE, _ART_SEMPLICE_RE, _LEGGE_RE)
+# 4) Contratto collettivo nazionale: "CCNL comparto Funzioni Locali del 16.11.2022"
+#    o "CCNL 16.11.2022". Fino a 5 parole-descrittore (sole lettere) prima della data.
+_CCNL_RE = re.compile(
+    r"\bCCNL\b(?:\s+[A-Za-zÀ-ùà-ù]+){0,5}\s+\d{2}[./]\d{2}[./]\d{4}",
+    re.IGNORECASE,
+)
+
+# Filtro per "1-bis", "2-ter" senza prefisso "art." (riferimenti a commi, non ad articoli).
+_BARE_COMMA_RE = re.compile(rf"^\d\s*-?\s*(?:{_SUFFISSI})\b", re.IGNORECASE)
+
+# Distanza massima (caratteri) per ancorare un art. alla legge sullo stesso rigo.
+_FINESTRA_ANCORAGGIO = 200
 
 
 def estrai_norme(atto: TestoAtto) -> list[Entita]:
-    """Riferimenti normativi citati nel testo (articoli e leggi/decreti).
+    """Riferimenti normativi citati nel testo, con ancoraggio contestuale.
 
-    I duplicati e i match interamente contenuti in un altro (es. "art. 21"
-    dentro "art. 21-nonies") vengono rimossi tenendo il più esteso.
+    Strategia in tre passi:
+    1. Estrae articoli con suffisso (21-quinquies ecc., self-explanatory) e leggi
+       complete (D.Lgs. N/anno, L. N/anno, CCNL data).
+    2. Per ogni articolo semplice (art. X) cerca la legge più vicina nella stessa
+       riga (nessun newline tra loro, entro 200 caratteri); se trovata li fonde in
+       "art. X [LEGGE]", altrimenti scarta l'articolo (troppo vago).
+    3. Rimuove span contenuti in altri, poi deduplicà per valore normalizzato.
     """
-    grezzi: list[Entita] = []
-    for pattern in _PATTERN_NORME:
-        for m in pattern.finditer(atto.testo):
-            grezzi.append(
-                Entita(
-                    tipo=TipoEntita.NORMA,
-                    valore=_normalizza_norma(m.group(0)),
-                    testo_originale=m.group(0),
-                    offset_inizio=m.start(),
-                    offset_fine=m.end(),
-                    pagina=atto.pagina_per_offset(m.start()),
-                )
-            )
-    return _rimuovi_contenuti(grezzi)
+    testo = atto.testo
+
+    # -- Passo 1: norme "assolute" (self-contained) --
+    arts_suffisso: list[Entita] = []
+    for m in _ART_SUFFISSO_RE.finditer(testo):
+        norm = _normalizza_norma(m.group(0))
+        if _BARE_COMMA_RE.match(norm):
+            continue  # "1-bis" senza art. = riferimento a comma, non norma
+        arts_suffisso.append(_entita(m, atto))
+
+    leggi_refs: list[Entita] = [
+        _entita(m, atto)
+        for pattern in (_LEGGE_RE, _CCNL_RE)
+        for m in pattern.finditer(testo)
+    ]
+
+    # -- Passo 2: articoli semplici ancorati alla legge più vicina --
+    arts_ancorati: list[Entita] = []
+    for m in _ART_SEMPLICE_RE.finditer(testo):
+        e = _entita(m, atto)
+        legge = _trova_legge_vicina(e, leggi_refs, testo)
+        if legge:
+            arts_ancorati.append(dc_replace(e, valore=f"{e.valore} {legge.valore}"))
+        # senza legge vicina → scartato ("art. 13 di cosa?")
+
+    # -- Passo 3: pulizia --
+    tutti = arts_suffisso + leggi_refs + arts_ancorati
+    return _deduplica_per_valore(_rimuovi_contenuti(tutti))
+
+
+def _entita(m: re.Match, atto: TestoAtto) -> Entita:
+    return Entita(
+        tipo=TipoEntita.NORMA,
+        valore=_normalizza_norma(m.group(0)),
+        testo_originale=m.group(0),
+        offset_inizio=m.start(),
+        offset_fine=m.end(),
+        pagina=atto.pagina_per_offset(m.start()),
+    )
+
+
+def _trova_legge_vicina(art: Entita, leggi: list[Entita], testo: str) -> Entita | None:
+    """Restituisce la legge più vicina nella stessa riga (nessun newline tra loro)."""
+    migliore: Entita | None = None
+    dist_min = _FINESTRA_ANCORAGGIO + 1
+    for legge in leggi:
+        if legge.offset_fine <= art.offset_inizio:
+            dist = art.offset_inizio - legge.offset_fine
+            testo_tra = testo[legge.offset_fine : art.offset_inizio]
+        elif legge.offset_inizio >= art.offset_fine:
+            dist = legge.offset_inizio - art.offset_fine
+            testo_tra = testo[art.offset_fine : legge.offset_inizio]
+        else:
+            continue
+        if dist <= _FINESTRA_ANCORAGGIO and "\n" not in testo_tra and dist < dist_min:
+            dist_min = dist
+            migliore = legge
+    return migliore
 
 
 def _normalizza_norma(testo: str) -> str:
@@ -73,7 +132,6 @@ def _normalizza_norma(testo: str) -> str:
 
 def _rimuovi_contenuti(entita: list[Entita]) -> list[Entita]:
     """Elimina le entità il cui intervallo è contenuto in quello di un'altra."""
-    # Ordina per ampiezza decrescente: i match più larghi "assorbono" i più piccoli.
     ordinate = sorted(entita, key=lambda e: e.offset_fine - e.offset_inizio, reverse=True)
     tenute: list[Entita] = []
     for e in ordinate:
@@ -86,36 +144,30 @@ def _rimuovi_contenuti(entita: list[Entita]) -> list[Entita]:
     return sorted(tenute, key=lambda e: e.offset_inizio)
 
 
+def _deduplica_per_valore(entita: list[Entita]) -> list[Entita]:
+    """Mantiene la prima occorrenza per ogni valore normalizzato (case-insensitive)."""
+    visti: dict[str, Entita] = {}
+    for e in sorted(entita, key=lambda e: e.offset_inizio):
+        k = " ".join(e.valore.upper().split())
+        if k not in visti:
+            visti[k] = e
+    return list(visti.values())
+
+
 # ---------------------------------------------------------------------------
 # Firmatari
 # ---------------------------------------------------------------------------
 
-# Titoli onorifici che tipicamente precedono il nome di un firmatario.
 _TITOLI = r"Dott\.ssa|Dott\.|Dr\.|Ing\.|Avv\.|Arch\.|Geom\.|Rag\.|Prof\.|Sig\.ra|Sig\.|Cons\."
-
-# Una parola di un nome proprio: iniziale maiuscola (anche accentata), resto
-# lettere. Copre sia "Rossi" sia l'OCR in maiuscolo "ROSSI".
 _PAROLA_NOME = r"[A-ZÀ-Ù][A-Za-zà-ùÀ-Ù']+"
-
-# Nome = 2 o 3 parole proprie consecutive.
-# Le parole del nome sono separate da spazi orizzontali: un newline chiude il
-# nome (evita di agganciare l'inizio della riga successiva, es. "Il Segretario").
 _NOME = rf"(?:{_PAROLA_NOME}[ \t]+){{1,2}}{_PAROLA_NOME}"
 
-# 1) Titolo onorifico seguito dal nome.
 _FIRMA_TITOLO_RE = re.compile(rf"(?:{_TITOLI})\s*(?P<nome>{_NOME})")
-
-# 2) Formula di sottoscrizione (F.to / firmato / sottoscritto), con titolo opzionale.
-# La formula è case-insensitive ma il nome resta case-sensitive — (?-i:...) —
-# altrimenti qualunque sequenza di parole minuscole ("firmato digitalmente ai
-# sensi...") verrebbe scambiata per un nome.
 _FIRMA_FORMULA_RE = re.compile(
     rf"(?:F\.?to|firmato|sottoscritt[oa])\b[:\s]*(?:(?:{_TITOLI})\s*)?(?P<nome>(?-i:{_NOME}))",
     re.IGNORECASE,
 )
 
-# Parole con iniziale maiuscola che non possono chiudere un nome di persona
-# (articoli/preposizioni/participi a inizio riga o frase dopo la firma).
 _STOPWORD_FINALI = frozenset(
     {
         "Il", "Lo", "La", "Gli", "Le", "Un", "Una", "Uno",
@@ -137,24 +189,19 @@ def _rifila_nome(grezzo: str) -> str:
             return grezzo
         grezzo = rifilato
 
+
 _PATTERN_FIRME = (_FIRMA_TITOLO_RE, _FIRMA_FORMULA_RE)
 
 
 def estrai_firmatari(atto: TestoAtto) -> list[Entita]:
-    """Firmatari riconosciuti per titolo onorifico o formula di sottoscrizione.
-
-    Euristica: precisione privilegiata sul recall (meglio non segnalare che
-    inventare un nome). L'offset punta al nome, non all'eventuale titolo.
-    """
+    """Firmatari riconosciuti per titolo onorifico o formula di sottoscrizione."""
     trovati: list[Entita] = []
     visti: set[tuple[int, int]] = set()
     for pattern in _PATTERN_FIRME:
         for m in pattern.finditer(atto.testo):
             grezzo = _rifila_nome(m.group("nome"))
-            # Dopo il rifilo servono ancora ≥ 2 parole per un nome plausibile.
             if len(grezzo.split()) < 2:
                 continue
-            # Lo span segue il rifilo: il nome è un prefisso del match originale.
             span = (m.start("nome"), m.start("nome") + len(grezzo))
             if span in visti:
                 continue
@@ -173,19 +220,12 @@ def estrai_firmatari(atto: TestoAtto) -> list[Entita]:
     return sorted(trovati, key=lambda e: e.offset_inizio)
 
 
-# Token dei titoli onorifici, da ignorare nel confronto tra nomi (forma già
-# normalizzata: maiuscolo, senza punto finale).
 _TITOLI_TOKEN = frozenset(
     {"DOTT", "DOTTSSA", "DR", "ING", "AVV", "ARCH", "GEOM", "RAG", "PROF", "SIG", "SIGRA", "CONS"}
 )
 
 
 def nome_normalizzato(nome: str) -> frozenset[str]:
-    """Forma canonica di un nome per il confronto tra firmatari.
-
-    Insensibile all'ordine (cognome-nome vs nome-cognome), al maiuscolo e ai
-    titoli onorifici. Usata dal check 6 per stabilire se due atti hanno lo
-    stesso firmatario.
-    """
+    """Forma canonica di un nome: insensibile a ordine, maiuscolo e titoli."""
     token = {t.replace(".", "").strip("'").upper() for t in nome.split()}
     return frozenset(t for t in token if len(t) > 1 and t not in _TITOLI_TOKEN)
