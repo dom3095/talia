@@ -7,7 +7,7 @@ from talia.engine.pdf_text import da_testo
 def test_attore_ruolo_con_firmatario():
     atto = da_testo("Il Responsabile del Procedimento f.to: Dott. Pietro Amorosia")
     attori = estrai_attori(atto)
-    assert ("Responsabile Del Procedimento", "Pietro Amorosia") in [
+    assert ("Responsabile del Procedimento", "Pietro Amorosia") in [
         (a.ruolo, a.nome) for a in attori
     ]
 

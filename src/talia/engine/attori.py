@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .firmatari import estrai_firmatari
+from .firmatari import estrai_firmatari, nome_normalizzato
 from .models import TestoAtto
 
 # ---------------------------------------------------------------------------
@@ -128,16 +128,75 @@ def estrai_attori(atto: TestoAtto) -> list[Attore]:
             )
         )
 
-    # Se per uno stesso ruolo esiste una versione con nome, le menzioni anonime
-    # dello stesso ruolo sono rumore: si scartano.
+    # Scarta menzioni anonime se esiste la versione con nome per lo stesso ruolo.
     ruoli_con_nome = {a.ruolo for a in attori if a.nome}
-    return [a for a in attori if a.nome or a.ruolo not in ruoli_con_nome]
+    filtrati = [a for a in attori if a.nome or a.ruolo not in ruoli_con_nome]
+
+    # Deduplicazione per persona: "Salvatore Domanti" = "Domanti Salvatore"
+    # (firma digitale in ordine cognome-nome), "Pietro Amorosia" ⊆ "Pietro Nicola Amorosia".
+    return _unisci_per_persona(filtrati)
+
+
+def _stessa_persona(a: str | None, b: str | None) -> bool:
+    """True se i due nomi rappresentano la stessa persona.
+
+    Gestisce: ordine invertito nome/cognome (frozenset uguale) e secondo nome
+    omesso (frozenset subset con ≥2 token comuni).
+    """
+    if a is None or b is None:
+        return False
+    fa = nome_normalizzato(a)
+    fb = nome_normalizzato(b)
+    if len(fa) < 1 or len(fb) < 1:
+        return False
+    return fa == fb or (len(fa & fb) >= 2 and (fa <= fb or fb <= fa))
+
+
+def _unisci_per_persona(attori: list[Attore]) -> list[Attore]:
+    """Raggruppa attori con lo stesso ruolo e la stessa persona (anche con nome invertito
+    o parziale); mantiene la prima occorrenza con il nome più lungo del gruppo."""
+    gruppi: list[list[Attore]] = []
+    for a in attori:
+        inserito = False
+        for g in gruppi:
+            if g[0].ruolo == a.ruolo and _stessa_persona(g[0].nome, a.nome):
+                g.append(a)
+                inserito = True
+                break
+        if not inserito:
+            gruppi.append([a])
+
+    risultato: list[Attore] = []
+    for g in gruppi:
+        con_nome = [x for x in g if x.nome]
+        if not con_nome:
+            risultato.append(g[0])
+            continue
+        nome_lungo = max(con_nome, key=lambda x: len(x.nome))  # type: ignore[arg-type]
+        primo = min(g, key=lambda x: x.offset_inizio)
+        if primo.nome != nome_lungo.nome:
+            risultato.append(
+                Attore(
+                    ruolo=primo.ruolo,
+                    nome=nome_lungo.nome,
+                    offset_inizio=primo.offset_inizio,
+                    offset_fine=primo.offset_fine,
+                    pagina=primo.pagina,
+                )
+            )
+        else:
+            risultato.append(primo)
+    return risultato
+
+
+_PREPOSIZIONI = frozenset({"del", "di", "della", "dello", "dei", "degli", "delle", "al"})
 
 
 def _canonico_ruolo(grezzo: str) -> str:
-    """Forma canonica del ruolo (capitalizzazione uniforme)."""
+    """Forma canonica del ruolo (capitalizzazione uniforme; preposizioni minuscole)."""
     return " ".join(
-        parola if parola.isupper() and len(parola) <= 4 else parola.capitalize()
+        parola.lower() if parola.lower() in _PREPOSIZIONI
+        else (parola if parola.isupper() and len(parola) <= 4 else parola.capitalize())
         for parola in grezzo.split()
     )
 
