@@ -34,6 +34,7 @@ e il check LLM (TAL-11).
 | [TAL-20](TAL-20.md) | Scraper pilota: un albo pretorio | E2 | 🕷️ SCR | P1 |
 | [TAL-21](TAL-21.md) | Schema DB atti + storage | E2 | 🧭 TL | P1 |
 | [TAL-22](TAL-22.md) | Pipeline ANAC/BDNCP (regione 19) | E2 | 🕷️ SCR | P2 |
+| [TAL-25](TAL-25.md) | Scraping organigrammi e DPO da Amm. Trasparente | E2 | 🕷️ SCR | P2 |
 | [TAL-23](TAL-23.md) | Red flags batch deterministici | E2 | 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
 | [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | E3 | 📊 FE | P2 |
@@ -63,6 +64,7 @@ e il check LLM (TAL-11).
 | [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | senza incrocio tempistica graduatoria |
 | [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | 📊 FE | formato scelto: HTML statico + JSON + CLI |
 | [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | 🔤 NLP | NER sm rumoroso: resta discovery, non in motore |
+| [TAL-14](TAL-14.md) | Check 7: data breach GDPR non notificato | ⚖️ LEX + 🔤 NLP | check-8 DPO conflict rimandato a TAL-25 |
 
 ### ✅ Done
 | ID | Titolo | Note |

@@ -9,6 +9,7 @@ from . import (
     check2_termini,
     check5_avvio,
     check6_firmatari,
+    check7_gdpr,
 )
 from .base import Check, EsitoCheck, check_registrati, esegui_checklist, registra
 
@@ -18,6 +19,7 @@ _MODULI_CHECK = (
     check2_termini,
     check5_avvio,
     check6_firmatari,
+    check7_gdpr,
 )
 
 __all__ = [
