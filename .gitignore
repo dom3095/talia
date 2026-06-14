@@ -3,6 +3,9 @@
 # Dati sensibili: PDF/atti grezzi con possibili dati nominativi (mai nel repo)
 data/raw/
 *.pdf
+
+# Log delle run di analisi (contengono dati personali)
+logs/
 # (i campioni anonimizzati in data/samples/ vanno aggiunti a mano con `git add -f`)
 
 # Segreti / configurazione locale

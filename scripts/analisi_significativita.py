@@ -3,10 +3,12 @@ Analisi della significatività delle estrazioni su un fascicolo reale.
 
 Uso: python3 scripts/analisi_significativita.py data/samples/1/
 
-Output solo su stdout — mai committare i risultati (contengono dati personali).
+Ogni run è identificata da un ID casuale e loggata in logs/analisi_<id>.log.
+I log contengono dati personali — sono in .gitignore, non committare.
 """
 
 import sys
+import uuid
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -24,6 +26,37 @@ from talia.modulo1_fascicolo.analisi import (  # noqa: E402
     costruisci_contesto,
     punteggi_ruolo,
 )
+
+
+class _Tee:
+    """Duplica stdout su un file di log mantenendo l'output a terminale."""
+
+    def __init__(self, log_path: Path) -> None:
+        self._stdout = sys.stdout
+        self._file = log_path.open("w", encoding="utf-8")
+
+    def write(self, obj: str) -> int:
+        self._stdout.write(obj)
+        self._file.write(obj)
+        return len(obj)
+
+    def flush(self) -> None:
+        self._stdout.flush()
+        self._file.flush()
+
+    def close(self) -> None:
+        sys.stdout = self._stdout
+        self._file.close()
+
+
+def _avvia_log() -> tuple[str, Path]:
+    """Crea il file di log e redirige stdout su Tee. Restituisce (run_id, log_path)."""
+    run_id = uuid.uuid4().hex[:12]
+    log_dir = ROOT / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / f"analisi_{run_id}.log"
+    sys.stdout = _Tee(log_path)  # type: ignore[assignment]
+    return run_id, log_path
 
 
 def sezione(titolo: str) -> None:
@@ -291,4 +324,10 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(f"Uso: python3 {sys.argv[0]} <cartella_fascicolo>")
         sys.exit(1)
-    analizza(Path(sys.argv[1]))
+    run_id, log_path = _avvia_log()
+    print(f"run_id: {run_id}  |  log: {log_path}")
+    try:
+        analizza(Path(sys.argv[1]))
+    finally:
+        if isinstance(sys.stdout, _Tee):
+            sys.stdout.close()
