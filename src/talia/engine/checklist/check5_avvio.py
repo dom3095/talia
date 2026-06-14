@@ -34,6 +34,18 @@ _RE_PUBBL_SITO = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+# Indicatori che la procedura è un concorso/selezione interna al personale dell'ente.
+# Per i concorsi interni la pubblicazione all'albo pretorio/sito sostituisce la
+# pubblicità legale (art. 32 L. 69/2009), quindi l'assenza di notifica individuale
+# è meno critica che per procedure aperte a candidati esterni.
+_RE_CONCORSO_INTERNO = re.compile(
+    r"(?:concorso|selezione|avviso|procedura)\s+intern[oa]"
+    r"|personale\s+(?:intern[oa]|dipendente)"
+    r"|riservat[oa]\s+al\s+personale"
+    r"|mobilit[àa]\s+intern[ao]",
+    re.IGNORECASE,
+)
+
 
 class CheckComunicazioneAvvio(Check):
     id = "check-5"
@@ -61,31 +73,40 @@ class CheckComunicazioneAvvio(Check):
         # Cerca se l'atto dichiara esplicitamente di notificare via pubblicazione
         # sul sito invece della comunicazione individuale.
         match_pubbl = _RE_PUBBL_SITO.search(testo)
-        citazioni_extra = (
-            [
-                Citazione(
-                    testo=atto.estratto(match_pubbl.start(), match_pubbl.end()),
-                    offset_inizio=match_pubbl.start(),
-                    offset_fine=match_pubbl.end(),
-                    pagina=atto.pagina_per_offset(match_pubbl.start()),
+        if match_pubbl:
+            cit_pubbl = Citazione(
+                testo=atto.estratto(match_pubbl.start(), match_pubbl.end()),
+                offset_inizio=match_pubbl.start(),
+                offset_fine=match_pubbl.end(),
+                pagina=atto.pagina_per_offset(match_pubbl.start()),
+            )
+            if _RE_CONCORSO_INTERNO.search(testo):
+                # Concorso interno: pubblicazione albo/sito è forma di pubblicità
+                # legale sufficiente (art. 32 L. 69/2009). Segnaliamo comunque
+                # per verifica dell'effettiva conoscenza da parte dei candidati.
+                return self._esito(
+                    Stato.GIALLO,
+                    "Concorso interno: la pubblicazione sul sito sostituisce la "
+                    "pubblicità legale (art. 32 L. 69/2009). Verificare che i "
+                    "candidati abbiano avuto effettiva conoscenza dell'atto.",
+                    [cit_pubbl],
                 )
-            ]
-            if match_pubbl
-            else []
-        )
-        spiegazione = (
+            return self._esito(
+                Stato.ROSSO,
+                "L'atto prevede la sola pubblicazione sul sito come forma di "
+                "notifica. Per procedure con candidati noti (concorsi già avviati, "
+                "non interni), la comunicazione individuale ex art. 7 L. 241/1990 "
+                "è da verificare con un esperto legale.",
+                [cit_pubbl],
+            )
+        return self._esito(
+            Stato.ROSSO,
             "Nessuna comunicazione individuale di avvio del procedimento "
             "(art. 7 L. 241/1990) nei confronti dei partecipanti. "
-            + (
-                "L'atto prevede la sola pubblicazione sul sito come forma di notifica: "
-                "per procedure con candidati noti (selezioni interne, concorsi già "
-                "avviati), questa scelta è da verificare con un esperto legale."
-                if match_pubbl
-                else "Da verificare: l'assenza di menzione non prova l'omissione, "
-                "ma è un segnale da approfondire."
-            )
+            "Da verificare: l'assenza di menzione non prova l'omissione, "
+            "ma è un segnale da approfondire.",
+            [],
         )
-        return self._esito(Stato.ROSSO, spiegazione, citazioni_extra)
 
 
 def _art7_241(testo: str) -> re.Match | None:
