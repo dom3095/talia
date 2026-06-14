@@ -9,16 +9,13 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: pyproject.toml
 
@@ -34,6 +31,17 @@ jobs:
 
       - name: Test (pytest)
         run: pytest -q
+
+  cve-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installa Grype
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Scansione CVE (fallisce solo su CRITICAL)
+        run: grype dir:. --fail-on critical
 
 # Futuro (TAL-20): workflow `cron` per lo scraping continuo, es.
 #
