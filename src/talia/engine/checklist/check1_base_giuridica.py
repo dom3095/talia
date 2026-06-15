@@ -25,6 +25,14 @@ _RIFERIMENTI = (
     "Art. 21-quinquies L. 241/1990 (revoca per sopravvenuti motivi di opportunità)",
     "Art. 21-nonies L. 241/1990 (annullamento d'ufficio per illegittimità originaria)",
     "Art. 21-octies L. 241/1990 (annullabilità per vizi formali — istituto distinto)",
+    # imparzialità e commissioni
+    "Art. 97 Cost. (imparzialità e buon andamento della pubblica amministrazione)",
+    "Art. 6-bis L. 241/1990 (obbligo di astensione per conflitto di interessi nel procedimento)",
+    "Art. 35-bis D.Lgs. 165/2001 (prevenzione conflitti di interesse nelle commissioni concorsuali e di gara)",
+    "Art. 42 D.Lgs. 50/2016 (conflitto di interessi — gare indette prima del 2024)",
+    "Art. 77 D.Lgs. 50/2016 (commissione giudicatrice: composizione, requisiti e incompatibilità)",
+    # riservatezza / fuga di notizie
+    "Art. 1 co. 1 lett. f) D.Lgs. 50/2016 (principio di riservatezza nelle procedure di gara)",
 )
 
 # Riconoscimento degli istituti. Il trattino è opzionale: negli atti reali si
@@ -36,16 +44,20 @@ _RE_ANNULLAMENTO = re.compile(r"21\s*-?\s*nonies", re.IGNORECASE)
 # come "revoca" è una potenziale incoerenza giuridica.
 _RE_OCTIES = re.compile(r"21\s*-?\s*octies", re.IGNORECASE)
 
-# Parole spia della motivazione. Liste volutamente brevi e prudenti: in caso di
-# segnali assenti l'esito è 🟡 (da verificare), mai un giudizio netto.
+# Parole spia della motivazione. In caso di segnali assenti l'esito è 🟡
+# (da verificare), mai un giudizio netto. La valutazione semantica fine
+# è demandata al check LLM (TAL-11).
 _SEGNALI_REVOCA = (
     "sopravvenut",
     "opportunità",
     "mutamento della situazione",
     "nuova valutazione dell'interesse",
     "inopportun",
+    "ragioni di merito",
+    "interesse pubblico attuale",
 )
 _SEGNALI_ANNULLAMENTO = (
+    # illegittimità generica
     "illegittim",
     "vizio",
     "violazione di legge",
@@ -53,6 +65,30 @@ _SEGNALI_ANNULLAMENTO = (
     "incompeten",
     "ripristino della legalità",
     "annullabil",
+    "carenza di istruttoria",
+    "difetto di motivazione",
+    "contrario alla legge",
+    # commissione: parzialità / terzietà
+    # (art. 97 Cost.; art. 6-bis L. 241/1990; art. 35-bis D.Lgs. 165/2001;
+    #  artt. 42 e 77 D.Lgs. 50/2016)
+    "imparzialità",
+    "terzietà",
+    "incompatibilità",
+    "conflitto di interess",
+    "composizione della commissione",
+    "commissario incompatibil",
+    "carenza di requisit",
+    "astensione",
+    "ricusazion",
+    "pregressi rapporti",
+    "interessi personali",
+    # riservatezza / fuga di notizie
+    "fuga di notizie",
+    "turbativa",
+    "pregiudizio all'interesse",
+    "pregiudizio grave",
+    "riservatezza violat",
+    "notizie riservat",
 )
 
 

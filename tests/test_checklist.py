@@ -51,6 +51,36 @@ def test_check1_revoca_coerente_verde():
     assert CheckBaseGiuridica().valuta(ctx).stato is Stato.VERDE
 
 
+def test_check1_difetto_imparzialita_commissione_verde():
+    ctx = _contesto(
+        "annullamento ai sensi dell'art. 21-nonies per difetto di imparzialità "
+        "della commissione giudicatrice: il commissario presentava incompatibilità "
+        "e pregressi rapporti con uno dei concorrenti, in violazione dell'art. 77 "
+        "D.Lgs. 50/2016 e dell'art. 6-bis L. 241/1990."
+    )
+    esito = CheckBaseGiuridica().valuta(ctx)
+    assert esito.stato is Stato.VERDE
+
+
+def test_check1_fuga_notizie_verde():
+    ctx = _contesto(
+        "annullamento d'ufficio ex art. 21-nonies L. 241/1990 per illegittimità "
+        "originaria conseguente a fuga di notizie riservate sulle offerte, "
+        "con grave pregiudizio all'interesse pubblico e turbativa della procedura."
+    )
+    esito = CheckBaseGiuridica().valuta(ctx)
+    assert esito.stato is Stato.VERDE
+
+
+def test_check1_conflitto_interessi_senza_base_giuridica_rosso():
+    # Il conflitto di interessi è citato ma manca la base giuridica dell'autotutela.
+    ctx = _contesto(
+        "si dispone l'annullamento per conflitto di interessi del commissario, "
+        "senza richiamare alcun articolo di legge."
+    )
+    assert CheckBaseGiuridica().valuta(ctx).stato is Stato.ROSSO
+
+
 # --- Check 2: termini autotutela --------------------------------------------
 
 
@@ -77,6 +107,26 @@ def test_check2_non_applicabile_a_revoca():
 
 def test_check2_date_mancanti_giallo():
     ctx = _contesto("annullamento ai sensi dell'art. 21-nonies della L. 241/1990")
+    assert CheckTerminiAutotutela().valuta(ctx).stato is Stato.GIALLO
+
+
+def test_check2_data_ccnl_ignorata_non_inquina():
+    # Data nel contesto CCNL (2019) vicina al termine — non deve far scattare il rosso.
+    ctx = _contesto(
+        "annullamento art. 21-nonies del 10/04/2024; "
+        "il CCNL del 16.11.2019 prevede l'inquadramento dei dipendenti",
+        originario="determina di indizione del 01/01/2024",
+    )
+    # Con CCNL filtrato: delta ~100 giorni → VERDE
+    assert CheckTerminiAutotutela().valuta(ctx).stato is Stato.VERDE
+
+
+def test_check2_solo_date_ccnl_giallo():
+    # Tutte le date sono nel contesto CCNL: nessuna data valida → GIALLO (non determinabile).
+    ctx = _contesto(
+        "annullamento art. 21-nonies; si applica il CCNL del 16.11.2022 "
+        "e l'accordo quadro del 01.03.2021"
+    )
     assert CheckTerminiAutotutela().valuta(ctx).stato is Stato.GIALLO
 
 
