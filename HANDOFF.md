@@ -4,24 +4,24 @@
 
 ## Cosa è stato fatto (ultimo passo)
 
-**B3 — TAL-22: Pipeline ANAC open data (regione 19)** ✅
+**B4 — TAL-23: Red flags batch deterministici** ✅
 
-- Creato `src/talia/modulo2_scraping/fonti/anac.py`:
-  - `_leggi_csv(contenuto)` — genera righe normalizzate da CSV ANAC (delimiter `;`)
-  - `_filtra_sicilia(righe)` — filtra per `sezione_regionale == 'Sicilia'`
-  - `_normalizza_colonne(riga)` — gestisce alias colonne tra versioni CSV diverse
-  - `_mappa_atto(riga, codice_istat)` → `AttoMetadato` con `tipo='contratto_anac'`
-  - `_upsert_ente_anac(conn, riga)` — inserisce ente da CF se non nel DB
-  - `carica_csv_anac(contenuto, conn, *, crea_enti_mancanti=True)` — API principale
-  - `scarica_e_carica(conn, *, url, _fetch_fn)` — download + caricamento
-  - `url_fonte` sintetico: `https://dati.anticorruzione.it/opendata/cig/<cig>`
-  - Idempotente: UNIQUE su `(ente_id, url_fonte)` → re-run sicuro
+Creato pacchetto `src/talia/modulo2_scraping/red_flags/`:
 
-- Creato `tests/fonti/fixtures/anac_sample.csv` — 10 righe (8 siciliane + 2 fuori Sicilia)
-- Creato `tests/fonti/test_anac.py` — 22 test offline, tutti verdi
-- 144 test totali sul progetto, tutti verdi
+| File | Contenuto |
+|------|-----------|
+| `frazionamento.py` | sliding window 90 gg: ≥3 atti < 140k EUR con totale > soglia |
+| `concentrazione.py` | quota affidamenti diretti > 80% in anno (≥10 atti) |
+| `tempi_anomali.py` | bandi con finestra < 15 gg (sotto soglia UE) / < 30 gg (sopra) |
+| `runner.py` | `esegui_tutti(conn)` → salva su DB, ritorna `RapportoRunner` |
+
+- 20 test in `tests/red_flags/` — tutti verdi
+- Suite completa: **164 test passano**
+- Bug fixato: `strftime('%Y')` restituisce TEXT in SQLite; confronto con `str(anno)`
 
 ## Cosa era stato fatto prima
+
+**B3 — TAL-22: Pipeline ANAC open data** ✅ — `anac.py` + 22 test
 
 **B2 — TAL-20: Spider iCity** ✅ — `icity.py` + 31 test
 
@@ -29,17 +29,21 @@
 
 ## Prossimo passo
 
-**B4 — TAL-23: Red flags batch deterministici**
+**B5 — TAL-30: Dashboard Streamlit MVP**
 
-Leggere `LOOP_STATE.md` sezione B4 per le istruzioni dettagliate.
+Leggere `LOOP_STATE.md` sezione B5 per le istruzioni dettagliate.
 
 File da creare:
-- `src/talia/modulo2_scraping/red_flags/__init__.py`
-- `src/talia/modulo2_scraping/red_flags/frazionamento.py`
-- `src/talia/modulo2_scraping/red_flags/concentrazione.py`
-- `src/talia/modulo2_scraping/red_flags/tempi_anomali.py`
-- `src/talia/modulo2_scraping/red_flags/runner.py`
-- `tests/red_flags/` (test per ogni regola)
+- `src/talia/modulo3_dashboard/app.py` — app Streamlit
+- `src/talia/modulo3_dashboard/query.py` — helper query DB
+- `tests/test_dashboard_query.py` — test query (senza Streamlit)
+
+Criteri:
+- Vista per comune: red flags aggregate + link fonte
+- Drill-down: flag → atti → URL
+- Disclaimer ben visibile
+- Anonimizzazione comuni ≤ 5000 abitanti
+- Test delle query (no dipendenza da Streamlit nel test runner)
 
 ## Branch attivo
 
@@ -48,5 +52,5 @@ File da creare:
 ## Stato LOOP_STATE.md
 
 ```
-current_step: B4
+current_step: B5
 ```

@@ -32,9 +32,7 @@ e il check LLM (TAL-11).
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
 | [TAL-25](TAL-25.md) | Scraping organigrammi e DPO da Amm. Trasparente | E2 | 🕷️ SCR | P2 |
-| [TAL-23](TAL-23.md) | Red flags batch deterministici | E2 | 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
-| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | E3 | 📊 FE | P2 |
 | [TAL-40](TAL-40.md) | README pubblico + contributing | E4 | 🧭 TL | P3 |
 
 ### 📝 To Do (pronte da prendere)
@@ -46,6 +44,7 @@ e il check LLM (TAL-11).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
+| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | 📊 FE | Sprint 3 — step B5 corrente |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
@@ -70,6 +69,7 @@ e il check LLM (TAL-11).
 | TAL-0 | Wiki + CLAUDE.md + board iniziale | doc di partenza |
 | [TAL-21](TAL-21.md) | Schema DB atti + storage | `db.py`: DDL + helper CRUD + dataclass AttoMetadato/EnteMetadato |
 | [TAL-22](TAL-22.md) | Pipeline ANAC open data (regione 19) | `anac.py`: filtro Sicilia + idempotenza + 22 test offline |
+| [TAL-23](TAL-23.md) | Red flags batch deterministici | `red_flags/`: frazionamento + concentrazione + tempi anomali + runner; 20 test |
 
 ## Legenda priorità
 
