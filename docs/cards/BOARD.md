@@ -31,8 +31,6 @@ e il check LLM (TAL-11).
 ### 📥 Backlog
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-20](TAL-20.md) | Scraper pilota: un albo pretorio | E2 | 🕷️ SCR | P1 |
-| [TAL-21](TAL-21.md) | Schema DB atti + storage | E2 | 🧭 TL | P1 |
 | [TAL-22](TAL-22.md) | Pipeline ANAC/BDNCP (regione 19) | E2 | 🕷️ SCR | P2 |
 | [TAL-25](TAL-25.md) | Scraping organigrammi e DPO da Amm. Trasparente | E2 | 🕷️ SCR | P2 |
 | [TAL-23](TAL-23.md) | Red flags batch deterministici | E2 | 🔤 NLP | P2 |
@@ -49,6 +47,7 @@ e il check LLM (TAL-11).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
+| [TAL-20](TAL-20.md) | Scraper pilota: albo pretorio iCity | 🕷️ SCR | Sprint 3 - B2 corrente |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
@@ -70,6 +69,7 @@ e il check LLM (TAL-11).
 | ID | Titolo | Note |
 |----|--------|------|
 | TAL-0 | Wiki + CLAUDE.md + board iniziale | doc di partenza |
+| [TAL-21](TAL-21.md) | Schema DB atti + storage | `src/talia/modulo2_scraping/db.py` — 18 test passanti |
 
 ## Legenda priorità
 
