@@ -1,0 +1,11 @@
+cig;anno_pubblicazione;mese_pubblicazione;cf_amministrazione;denominazione_amministrazione;sezione_regionale;oggetto_principale_contratto;tipo_appalto;importo_totale_appalto;codice_scelta_contraente;descrizione_scelta_contraente;numero_gara;data_creazione
+ABC1234567A;2024;1;80016350821;Comune di Palermo;Sicilia;Fornitura carta per uffici anno 2024;Forniture;4500,00;23;Affidamento diretto;2024-00001;12/01/2024
+BBC9876543Z;2024;1;80016350821;Comune di Palermo;Sicilia;Servizi di pulizia locali comunali;Servizi;18000,00;23;Affidamento diretto;2024-00002;15/01/2024
+CIG1111111A;2024;2;00305530830;Comune di Catania;Sicilia;Manutenzione ordinaria strade;Lavori;45000,00;08;Procedura negoziata senza previa pubblicazione;2024-00010;03/02/2024
+DIG2222222B;2024;2;00305530830;Comune di Catania;Sicilia;Fornitura cancelleria CIG DIG2222222B;Forniture;3200,00;23;Affidamento diretto;2024-00011;05/02/2024
+EEE3333333C;2024;3;00484640830;Comune di Messina;Sicilia;Servizi informatici help desk;Servizi;12000,00;06;Procedura aperta;2024-00020;10/03/2024
+FFF4444444D;2024;1;02438750586;Comune di Roma;Lazio;Fornitura toner stampanti;Forniture;2800,00;23;Affidamento diretto;2024-00100;08/01/2024
+GGG5555555E;2024;2;01199250158;Comune di Milano;Lombardia;Manutenzione verde pubblico;Servizi;30000,00;08;Procedura negoziata senza previa pubblicazione;2024-00200;20/02/2024
+HHH6666666F;2024;3;80023990801;Comune di Agrigento;Sicilia;Lavori di ripristino marciapiedi via Roma;Lavori;8500,00;23;Affidamento diretto;2024-00030;01/03/2024
+III7777777G;2024;3;80023990801;Comune di Agrigento;Sicilia;Fornitura carburanti veicoli comunali;Forniture;6000,00;23;Affidamento diretto;2024-00031;05/03/2024
+JJJ8888888H;2024;4;80016350821;Comune di Palermo;Sicilia;Servizi sorveglianza musei comunali;Servizi;22000,00;06;Procedura aperta;2024-00005;02/04/2024

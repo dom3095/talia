@@ -31,7 +31,6 @@ e il check LLM (TAL-11).
 ### 📥 Backlog
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-22](TAL-22.md) | Pipeline ANAC/BDNCP (regione 19) | E2 | 🕷️ SCR | P2 |
 | [TAL-25](TAL-25.md) | Scraping organigrammi e DPO da Amm. Trasparente | E2 | 🕷️ SCR | P2 |
 | [TAL-23](TAL-23.md) | Red flags batch deterministici | E2 | 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
@@ -51,7 +50,6 @@ e il check LLM (TAL-11).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-21](TAL-21.md) | Schema DB atti + storage | 🧭 TL | `db.py` + 18 test; branch `feat/sprint3` |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
@@ -70,7 +68,8 @@ e il check LLM (TAL-11).
 | ID | Titolo | Note |
 |----|--------|------|
 | TAL-0 | Wiki + CLAUDE.md + board iniziale | doc di partenza |
-| [TAL-21](TAL-21.md) | Schema DB atti + storage | `src/talia/modulo2_scraping/db.py` — 18 test passanti |
+| [TAL-21](TAL-21.md) | Schema DB atti + storage | `db.py`: DDL + helper CRUD + dataclass AttoMetadato/EnteMetadato |
+| [TAL-22](TAL-22.md) | Pipeline ANAC open data (regione 19) | `anac.py`: filtro Sicilia + idempotenza + 22 test offline |
 
 ## Legenda priorità
 
