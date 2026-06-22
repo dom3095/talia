@@ -4,31 +4,36 @@
 
 ## Cosa è stato fatto (ultimo passo)
 
-**B1 — TAL-21: Schema DB atti + storage** ✅
+**B2 — TAL-20: Spider pilota albo pretorio iCity** ✅
 
-- Creato `src/talia/modulo2_scraping/db.py`:
-  - DDL completo: tabelle `enti`, `atti`, `entita_estratte`, `check_esiti`, `red_flags`
-  - Dataclass `EnteMetadato` e `AttoMetadato`
-  - Helper CRUD: `connetti`, `inizializza_db`, `upsert_ente`, `inserisci_atto`,
-    `conta_atti`, `atti_per_ente`, `salva_check_esito`, `salva_red_flag`, `red_flags_per_ente`
-  - Idempotenza garantita (UNIQUE su `ente_id × url_fonte`)
-  - Indici su CIG, ente×data, tipo_flag, check_id
-- Creato `tests/test_db.py` — 18 test, tutti passanti
-- Creata struttura `src/talia/modulo2_scraping/fonti/` e `tests/fonti/`
-- Nuova wiki: `docs/wiki/12-schema-db.md`
-- BOARD.md aggiornato: TAL-21 → Done, TAL-20 → In Progress
+- Creato `src/talia/modulo2_scraping/fonti/icity.py`:
+  - `_parse_lista(html, base_url)` — estrae righe dalla tabella lista iCity
+  - `_parse_dettaglio(html, url, codice_istat)` → `AttoMetadato`
+  - `_data_iso()`, `_estrai_cig()`, `_estrai_importo()` — utilità parsing
+  - `scarica_atti(base_url, codice_istat, *, limit, delay, _fetch_fn)` — genera atti con `_fetch_fn` iniettabile per i test
+  - `salva_atti(atti, conn)` → `dict[str, int]` (inseriti/duplicati)
+  - Rate limiting via parametro `delay`; User-Agent identificativo
+- Creato `tests/fonti/fixtures/icity_lista.html` e `icity_dettaglio.html` — HTML realistici
+- Creato `tests/fonti/test_icity.py` — 31 test offline, tutti verdi
+- 122 test totali sul progetto, tutti verdi
+
+## Cosa era stato fatto prima (B1)
+
+**B1 — TAL-21: Schema DB atti + storage** ✅
+- `src/talia/modulo2_scraping/db.py` — DDL, `AttoMetadato`/`EnteMetadato`, helper CRUD
+- `tests/test_db.py` — 18 test
+- `docs/wiki/12-schema-db.md` — documentazione schema
 
 ## Prossimo passo
 
-**B2 — TAL-20: Spider pilota albo pretorio iCity**
+**B3 — TAL-22: Pipeline ANAC open data (regione 19)**
 
-Leggere `LOOP_STATE.md` sezione B2 per le istruzioni dettagliate.
+Leggere `LOOP_STATE.md` sezione B3 per le istruzioni dettagliate.
 
 File da creare:
-- `src/talia/modulo2_scraping/fonti/icity.py` — spider con `_parse_lista`, `_parse_dettaglio`, `scarica_atti`, `salva_atti`
-- `tests/fonti/fixtures/icity_lista.html` — HTML fixture realistica
-- `tests/fonti/fixtures/icity_dettaglio.html` — HTML fixture dettaglio
-- `tests/fonti/test_icity.py` — test offline (no rete, no PDF committati)
+- `src/talia/modulo2_scraping/fonti/anac.py` — fetcher ANAC CSV/JSON, filtro cod_nuts=ITG1
+- `tests/fonti/fixtures/anac_sample.csv` — campione CSV sintetico
+- `tests/fonti/test_anac.py` — test offline con CSV fixture
 
 ## Branch attivo
 
@@ -37,5 +42,5 @@ File da creare:
 ## Stato LOOP_STATE.md
 
 ```
-current_step: B2
+current_step: B3
 ```
