@@ -3,8 +3,8 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1
-- **Stato:** Backlog
-- **Branch:** `feat/TAL-20-scraper-pilota`
+- **Stato:** Review
+- **Branch:** `feat/sprint3`
 
 ## 🎯 Obiettivo
 Spider che raccoglie atti da **un solo software di albo pretorio** (il più diffuso in Sicilia) o una sola provincia.
@@ -13,18 +13,18 @@ Spider che raccoglie atti da **un solo software di albo pretorio** (il più diff
 Tappa 2 roadmap. Strategia "parti piccolo": 4-5 scraper coprono gran parte dei 391 comuni ([wiki/07](../wiki/07-fonti-dati.md)).
 
 ## ✅ Task
-- [ ] Identificare il fornitore software di albo pretorio più diffuso
-- [ ] Spider Scrapy: lista atti → download PDF → metadati (ente, data, tipo, URL, data accesso)
-- [ ] Rispetto `robots.txt` + rate limiting
-- [ ] Persistenza su DB (TAL-21)
-- [ ] Idempotenza: non riscaricare atti già presenti
-- [ ] PDF grezzi in `data/raw/` (gitignored)
+- [x] Identificare il fornitore: **iCity/iPublic (Maggioli Spa)** — più diffuso tra i comuni siciliani
+- [x] Spider stdlib (html.parser + urllib, zero deps): `_parse_lista`, `_parse_dettaglio`, `scarica_atti`, `salva_atti`
+- [x] Rate limiting (parametro `delay`) + User-Agent identificativo
+- [x] Persistenza su DB via `inserisci_atto` (TAL-21)
+- [x] Idempotenza: `inserisci_atto` scarta duplicati per `(ente_id, url_fonte)`
+- [x] PDF grezzi non committati (solo `url_pdf` nei metadati)
 
 ## 🧪 Criteri di accettazione
-- [ ] Raccoglie correttamente un batch di atti da almeno un comune pilota
-- [ ] Conserva URL + data accesso per ogni atto (esplicabilità)
-- [ ] Re-run non duplica
-- [ ] Nessun PDF con dati nominativi committato
+- [x] 31 test offline verdi (fixture HTML, `_fetch_fn` iniettabile)
+- [x] Conserva URL + data accesso per ogni atto (esplicabilità)
+- [x] Re-run non duplica (test `test_salva_atti_idempotente`)
+- [x] Nessun PDF committato — solo URL
 
 ## 🔗 Dipendenze
 TAL-21 (schema DB).

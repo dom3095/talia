@@ -3,7 +3,7 @@
 ## Stato corrente
 
 ```
-current_step: B2
+current_step: B3
 ultimo_aggiornamento: 2026-06-22
 ```
 
@@ -15,7 +15,7 @@ Obiettivo: pipeline end-to-end **fetch → DB → red flags → dashboard** su d
 | # | Card | Titolo | Stato |
 |---|------|--------|-------|
 | B1 | TAL-21 | Schema DB atti + storage (SQLite, CRUD) | ✅ done |
-| B2 | TAL-20 | Spider pilota albo pretorio (iCity) | ⏳ to_do |
+| B2 | TAL-20 | Spider pilota albo pretorio (iCity) | ✅ done |
 | B3 | TAL-22 | Pipeline ANAC open data (regione 19) | ⏳ to_do |
 | B4 | TAL-23 | Red flags batch deterministici | ⏳ to_do |
 | B5 | TAL-30 | Dashboard Streamlit MVP | ⏳ to_do |
