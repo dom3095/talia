@@ -4,36 +4,42 @@
 
 ## Cosa è stato fatto (ultimo passo)
 
-**B2 — TAL-20: Spider pilota albo pretorio iCity** ✅
+**B3 — TAL-22: Pipeline ANAC open data (regione 19)** ✅
 
-- Creato `src/talia/modulo2_scraping/fonti/icity.py`:
-  - `_parse_lista(html, base_url)` — estrae righe dalla tabella lista iCity
-  - `_parse_dettaglio(html, url, codice_istat)` → `AttoMetadato`
-  - `_data_iso()`, `_estrai_cig()`, `_estrai_importo()` — utilità parsing
-  - `scarica_atti(base_url, codice_istat, *, limit, delay, _fetch_fn)` — genera atti con `_fetch_fn` iniettabile per i test
-  - `salva_atti(atti, conn)` → `dict[str, int]` (inseriti/duplicati)
-  - Rate limiting via parametro `delay`; User-Agent identificativo
-- Creato `tests/fonti/fixtures/icity_lista.html` e `icity_dettaglio.html` — HTML realistici
-- Creato `tests/fonti/test_icity.py` — 31 test offline, tutti verdi
-- 122 test totali sul progetto, tutti verdi
+- Creato `src/talia/modulo2_scraping/fonti/anac.py`:
+  - `_leggi_csv(contenuto)` — genera righe normalizzate da CSV ANAC (delimiter `;`)
+  - `_filtra_sicilia(righe)` — filtra per `sezione_regionale == 'Sicilia'`
+  - `_normalizza_colonne(riga)` — gestisce alias colonne tra versioni CSV diverse
+  - `_mappa_atto(riga, codice_istat)` → `AttoMetadato` con `tipo='contratto_anac'`
+  - `_upsert_ente_anac(conn, riga)` — inserisce ente da CF se non nel DB
+  - `carica_csv_anac(contenuto, conn, *, crea_enti_mancanti=True)` — API principale
+  - `scarica_e_carica(conn, *, url, _fetch_fn)` — download + caricamento
+  - `url_fonte` sintetico: `https://dati.anticorruzione.it/opendata/cig/<cig>`
+  - Idempotente: UNIQUE su `(ente_id, url_fonte)` → re-run sicuro
 
-## Cosa era stato fatto prima (B1)
+- Creato `tests/fonti/fixtures/anac_sample.csv` — 10 righe (8 siciliane + 2 fuori Sicilia)
+- Creato `tests/fonti/test_anac.py` — 22 test offline, tutti verdi
+- 144 test totali sul progetto, tutti verdi
 
-**B1 — TAL-21: Schema DB atti + storage** ✅
-- `src/talia/modulo2_scraping/db.py` — DDL, `AttoMetadato`/`EnteMetadato`, helper CRUD
-- `tests/test_db.py` — 18 test
-- `docs/wiki/12-schema-db.md` — documentazione schema
+## Cosa era stato fatto prima
+
+**B2 — TAL-20: Spider iCity** ✅ — `icity.py` + 31 test
+
+**B1 — TAL-21: Schema DB** ✅ — `db.py` + 18 test
 
 ## Prossimo passo
 
-**B3 — TAL-22: Pipeline ANAC open data (regione 19)**
+**B4 — TAL-23: Red flags batch deterministici**
 
-Leggere `LOOP_STATE.md` sezione B3 per le istruzioni dettagliate.
+Leggere `LOOP_STATE.md` sezione B4 per le istruzioni dettagliate.
 
 File da creare:
-- `src/talia/modulo2_scraping/fonti/anac.py` — fetcher ANAC CSV/JSON, filtro cod_nuts=ITG1
-- `tests/fonti/fixtures/anac_sample.csv` — campione CSV sintetico
-- `tests/fonti/test_anac.py` — test offline con CSV fixture
+- `src/talia/modulo2_scraping/red_flags/__init__.py`
+- `src/talia/modulo2_scraping/red_flags/frazionamento.py`
+- `src/talia/modulo2_scraping/red_flags/concentrazione.py`
+- `src/talia/modulo2_scraping/red_flags/tempi_anomali.py`
+- `src/talia/modulo2_scraping/red_flags/runner.py`
+- `tests/red_flags/` (test per ogni regola)
 
 ## Branch attivo
 
@@ -42,5 +48,5 @@ File da creare:
 ## Stato LOOP_STATE.md
 
 ```
-current_step: B3
+current_step: B4
 ```
