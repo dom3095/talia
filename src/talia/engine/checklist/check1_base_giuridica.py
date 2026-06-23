@@ -28,7 +28,8 @@ _RIFERIMENTI = (
     # imparzialità e commissioni
     "Art. 97 Cost. (imparzialità e buon andamento della pubblica amministrazione)",
     "Art. 6-bis L. 241/1990 (obbligo di astensione per conflitto di interessi nel procedimento)",
-    "Art. 35-bis D.Lgs. 165/2001 (prevenzione conflitti di interesse nelle commissioni concorsuali e di gara)",
+    "Art. 35-bis D.Lgs. 165/2001 "
+    "(prevenzione conflitti di interesse nelle commissioni concorsuali e di gara)",
     "Art. 42 D.Lgs. 50/2016 (conflitto di interessi — gare indette prima del 2024)",
     "Art. 77 D.Lgs. 50/2016 (commissione giudicatrice: composizione, requisiti e incompatibilità)",
     # riservatezza / fuga di notizie

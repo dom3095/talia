@@ -20,7 +20,6 @@ from talia.modulo2_scraping.red_flags.frazionamento import (
     rileva_frazionamento,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

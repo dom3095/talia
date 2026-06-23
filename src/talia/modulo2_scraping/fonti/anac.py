@@ -25,7 +25,7 @@ import sqlite3
 import urllib.request
 from collections.abc import Iterator
 
-from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto, upsert_ente, EnteMetadato
+from talia.modulo2_scraping.db import AttoMetadato, EnteMetadato, inserisci_atto, upsert_ente
 from talia.modulo2_scraping.utils import ora_utc as _ora_utc
 from talia.modulo2_scraping.utils import parse_data_iso as _parse_data_iso
 

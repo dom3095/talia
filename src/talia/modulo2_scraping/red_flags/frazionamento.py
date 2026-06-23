@@ -19,7 +19,6 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-
 # ---------------------------------------------------------------------------
 # Soglie (documentate con il riferimento normativo)
 # ---------------------------------------------------------------------------

@@ -16,17 +16,14 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import urllib.request
 from collections.abc import Iterable, Iterator
 from datetime import date
 from html import unescape
 
-import urllib.request
-
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,
-    connetti,
-    inizializza_db,
     inserisci_atto,
     upsert_ente,
 )
@@ -45,7 +42,8 @@ _ALBO_PATH = "/AlboOnline/ricercaAlbo"
 _HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"}
 
 _RE_PANEL = re.compile(
-    r'<div class="panel panel-primary">(.*?)(?=<div class="panel panel-primary">|</div>\s*</div>\s*</div>\s*</div>)',
+    r'<div class="panel panel-primary">(.*?)'
+    r'(?=<div class="panel panel-primary">|</div>\s*</div>\s*</div>\s*</div>)',
     re.DOTALL,
 )
 _RE_HEADING = re.compile(r'<div class="panel-heading titolo-albo"[^>]*>(.*?)</div>', re.DOTALL)

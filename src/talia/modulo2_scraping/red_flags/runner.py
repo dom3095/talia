@@ -15,7 +15,6 @@ Disclaimer: i flag prodotti sono segnalazioni da verificare, non accertamenti.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import dataclass
 
@@ -24,7 +23,6 @@ from talia.modulo2_scraping.db import salva_red_flag
 from .concentrazione import ConcentrazioneRilevata, rileva_concentrazione
 from .frazionamento import FrazionamentoRilevato, rileva_frazionamento
 from .tempi_anomali import TempoAnomalioRilevato, rileva_tempi_anomali
-
 
 # ---------------------------------------------------------------------------
 # Mapping → DB

@@ -20,7 +20,6 @@ from talia.modulo2_scraping.db import (
     upsert_ente,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -93,7 +92,9 @@ def test_upsert_ente_aggiorna(db, ente_palermo):
     )
     ente_id2 = upsert_ente(db, ente_v2)
     assert ente_id2 == ente_id_orig
-    row = db.execute("SELECT denominazione, popolazione FROM enti WHERE codice_istat='082053'").fetchone()
+    row = db.execute(
+        "SELECT denominazione, popolazione FROM enti WHERE codice_istat='082053'"
+    ).fetchone()
     assert row["denominazione"] == "Comune di Palermo (aggiornato)"
     assert row["popolazione"] == 641999
 
