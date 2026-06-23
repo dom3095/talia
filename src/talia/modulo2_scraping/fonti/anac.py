@@ -24,9 +24,10 @@ import io
 import sqlite3
 import urllib.request
 from collections.abc import Iterator
-from datetime import datetime, timezone
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto, upsert_ente, EnteMetadato
+from talia.modulo2_scraping.utils import ora_utc as _ora_utc
+from talia.modulo2_scraping.utils import parse_data_iso as _parse_data_iso
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -63,10 +64,6 @@ _ALIAS_COLONNE: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _ora_utc() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def _normalizza_denominazione(s: str) -> str:
     """Normalizza la denominazione per il confronto case-insensitive."""
     return s.strip().lower()
@@ -93,19 +90,6 @@ def _parse_importo(s: str | None) -> float | None:
         return float(s)
     except ValueError:
         return None
-
-
-def _parse_data_iso(s: str | None) -> str | None:
-    """Converte date ANAC (dd/mm/yyyy o yyyy-mm-dd) in ISO-8601 yyyy-mm-dd."""
-    if not s:
-        return None
-    s = s.strip()
-    if len(s) == 10 and s[4] == "-":
-        return s  # già ISO
-    parts = s.split("/")
-    if len(parts) == 3 and len(parts[2]) == 4:
-        return f"{parts[2]}-{parts[1]:>02}-{parts[0]:>02}"
-    return None
 
 
 # ---------------------------------------------------------------------------

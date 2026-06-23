@@ -18,10 +18,12 @@ import time
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable, Iterator
-from datetime import datetime, timezone
 from html.parser import HTMLParser
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto, upsert_ente, EnteMetadato
+from talia.modulo2_scraping.utils import estrai_cig as _estrai_cig
+from talia.modulo2_scraping.utils import ora_utc as _ora_utc
+from talia.modulo2_scraping.utils import parse_data_iso as _data_iso
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -32,32 +34,12 @@ _DEFAULT_DELAY = 1.0    # secondi tra le richieste HTTP
 _DEFAULT_LIMIT = 200    # atti massimi per singolo run
 _USER_AGENT = "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"
 
-_RE_CIG = re.compile(r'\bCIG\s*[:\-]?\s*([A-Z0-9]{10})\b', re.IGNORECASE)
 _RE_IMPORTO = re.compile(r'€\s*([\d.]+,\d{2})')
 
 
 # ---------------------------------------------------------------------------
 # Utilità
 # ---------------------------------------------------------------------------
-
-
-def _data_iso(s: str | None) -> str | None:
-    """Converte data italiana "dd/mm/yyyy" in ISO-8601 "yyyy-mm-dd"."""
-    if not s:
-        return None
-    s = s.strip()
-    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})$', s)
-    if m:
-        return f"{m.group(3)}-{m.group(2):>02}-{m.group(1):>02}"
-    return None
-
-
-def _estrai_cig(testo: str | None) -> str | None:
-    """Restituisce il primo CIG trovato nel testo, o None."""
-    if not testo:
-        return None
-    m = _RE_CIG.search(testo)
-    return m.group(1).upper() if m else None
 
 
 def _estrai_importo(testo: str | None) -> float | None:
@@ -71,10 +53,6 @@ def _estrai_importo(testo: str | None) -> float | None:
         return float(m.group(1).replace(".", "").replace(",", "."))
     except ValueError:
         return None
-
-
-def _ora_utc() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 # ---------------------------------------------------------------------------
