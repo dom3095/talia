@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from talia.modulo2_scraping.db import (
-    AttoMetadato,
     EnteMetadato,
     atti_per_ente,
     connetti,
@@ -54,17 +53,27 @@ def db():
 
 @pytest.fixture
 def db_con_palermo(db):
-    upsert_ente(db, EnteMetadato(denominazione="Comune di Palermo", codice_istat="082053", provincia="PA"))
+    upsert_ente(db, EnteMetadato(
+        denominazione="Comune di Palermo", codice_istat="082053", provincia="PA"
+    ))
     return db
 
 
 @pytest.fixture
 def db_completo(db):
     """DB con i principali enti siciliani del CSV fixture."""
-    upsert_ente(db, EnteMetadato(denominazione="Comune di Palermo", codice_istat="082053", provincia="PA"))
-    upsert_ente(db, EnteMetadato(denominazione="Comune di Catania", codice_istat="087015", provincia="CT"))
-    upsert_ente(db, EnteMetadato(denominazione="Comune di Messina", codice_istat="083048", provincia="ME"))
-    upsert_ente(db, EnteMetadato(denominazione="Comune di Agrigento", codice_istat="084001", provincia="AG"))
+    upsert_ente(db, EnteMetadato(
+        denominazione="Comune di Palermo", codice_istat="082053", provincia="PA"
+    ))
+    upsert_ente(db, EnteMetadato(
+        denominazione="Comune di Catania", codice_istat="087015", provincia="CT"
+    ))
+    upsert_ente(db, EnteMetadato(
+        denominazione="Comune di Messina", codice_istat="083048", provincia="ME"
+    ))
+    upsert_ente(db, EnteMetadato(
+        denominazione="Comune di Agrigento", codice_istat="084001", provincia="AG"
+    ))
     return db
 
 

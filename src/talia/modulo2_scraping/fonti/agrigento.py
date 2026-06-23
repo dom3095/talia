@@ -26,8 +26,6 @@ from html import unescape
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,
-    connetti,
-    inizializza_db,
     inserisci_atto,
     upsert_ente,
 )
@@ -141,7 +139,8 @@ def scarica_atti(max_pagine: int = 20) -> Iterator[AttoMetadato]:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise ImportError(
-            "Playwright non installato. Esegui: pip install playwright && playwright install chromium"
+            "Playwright non installato. "
+            "Esegui: pip install playwright && playwright install chromium"
         ) from exc
 
     with sync_playwright() as pw:

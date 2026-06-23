@@ -16,10 +16,8 @@ from talia.modulo2_scraping.db import (
 )
 from talia.modulo2_scraping.red_flags.concentrazione import (
     MIN_ATTI_ANNO,
-    SOGLIA_QUOTA_DIRETTI,
     rileva_concentrazione,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

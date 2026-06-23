@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Dataclass dei metadati
 # ---------------------------------------------------------------------------
@@ -178,7 +177,9 @@ def upsert_ente(conn: sqlite3.Connection, ente: EnteMetadato) -> int:
         (ente.denominazione, ente.codice_istat, ente.provincia, ente.popolazione, ente.sito_web),
     )
     conn.commit()
-    row = conn.execute("SELECT id FROM enti WHERE codice_istat = ?", (ente.codice_istat,)).fetchone()
+    row = conn.execute(
+        "SELECT id FROM enti WHERE codice_istat = ?", (ente.codice_istat,)
+    ).fetchone()
     return row["id"]
 
 

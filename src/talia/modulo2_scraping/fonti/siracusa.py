@@ -14,16 +14,13 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import urllib.request
 from collections.abc import Iterable, Iterator
 from html import unescape
-
-import urllib.request
 
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,
-    connetti,
-    inizializza_db,
     inserisci_atto,
     upsert_ente,
 )

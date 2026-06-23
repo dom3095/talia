@@ -20,7 +20,7 @@ import urllib.request
 from collections.abc import Iterable, Iterator
 from html.parser import HTMLParser
 
-from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto, upsert_ente, EnteMetadato
+from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig as _estrai_cig
 from talia.modulo2_scraping.utils import ora_utc as _ora_utc
 from talia.modulo2_scraping.utils import parse_data_iso as _data_iso

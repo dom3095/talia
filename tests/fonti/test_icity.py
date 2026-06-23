@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from talia.modulo2_scraping.db import (
-    AttoMetadato,
     EnteMetadato,
     connetti,
     inizializza_db,
@@ -162,42 +161,44 @@ def test_parse_lista_html_vuoto() -> None:
 # _parse_dettaglio
 # ---------------------------------------------------------------------------
 
+_URL_DET = "https://comune.palermo.it/icity/albo/detail.do?id=11001"
+
 
 def test_parse_dettaglio_tipo(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.tipo == "determina"
 
 
 def test_parse_dettaglio_numero(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.numero == "2024-0001"
 
 
 def test_parse_dettaglio_date_iso(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.data_atto == "2024-01-12"
     assert atto.data_pub == "2024-01-15"
     assert atto.data_scadenza == "2024-02-15"
 
 
 def test_parse_dettaglio_cig(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.cig == "A12345678B"
 
 
 def test_parse_dettaglio_importo(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.importo_euro == 4999.0
 
 
 def test_parse_dettaglio_url_pdf(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.url_pdf is not None
     assert "getDoc" in atto.url_pdf
 
 
 def test_parse_dettaglio_fonte_scraper(html_dettaglio: str) -> None:
-    atto = _parse_dettaglio(html_dettaglio, "https://comune.palermo.it/icity/albo/detail.do?id=11001", "082053")
+    atto = _parse_dettaglio(html_dettaglio, _URL_DET, "082053")
     assert atto.fonte_scraper == FONTE_SCRAPER
 
 
@@ -236,8 +237,9 @@ def test_salva_atti_idempotente(db, html_dettaglio: str) -> None:
 
 
 def test_salva_atti_multipli(db, html_lista: str, html_dettaglio: str) -> None:
+    _base = "https://comune.palermo.it/icity/albo/detail.do"
     atti = [
-        _parse_dettaglio(html_dettaglio, f"https://comune.palermo.it/icity/albo/detail.do?id={i}", "082053")
+        _parse_dettaglio(html_dettaglio, f"{_base}?id={i}", "082053")
         for i in (11001, 11002, 11003)
     ]
     esito = salva_atti(atti, db)

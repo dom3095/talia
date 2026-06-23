@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 _RE_CIG = re.compile(r'\bCIG\s*[:\-]?\s*([A-Z0-9]{10})\b', re.IGNORECASE)
 
@@ -23,7 +23,7 @@ def parse_data_iso(s: str | None) -> str | None:
 
 def ora_utc() -> str:
     """Timestamp UTC corrente in ISO-8601."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def estrai_cig(testo: str | None) -> str | None:
