@@ -79,8 +79,12 @@ def test_data_iso_none() -> None:
     assert _data_iso("") is None
 
 
+def test_data_iso_passthrough_iso() -> None:
+    assert _data_iso("2024-01-15") == "2024-01-15"  # già ISO → pass-through
+
+
 def test_data_iso_formato_invalido() -> None:
-    assert _data_iso("2024-01-15") is None  # non è formato italiano
+    assert _data_iso("not-a-date") is None
 
 
 def test_estrai_cig_trovato() -> None:
