@@ -98,8 +98,44 @@ def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     return esito
 
 
-# iCity (icity.py) è generico: richiede base_url + codice_istat per ogni comune.
-# Comuni da aggiungere: Enna, Ragusa, Messina, Caltanissetta (igrid noti).
+# jCityGov (Liferay *.trasparenza-valutazione-merito.it)
+# Messina esclusa: SSL self-signed cert — da risolvere separatamente.
+
+_JCITYGOV_COMUNI = [
+    # (nome_log, base_url, codice_istat, denominazione)
+    ("caltanissetta", "https://caltanissetta.trasparenza-valutazione-merito.it", "085003", "Comune di Caltanissetta"),
+    ("enna",          "https://enna.trasparenza-valutazione-merito.it",          "086010", "Comune di Enna"),
+    ("ragusa",        "https://ragusa.trasparenza-valutazione-merito.it",        "088009", "Comune di Ragusa"),
+]
+
+
+def _run_jcitygov_comune(conn, nome, base_url, codice_istat, denominazione, max_pagine=10, **_kwargs):
+    from talia.modulo2_scraping.db import EnteMetadato, upsert_ente
+    from talia.modulo2_scraping.fonti.jcitygov import salva_atti, scarica_atti
+
+    upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
+    limit = max_pagine * 20
+    print(f"  [{nome.capitalize()}] Scarico albo pretorio jCityGov (max {limit} atti)…")
+    t0 = time.monotonic()
+    atti = list(scarica_atti(base_url, codice_istat, limit=limit))
+    esito = salva_atti(atti, conn)
+    elapsed = time.monotonic() - t0
+    print(f"  [{nome.capitalize()}] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    return esito
+
+
+def _run_caltanissetta(conn, **kwargs):
+    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[0], **kwargs)
+
+
+def _run_enna(conn, **kwargs):
+    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[1], **kwargs)
+
+
+def _run_ragusa(conn, **kwargs):
+    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[2], **kwargs)
+
+
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
 
 _SCRAPERS: dict[str, callable] = {
@@ -107,10 +143,13 @@ _SCRAPERS: dict[str, callable] = {
     "siracusa": _run_siracusa,
     "trapani": _run_trapani,
     "agrigento": _run_agrigento,
+    "caltanissetta": _run_caltanissetta,
+    "enna": _run_enna,
+    "ragusa": _run_ragusa,
 }
 
-# Default: HTTP puro prima (veloci), Agrigento escluso di default (richiede browser)
-_SCRAPERS_DEFAULT = ["siracusa", "trapani", "anac"]
+# Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
+_SCRAPERS_DEFAULT = ["siracusa", "trapani", "caltanissetta", "enna", "ragusa"]
 
 
 # ---------------------------------------------------------------------------

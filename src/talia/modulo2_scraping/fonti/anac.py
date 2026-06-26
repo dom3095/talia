@@ -40,11 +40,11 @@ SEZIONE_SICILIA = "Sicilia"
 def _url_smartcig(anno: int | None = None) -> str:
     """URL dataset SmartCIG per l'anno civile dato.
 
-    Default: anno precedente (il dataset dell'anno corrente viene pubblicato
-    solo a partire da metà anno successivo).
+    Default: anno corrente - 2, perché ANAC pubblica il dataset dell'anno N
+    con un ritardo di 12-18 mesi (es. 2025 non ancora disponibile a giugno 2026).
     """
     if anno is None:
-        anno = datetime.date.today().year - 1
+        anno = datetime.date.today().year - 2
     return (
         f"https://dati.anticorruzione.it/opendata/download/dataset/"
         f"smartcig-{anno}/filesystem/smartcig-{anno}_csv_logCsv.csv"
