@@ -129,7 +129,8 @@ CREATE TABLE IF NOT EXISTS red_flags (
 CREATE INDEX IF NOT EXISTS idx_atti_cig        ON atti (cig);
 CREATE INDEX IF NOT EXISTS idx_atti_ente_data  ON atti (ente_id, data_atto);
 CREATE INDEX IF NOT EXISTS idx_atti_scraper    ON atti (fonte_scraper);
-CREATE INDEX IF NOT EXISTS idx_flags_ente_tipo ON red_flags (ente_id, tipo_flag);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_flags_ente_tipo_periodo
+    ON red_flags (ente_id, tipo_flag, COALESCE(periodo_da,''), COALESCE(periodo_a,''));
 CREATE INDEX IF NOT EXISTS idx_check_atto      ON check_esiti (atto_id, check_id);
 """
 
@@ -304,7 +305,7 @@ def salva_red_flag(
         data_rilevazione = datetime.utcnow().isoformat()
     cur = conn.execute(
         """
-        INSERT INTO red_flags (
+        INSERT OR REPLACE INTO red_flags (
             ente_id, tipo_flag, severita, descrizione,
             atti_cig, data_rilevazione, periodo_da, periodo_a
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
