@@ -31,8 +31,10 @@ dev = [
     "ruff>=0.5",
     "pytest>=8.0",
 ]
+# Dashboard Modulo 3 (TAL-30).
+dashboard = ["streamlit>=1.35"]
 # Comodità: installa tutto il necessario all'uso end-to-end.
-all = ["talia[pdf,nlp,dev]"]
+all = ["talia[pdf,nlp,dashboard,dev]"]
 
 [project.scripts]
 talia = "talia.modulo1_fascicolo.cli:main"

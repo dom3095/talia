@@ -30,8 +30,14 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 
 ## Stato del progetto
 
-🟢 **Fase: prototipo Modulo 1 implementato** (branch `feat/TAL-1-modulo1-prototipo`, in review).
-Pipeline end-to-end: PDF/testo → entità → checklist (check 1, 2, 5, 6) → report
-markdown/JSON/HTML con citazioni e disclaimer. CLI: `talia analizza fascicolo/`.
-Dettagli: [11 — Implementazione motore](11-implementazione-motore.md).
-Prossimi passi: validazione su fascicoli reali (TAL-12) e check 3 con LLM (TAL-11).
+🟢 **Fase: Modulo 1 + Modulo 2 + Dashboard MVP implementati** (branch `main`, 233 test verdi).
+
+| Modulo | Stato | Dettagli |
+|--------|-------|----------|
+| **Motore / Modulo 1** | ✅ Implementato | OCR → entità → check 1,2,5,6,7 → report HTML/JSON/CLI |
+| **Modulo 2 — Scraping** | ✅ Implementato | Spider iCity/ANAC/Siracusa/Trapani/Agrigento; red flags frazionamento/concentrazione/tempi |
+| **Modulo 3 — Dashboard** | ✅ MVP (TAL-30) | App Streamlit: panoramica comuni, drill-down fonte, anonimizzazione piccoli comuni |
+
+Prossimi passi: validazione su fascicoli reali (TAL-12), check 3 con LLM (TAL-11).
+
+Dettagli implementazione: [11 — Implementazione motore](11-implementazione-motore.md).

@@ -3,9 +3,9 @@
 Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio di ogni card nei file
 `TAL-*.md` di questa cartella.
 
-**Stato attuale:** prototipo Modulo 1 end-to-end implementato su branch
-`feat/TAL-1-modulo1-prototipo` (in review). Mancano la validazione su fascicoli reali (TAL-12)
-e il check LLM (TAL-11).
+**Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags batch)
+e Modulo 3 (Dashboard Streamlit MVP) implementati su `main` — 233 test verdi.
+In corso: validazione su fascicoli reali (TAL-12).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -44,7 +44,6 @@ e il check LLM (TAL-11).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
-| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | 📊 FE | Sprint 3 — step B5 corrente |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
@@ -70,6 +69,7 @@ e il check LLM (TAL-11).
 | [TAL-21](TAL-21.md) | Schema DB atti + storage | `db.py`: DDL + helper CRUD + dataclass AttoMetadato/EnteMetadato |
 | [TAL-22](TAL-22.md) | Pipeline ANAC open data (regione 19) | `anac.py`: filtro Sicilia + idempotenza + 22 test offline |
 | [TAL-23](TAL-23.md) | Red flags batch deterministici | `red_flags/`: frazionamento + concentrazione + tempi anomali + runner; 20 test |
+| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | `modulo3_dashboard/app.py`: panoramica comuni, drill-down fonte, anonimizzazione; 7 test |
 
 ## Legenda priorità
 

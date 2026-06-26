@@ -48,7 +48,23 @@ statistiche. Parte da **un solo software di albo pretorio** o una sola provincia
 ## Modulo 3 — Dashboard per comune
 
 Aggregazioni dei risultati: indici, trend, confronti tra pari (comuni di taglia simile), drill-down fino
-al documento sorgente.
+al documento sorgente. **MVP implementato (TAL-30).**
+
+### Funzionalità MVP (`src/talia/modulo3_dashboard/app.py`)
+
+- **Panoramica comuni** — tabella con conteggio red flags per tipo (frazionamento, concentrazione, tempi)
+  e severità (alta/media/bassa), ordinata per numero di segnalazioni.
+- **Drill-down** — per ogni red flag: descrizione, periodo, elenco atti/CIG con link diretto a `url_fonte`.
+- **Comuni virtuosi** — sezione dedicata ai comuni senza segnalazioni (principio di simmetria).
+- **Anonimizzazione** — per comuni < 5.000 abitanti il drill-down nominativo è disabilitato; vengono
+  mostrate solo le aggregazioni (tutela privacy in contesti dove i soggetti sono identificabilissimi).
+- **Disclaimer permanente** in cima alla pagina: *"Segnalazioni da verificare, non accertamenti."*
+
+### Avvio
+
+```bash
+TALIA_DB=talia.db streamlit run src/talia/modulo3_dashboard/app.py
+```
 
 ## Confini tra i moduli
 

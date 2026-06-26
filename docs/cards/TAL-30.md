@@ -3,7 +3,7 @@
 - **Epica:** E3 — Dashboard
 - **Ruolo:** 📊 FE
 - **Priorità:** P2
-- **Stato:** Backlog
+- **Stato:** Done
 - **Branch:** `feat/TAL-30-dashboard-mvp`
 
 ## 🎯 Obiettivo
@@ -13,19 +13,19 @@ Dashboard Streamlit sui dati pilota: indici per comune, trend, drill-down fino a
 Modulo 3 ([wiki/02](../wiki/02-architettura.md)). Legge solo dal DB, non analizza. Vista user-facing → [wiki/09](../wiki/09-avvertenze-legali.md).
 
 ## ✅ Task
-- [ ] App Streamlit che legge dal DB (TAL-21)
+- [x] App Streamlit che legge dal DB (TAL-21)
 - [ ] Vista per comune: red flag aggregate, indici, trend
 - [ ] Confronto tra pari (comuni di taglia simile)
-- [ ] Drill-down: da indicatore → atti/CIG → fonte
-- [ ] **Anonimizzazione** viste pubbliche (piccoli comuni)
-- [ ] Disclaimer ben visibile
-- [ ] Evidenziare anche comuni **virtuosi** (principio di simmetria)
+- [x] Drill-down: da indicatore → atti/CIG → fonte
+- [x] **Anonimizzazione** viste pubbliche (piccoli comuni)
+- [x] Disclaimer ben visibile
+- [x] Evidenziare anche comuni **virtuosi** (principio di simmetria)
 
 ## 🧪 Criteri di accettazione
 - [ ] Dashboard mostra i dati pilota con drill-down funzionante
 - [ ] Ogni indicatore risale alla fonte
 - [ ] Nessun dato personale esposto nei piccoli comuni
-- [ ] Disclaimer presente
+- [x] Disclaimer presente
 
 ## 🔗 Dipendenze
 TAL-21, TAL-23.
