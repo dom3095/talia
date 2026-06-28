@@ -31,6 +31,28 @@ in `anac.py`; fix strutturale: trovare il nuovo URL del dataset.
 
 ---
 
+## [BUG-4] Trapani spider: `_RE_PANEL` non matcha più la struttura HTML corrente
+
+**Rilevato:** 2026-06-28, test automatico con agente (2 pagine, DB temporaneo)
+**Spider:** `src/talia/modulo2_scraping/fonti/trapani.py`
+**Sintomo:** 0 atti trovati su 2 pagine. Nessuna eccezione: il portale `servizi-trapani.e-pal.it` risponde HTTP 200, ma `_RE_PANEL` non estrae nessun record.
+**Causa probabile:** la struttura HTML di e-pal.it è cambiata rispetto a quella attesa dal lookahead nella regex `_RE_PANEL` (delimita i div `panel panel-primary`). Qualsiasi variazione nel nesting HTML causa il match a zero senza warning.
+**Stato:** ❌ Aperto — da fixare.
+**Fix:** scaricare l'HTML corrente di `ricercaAlbo`, confrontare con `_RE_PANEL`, aggiornare la regex, aggiungere test con HTML fixture reale.
+
+---
+
+## [BUG-5] Messina: firewall FortiGate blocca ogni connessione esterna con HTTP 403
+
+**Rilevato:** 2026-06-28, test automatico con agente
+**Spider:** non implementato (`jcitygov.py` pronto per essere esteso)
+**Sintomo:** HTTP 403 "FORTINET Webfilter / This Connection is Invalid. SSL certificate expired." prima ancora di raggiungere il portale Liferay. IP: `5.180.69.64`.
+**Causa:** il firewall FortiGate del Comune di Messina fa SSL inspection con un proprio certificato (`CN=mda-jcitygov-proxy`, CA Fortinet interna) scaduto il **2023-06-27**. Il FortiGate blocca le connessioni esterne che non passano la sua ispezione SSL.
+**Perché `skip_ssl=True` non risolve:** bypassa la verifica lato Python, ma non aggira il blocco HTTP 403 del firewall a monte.
+**Stato:** ❌ Bloccante infrastrutturale — non risolvibile lato codice. Richiede intervento del Comune di Messina / gestore IT (rinnovo cert FortiGate o whitelist IP).
+
+---
+
 ## [BUG-3] ANAC spider: `_normalizza_colonne` crasha su chiave `None`
 
 **Rilevato:** 2026-06-26 (stesso run di BUG-2, emerso prima del WAF)

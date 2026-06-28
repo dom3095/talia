@@ -35,22 +35,38 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
-from talia.modulo2_scraping.db import connetti, inizializza_db  # noqa: E402
+from talia.modulo2_scraping.db import connetti, inizia_run, inizializza_db, termina_run  # noqa: E402
 from talia.modulo2_scraping.red_flags.runner import esegui_tutti  # noqa: E402
+
+# Quanti duplicati consecutivi senza un inserimento prima di fermare la paginazione.
+# 20 = una pagina jCityGov intera — se è tutta già nota, abbiamo raggiunto il confine.
+_STOP_CONSECUTIVI = 20
 
 # ---------------------------------------------------------------------------
 # Runner per ogni fonte
 # ---------------------------------------------------------------------------
 
 
-def _run_anac(conn, **_kwargs) -> dict:
-    from talia.modulo2_scraping.fonti.anac import scarica_e_carica
+def _date_range(atti) -> tuple[str | None, str | None]:
+    dates = [a.data_pub or a.data_atto for a in atti if a.data_pub or a.data_atto]
+    return (min(dates) if dates else None, max(dates) if dates else None)
 
-    print("  [ANAC] Scarico CSV SmartCIG (~400 MB)… (pazienza)")
+
+def _run_anac(conn, anac_file: str | None = None, **_kwargs) -> dict:
+    from talia.modulo2_scraping.fonti.anac import carica_csv_anac, scarica_e_carica
+
     t0 = time.monotonic()
-    esito = scarica_e_carica(conn)
+    if anac_file:
+        print(f"  [ANAC] Carico da file locale: {anac_file}")
+        with open(anac_file, encoding="utf-8", errors="replace") as f:
+            contenuto = f.read()
+        esito = carica_csv_anac(contenuto, conn)
+    else:
+        print("  [ANAC] Scarico CSV SmartCIG (~400 MB)… (pazienza)")
+        esito = scarica_e_carica(conn)
     elapsed = time.monotonic() - t0
     print(f"  [ANAC] {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = esito.get("inseriti", 0) + esito.get("duplicati", 0)
     return esito
 
 
@@ -64,6 +80,8 @@ def _run_siracusa(conn, max_pagine: int = 50, **_kwargs) -> dict:
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Siracusa] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
     return esito
 
 
@@ -77,6 +95,8 @@ def _run_trapani(conn, max_pagine: int = 50, **_kwargs) -> dict:
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Trapani] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
     return esito
 
 
@@ -95,6 +115,8 @@ def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Agrigento] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
     return esito
 
 
@@ -103,24 +125,45 @@ def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
 
 _JCITYGOV_COMUNI = [
     # (nome_log, base_url, codice_istat, denominazione)
-    ("caltanissetta", "https://caltanissetta.trasparenza-valutazione-merito.it", "085003", "Comune di Caltanissetta"),
-    ("enna",          "https://enna.trasparenza-valutazione-merito.it",          "086010", "Comune di Enna"),
-    ("ragusa",        "https://ragusa.trasparenza-valutazione-merito.it",        "088009", "Comune di Ragusa"),
+    ("caltanissetta",    "https://caltanissetta.trasparenza-valutazione-merito.it",    "085003", "Comune di Caltanissetta"),
+    ("enna",             "https://enna.trasparenza-valutazione-merito.it",             "086010", "Comune di Enna"),
+    ("palma",            "https://palmadimontechiaro.trasparenza-valutazione-merito.it", "084028", "Comune di Palma di Montechiaro"),
+    ("ragusa",           "https://ragusa.trasparenza-valutazione-merito.it",           "088009", "Comune di Ragusa"),
 ]
 
 
-def _run_jcitygov_comune(conn, nome, base_url, codice_istat, denominazione, max_pagine=10, **_kwargs):
-    from talia.modulo2_scraping.db import EnteMetadato, upsert_ente
-    from talia.modulo2_scraping.fonti.jcitygov import salva_atti, scarica_atti
+def _run_jcitygov_comune(conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs):
+    from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
+    from talia.modulo2_scraping.fonti.jcitygov import scarica_atti
 
     upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
     limit = max_pagine * 20
-    print(f"  [{nome.capitalize()}] Scarico albo pretorio jCityGov (max {limit} atti)…")
+    stop_label = " [backfill, stop disabilitato]" if no_stop else ""
+    print(f"  [{nome.capitalize()}] Scarico albo pretorio jCityGov (max {max_pagine} pagine){stop_label}…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(base_url, codice_istat, limit=limit))
-    esito = salva_atti(atti, conn)
+
+    inseriti = duplicati = consecutivi_dup = 0
+    dates: list[str] = []
+    for atto in scarica_atti(base_url, codice_istat, limit=limit):
+        if inserisci_atto(conn, atto) is not None:
+            inseriti += 1
+            consecutivi_dup = 0
+            if atto.data_pub:
+                dates.append(atto.data_pub)
+        else:
+            duplicati += 1
+            consecutivi_dup += 1
+        if not no_stop and consecutivi_dup >= _STOP_CONSECUTIVI:
+            break
+    conn.commit()
+
+    n_trovati = inseriti + duplicati
     elapsed = time.monotonic() - t0
-    print(f"  [{nome.capitalize()}] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito = {"inseriti": inseriti, "duplicati": duplicati}
+    print(f"  [{nome.capitalize()}] {n_trovati} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = n_trovati
+    esito["data_min"] = min(dates) if dates else None
+    esito["data_max"] = max(dates) if dates else None
     return esito
 
 
@@ -132,8 +175,12 @@ def _run_enna(conn, **kwargs):
     return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[1], **kwargs)
 
 
-def _run_ragusa(conn, **kwargs):
+def _run_palma(conn, **kwargs):
     return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[2], **kwargs)
+
+
+def _run_ragusa(conn, **kwargs):
+    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[3], **kwargs)
 
 
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
@@ -145,11 +192,12 @@ _SCRAPERS: dict[str, callable] = {
     "agrigento": _run_agrigento,
     "caltanissetta": _run_caltanissetta,
     "enna": _run_enna,
+    "palma": _run_palma,
     "ragusa": _run_ragusa,
 }
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
-_SCRAPERS_DEFAULT = ["siracusa", "trapani", "caltanissetta", "enna", "ragusa"]
+_SCRAPERS_DEFAULT = ["siracusa", "trapani", "caltanissetta", "enna", "palma", "ragusa"]
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +252,19 @@ Esempi:
         dest="no_red_flags",
         help="Salta il calcolo dei red flags batch",
     )
+    p.add_argument(
+        "--anac-file",
+        default=None,
+        dest="anac_file",
+        metavar="FILE",
+        help="Carica il CSV SmartCIG da file locale invece di scaricarlo (utile se il WAF ANAC blocca il download automatico)",
+    )
+    p.add_argument(
+        "--no-stop",
+        action="store_true",
+        dest="no_stop",
+        help="Disabilita lo stop-on-known (backfill storico: scarica tutte le pagine anche se già in DB)",
+    )
     return p.parse_args()
 
 
@@ -229,11 +290,22 @@ def main() -> int:
     for nome in args.scrapers:
         fn = _SCRAPERS[nome]
         print(f"\n── {nome.upper()} ──")
+        run_id = inizia_run(conn, nome)
         try:
-            risultati[nome] = fn(conn, max_pagine=args.max_pagine)
+            esito = fn(conn, max_pagine=args.max_pagine, anac_file=args.anac_file, no_stop=args.no_stop)
+            risultati[nome] = esito
+            termina_run(
+                conn, run_id,
+                n_trovati=esito.get("n_trovati", 0),
+                n_inseriti=esito.get("inseriti", 0),
+                n_duplicati=esito.get("duplicati", 0),
+                data_min=esito.get("data_min"),
+                data_max=esito.get("data_max"),
+            )
         except Exception:
             msg = traceback.format_exc()
             print(f"  ERRORE:\n{msg}", file=sys.stderr)
+            termina_run(conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=msg[:500])
             risultati[nome] = "ERRORE"
             errori += 1
 
@@ -253,7 +325,26 @@ def main() -> int:
 
     print("\n── SUMMARY ──")
     for nome, esito in risultati.items():
-        print(f"  {nome:12s} {esito}")
+        if isinstance(esito, dict):
+            ins = esito.get("inseriti", 0)
+            dup = esito.get("duplicati", 0)
+            d0 = esito.get("data_min") or "?"
+            d1 = esito.get("data_max") or "?"
+            print(f"  {nome:15s}  +{ins:>4} ins  {dup:>4} dup  {d0} → {d1}")
+        else:
+            print(f"  {nome:15s}  {esito}")
+
+    print("\n── COPERTURA DB ──")
+    rows = conn.execute(
+        """SELECT e.denominazione,
+                  MIN(COALESCE(a.data_pub, a.data_atto)),
+                  MAX(COALESCE(a.data_pub, a.data_atto)),
+                  COUNT(*)
+           FROM atti a JOIN enti e ON a.ente_id = e.id
+           GROUP BY e.id ORDER BY e.denominazione"""
+    ).fetchall()
+    for r in rows:
+        print(f"  {r[0]:<28s}  {r[3]:>5} atti  {r[1] or '?':>10} → {r[2] or '?'}")
 
     n_atti = conn.execute("SELECT COUNT(*) FROM atti").fetchone()[0]
     n_enti = conn.execute("SELECT COUNT(*) FROM enti").fetchone()[0]

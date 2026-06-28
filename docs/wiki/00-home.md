@@ -21,6 +21,8 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 | [09 — Avvertenze legali](09-avvertenze-legali.md) | Posizionamento, diffamazione, privacy |
 | [10 — Glossario](10-glossario.md) | Sigle e termini (CIG, UREGA, CGA, autotutela…) |
 | [11 — Implementazione motore](11-implementazione-motore.md) | Layout del codice, decisioni di design, pipeline Modulo 1 |
+| [12 — Schema DB](12-schema-db.md) | Tabelle SQLite: atti, enti, red_flags, procedimenti, scraper_runs |
+| [13 — Stato scraper per capoluogo](13-scraper-status.md) | Test 2026-06-28: status, problemi, piattaforme di tutti i 9 capoluoghi siciliani |
 
 ## Link rapidi
 
@@ -35,7 +37,7 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 | Modulo | Stato | Dettagli |
 |--------|-------|----------|
 | **Motore / Modulo 1** | ✅ Implementato | OCR → entità → check 1,2,5,6,7 → report HTML/JSON/CLI |
-| **Modulo 2 — Scraping** | ✅ Implementato | Spider iCity/ANAC/Siracusa/Trapani/Agrigento; red flags frazionamento/concentrazione/tempi |
+| **Modulo 2 — Scraping** | ✅ Implementato (⚠️ Trapani rotto) | Spider ANAC/Siracusa/Agrigento/jCityGov(CL,EN,RG,PA di M); Trapani: 0 atti (regex da fixare); vedi [13](13-scraper-status.md) |
 | **Modulo 3 — Dashboard** | ✅ MVP (TAL-30) | App Streamlit: panoramica comuni, drill-down fonte, anonimizzazione piccoli comuni |
 
 Prossimi passi: validazione su fascicoli reali (TAL-12), check 3 con LLM (TAL-11).

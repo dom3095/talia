@@ -167,15 +167,21 @@ def _build_opener(skip_ssl: bool = False) -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(*handlers)
 
 
-def _fetch(opener, url: str, data: bytes | None = None, timeout: int = 15) -> str:
+def _fetch(opener, url: str, data: bytes | None = None, timeout: int = 30, _retry: int = 1) -> str:
     req = urllib.request.Request(
         url,
         data=data,
         headers={"User-Agent": _USER_AGENT},
     )
-    with opener.open(req, timeout=timeout) as r:
-        enc = r.headers.get_content_charset("utf-8")
-        return r.read().decode(enc, errors="replace")
+    for attempt in range(_retry + 1):
+        try:
+            with opener.open(req, timeout=timeout) as r:
+                enc = r.headers.get_content_charset("utf-8")
+                return r.read().decode(enc, errors="replace")
+        except TimeoutError:
+            if attempt == _retry:
+                raise
+            time.sleep(2)
 
 
 # ---------------------------------------------------------------------------
