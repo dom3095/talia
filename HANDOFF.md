@@ -91,25 +91,34 @@ git commit -m "feat(E2): catena eventi, red flag revoca, tab dashboard (TAL-42/4
 python scripts/run_scrapers.py --scrapers palma --max-pagine 50 --no-stop
 ```
 
-### 3 — Validare la catena su `data/samples/1`
+### 3 — Validare la catena sul DB reale
+
+`data/samples/1/` è un esempio costruito a mano — testarlo è circolare. La validazione vera è sul DB reale:
 
 ```bash
 python -c "
-from talia.engine.pdf_text import estrai_testo
-from talia.engine.catena import costruisci_catena_da_testi
+from talia.modulo2_scraping.db import connetti
+from talia.engine.catena import ricostruisci_catene
 
-pdf_dir = 'data/samples/1'
-nomi = ['BANDO7OPERATORIESPERTI.pdf', 'det_SG_00035_22-12-2025.pdf', 'revoca_concorso_autotutela.pdf']
-testi = [{'testo': estrai_testo(f'{pdf_dir}/{n}').testo, 'percorso': n} for n in nomi]
-
-catena = costruisci_catena_da_testi(testi)
-for e in catena.eventi:
-    print(e.ruolo, '\t', e.percorso)
-print('Stato finale:', catena.stato_finale)
+conn = connetti('talia.db')
+ricostruisci_catene(conn)
+rows = conn.execute('''
+    SELECT e.denominazione, p.stato_finale, p.metodo_individuazione,
+           COUNT(a.id) as n_atti
+    FROM procedimenti p
+    JOIN enti e ON p.ente_id = e.id
+    JOIN atti a ON a.procedimento_id = p.id
+    GROUP BY p.id ORDER BY e.denominazione, p.stato_finale
+''').fetchall()
+for r in rows: print(r)
+conn.close()
 "
 ```
 
-Atteso: `avvio` → `altro` → `revoca`. Calibrare i pattern se necessario.
+Controllare:
+1. Numeri plausibili per ente (poche decine di catene, non migliaia)
+2. Catene con `metodo_individuazione = 'oggetto_simile'` → spot-check manuale (Jaccard è rumoroso)
+3. Il fascicolo Palma (revoca Det. 35/2025) risulta collegato?
 
 ### 4 — TAL-14: check GDPR + numero atto incoerente
 

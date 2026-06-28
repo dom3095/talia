@@ -31,7 +31,7 @@ In corso: validazione su fascicoli reali (TAL-12).
 ### 📥 Backlog
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-25](TAL-25.md) | Scraping organigrammi e DPO da Amm. Trasparente | E2 | 🕷️ SCR | P2 |
+| [TAL-41](TAL-41.md) | Modulo 0: Registro Attori (gerarchia comuni + società in house) | E2 | 🕷️ SCR + 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
 | [TAL-40](TAL-40.md) | README pubblico + contributing | E4 | 🧭 TL | P3 |
 
@@ -49,6 +49,10 @@ In corso: validazione su fascicoli reali (TAL-12).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
+| [TAL-42](TAL-42.md) | Schema DB: tabella procedimenti + colonne catena | 🧭 TL + 🕷️ SCR | `engine/catena._evolvi_schema`; lazy, idempotente |
+| [TAL-43](TAL-43.md) | Engine catena: individuazione e collegamento procedimenti | 🔤 NLP | 3 strategie (CIG/riferimenti/oggetto simile); 21 test |
+| [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | 🔤 NLP + ⚖️ LEX | integrato in runner; 6 test |
+| [TAL-45](TAL-45.md) | Dashboard M3: tab ⛓️ Procedimenti + timeline | 📊 FE | graceful degradation se catene non ancora costruite |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca scansione campione per test OCR reale |

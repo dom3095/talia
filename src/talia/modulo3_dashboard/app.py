@@ -35,6 +35,26 @@ ETICHETTE_TIPO_FLAG = {
     "frazionamento": "Frazionamento artificioso",
     "concentrazione_diretti": "Concentrazione affidamenti diretti",
     "tempo_pubblicazione_breve": "Finestra pubblicazione breve",
+    "revoca_in_catena": "Revoca/annullamento in catena",
+}
+
+ICONE_RUOLO = {
+    "avvio": "🟢",
+    "modifica": "🔵",
+    "proroga": "🔵",
+    "aggiudicazione": "✅",
+    "revoca": "🔴",
+    "annullamento": "🔴",
+    "altro": "⚪",
+}
+
+ETICHETTE_STATO_FINALE = {
+    "in_corso": "In corso",
+    "revocato": "Revocato",
+    "annullato": "Annullato",
+    "aggiudicato": "Aggiudicato",
+    "sconosciuto": "Sconosciuto",
+    "da_verificare": "Da verificare",
 }
 
 COLORI_SEVERITA = {
@@ -241,6 +261,130 @@ def _mostra_dettaglio_comune(
                     st.markdown(f"- {oggetto} — {dettagli_str}")
 
 
+def _carica_procedimenti_per_ente(
+    conn: sqlite3.Connection, ente_id: int
+) -> list[sqlite3.Row]:
+    try:
+        return conn.execute(
+            """
+            SELECT p.id, p.tipo, p.cig, p.oggetto, p.data_avvio, p.data_chiusura,
+                   p.stato_finale, p.metodo_individuazione,
+                   COUNT(a.id) AS n_atti
+            FROM   procedimenti p
+            LEFT   JOIN atti a ON a.procedimento_id = p.id
+            WHERE  p.ente_id = ?
+            GROUP  BY p.id
+            ORDER  BY p.data_avvio DESC NULLS LAST
+            """,
+            (ente_id,),
+        ).fetchall()
+    except Exception:
+        return []
+
+
+def _carica_atti_procedimento(
+    conn: sqlite3.Connection, procedimento_id: int
+) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT id, tipo, numero, oggetto, data_atto, url_fonte,
+               ruolo_in_catena, cig, importo_euro
+        FROM   atti
+        WHERE  procedimento_id = ?
+        ORDER  BY data_atto ASC NULLS LAST
+        """,
+        (procedimento_id,),
+    ).fetchall()
+
+
+def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
+    st.subheader("Catene di eventi per comune")
+    st.markdown(
+        "Un **procedimento** raggruppa gli atti amministrativi collegati "
+        "(bando → modifiche → revoca/aggiudicazione). "
+        "Le catene individuate via similarità oggetto richiedono verifica manuale."
+    )
+
+    enti = _carica_enti(conn)
+    if not enti:
+        st.info("Nessun comune nel database.")
+        return
+
+    opzioni = {r["denominazione"]: r for r in enti}
+    scelta = st.selectbox("Seleziona un comune", list(opzioni.keys()), key="proc_comune")
+    if not scelta:
+        return
+
+    r = opzioni[scelta]
+    procedimenti = _carica_procedimenti_per_ente(conn, r["id"])
+
+    if not procedimenti:
+        st.info("Nessun procedimento individuato per questo comune. "
+                "Esegui prima il batch di ricostruzione catene.")
+        return
+
+    piccolo = _is_piccolo_comune(r["popolazione"])
+    if piccolo:
+        st.info(
+            f"Comune < {SOGLIA_PICCOLO_COMUNE:,} ab. — dettagli nominativi anonimizzati.",
+            icon="🔒",
+        )
+
+    for proc in procedimenti:
+        stato = proc["stato_finale"] or "sconosciuto"
+        etichetta_stato = ETICHETTE_STATO_FINALE.get(stato, stato)
+        icona_stato = "🔴" if stato in ("revocato", "annullato") else (
+            "✅" if stato == "aggiudicato" else "🔵"
+        )
+        metodo = proc["metodo_individuazione"] or "n/d"
+        cig_label = f" | CIG: `{proc['cig']}`" if proc["cig"] else ""
+        periodo = ""
+        if proc["data_avvio"]:
+            periodo = f" | {proc['data_avvio'][:10]}"
+            if proc["data_chiusura"]:
+                periodo += f" → {proc['data_chiusura'][:10]}"
+
+        titolo = (
+            f"{icona_stato} {etichetta_stato}"
+            f"{cig_label}{periodo} "
+            f"— {proc['n_atti']} atti"
+        )
+
+        with st.expander(titolo, expanded=(stato in ("revocato", "annullato"))):
+            oggetto = proc["oggetto"] or "n/d"
+            st.markdown(f"**Oggetto:** {oggetto if not piccolo else '*(anonimizzato)*'}")
+            st.caption(f"Metodo individuazione: {metodo}")
+
+            if piccolo:
+                st.markdown("*Timeline atti non disponibile per piccoli comuni (privacy).*")
+                continue
+
+            atti = _carica_atti_procedimento(conn, proc["id"])
+            if not atti:
+                st.markdown("*Nessun atto collegato.*")
+                continue
+
+            st.markdown("**Timeline:**")
+            for atto in atti:
+                ruolo = atto["ruolo_in_catena"] or "altro"
+                icona = ICONE_RUOLO.get(ruolo, "⚪")
+                data = atto["data_atto"][:10] if atto["data_atto"] else "data n/d"
+                desc = atto["oggetto"] or atto["tipo"] or "n/d"
+                url = atto["url_fonte"]
+                link = f"[{desc}]({url})" if url else desc
+                importo = (
+                    f" — {atto['importo_euro']:,.0f} EUR" if atto["importo_euro"] else ""
+                )
+                st.markdown(f"- {icona} **{data}** `{ruolo}` {link}{importo}")
+
+            if stato in ("revocato", "annullato"):
+                st.warning(
+                    "⚠️ Procedimento terminato con revoca/annullamento. "
+                    "Segnalazione da verificare con l'atto ufficiale.",
+                    icon=None,
+                )
+
+
 def _mostra_comuni_virtuosi(conn: sqlite3.Connection) -> None:
     rows = _carica_flags_per_ente(conn)
     virtuosi = [r for r in rows if r["n_flags"] == 0]
@@ -297,8 +441,8 @@ def main() -> None:
         )
 
     # --- Tabs principali ---
-    tab_panoramica, tab_comune, tab_virtuosi = st.tabs(
-        ["📊 Panoramica", "🔍 Dettaglio comune", "✅ Comuni virtuosi"]
+    tab_panoramica, tab_comune, tab_procedimenti, tab_virtuosi = st.tabs(
+        ["📊 Panoramica", "🔍 Dettaglio comune", "⛓️ Procedimenti", "✅ Comuni virtuosi"]
     )
 
     with tab_panoramica:
@@ -314,6 +458,9 @@ def main() -> None:
             if scelta:
                 r = opzioni[scelta]
                 _mostra_dettaglio_comune(conn, r["id"], r["denominazione"], r["popolazione"])
+
+    with tab_procedimenti:
+        _mostra_procedimenti(conn)
 
     with tab_virtuosi:
         _mostra_comuni_virtuosi(conn)
