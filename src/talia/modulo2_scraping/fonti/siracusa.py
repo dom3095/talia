@@ -12,6 +12,7 @@ Dati pubblici ai sensi del D.lgs. 33/2013.
 
 from __future__ import annotations
 
+import http.cookiejar
 import re
 import sqlite3
 import urllib.request
@@ -106,11 +107,16 @@ def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
 
     Richiede connettività di rete. Per i test usa _parse_page() con HTML fixture.
     """
+    # CookieJar necessario: portalepa imposta PHPSESSID alla prima risposta
+    # e rifiuta le richieste successive senza cookie (HTTP 400).
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
     url: str = _BASE_URL + _ALBO_PATH
     current_page = 1
     for _ in range(max_pagine):
         req = urllib.request.Request(url, headers=_HEADERS)
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with opener.open(req, timeout=20) as r:
             html = r.read().decode("utf-8", errors="replace")
         atti = _parse_page(html)
         if not atti:

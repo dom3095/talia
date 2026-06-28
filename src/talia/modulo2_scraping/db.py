@@ -126,11 +126,26 @@ CREATE TABLE IF NOT EXISTS red_flags (
     periodo_a        TEXT
 );
 
+CREATE TABLE IF NOT EXISTS scraper_runs (
+    id           INTEGER PRIMARY KEY,
+    scraper_id   TEXT    NOT NULL,
+    avviato_a    TEXT    NOT NULL,
+    completato_a TEXT,
+    n_trovati    INTEGER,
+    n_inseriti   INTEGER,
+    n_duplicati  INTEGER,
+    data_min     TEXT,
+    data_max     TEXT,
+    errore       TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_atti_cig        ON atti (cig);
 CREATE INDEX IF NOT EXISTS idx_atti_ente_data  ON atti (ente_id, data_atto);
 CREATE INDEX IF NOT EXISTS idx_atti_scraper    ON atti (fonte_scraper);
-CREATE INDEX IF NOT EXISTS idx_flags_ente_tipo ON red_flags (ente_id, tipo_flag);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_flags_ente_tipo_periodo
+    ON red_flags (ente_id, tipo_flag, COALESCE(periodo_da,''), COALESCE(periodo_a,''));
 CREATE INDEX IF NOT EXISTS idx_check_atto      ON check_esiti (atto_id, check_id);
+CREATE INDEX IF NOT EXISTS idx_scraper_runs    ON scraper_runs (scraper_id, avviato_a DESC);
 """
 
 
@@ -304,7 +319,7 @@ def salva_red_flag(
         data_rilevazione = datetime.utcnow().isoformat()
     cur = conn.execute(
         """
-        INSERT INTO red_flags (
+        INSERT OR REPLACE INTO red_flags (
             ente_id, tipo_flag, severita, descrizione,
             atti_cig, data_rilevazione, periodo_da, periodo_a
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -322,6 +337,49 @@ def salva_red_flag(
     )
     conn.commit()
     return cur.lastrowid
+
+
+def inizia_run(conn: sqlite3.Connection, scraper_id: str) -> int:
+    """Registra l'avvio di uno scraper; ritorna il run_id da passare a termina_run."""
+    cur = conn.execute(
+        "INSERT INTO scraper_runs (scraper_id, avviato_a) VALUES (?, ?)",
+        (scraper_id, datetime.utcnow().isoformat()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def termina_run(
+    conn: sqlite3.Connection,
+    run_id: int,
+    *,
+    n_trovati: int,
+    n_inseriti: int,
+    n_duplicati: int,
+    data_min: str | None = None,
+    data_max: str | None = None,
+    errore: str | None = None,
+) -> None:
+    """Chiude un run registrando statistiche e intervallo date."""
+    conn.execute(
+        """UPDATE scraper_runs
+           SET completato_a=?, n_trovati=?, n_inseriti=?, n_duplicati=?,
+               data_min=?, data_max=?, errore=?
+           WHERE id=?""",
+        (datetime.utcnow().isoformat(), n_trovati, n_inseriti, n_duplicati,
+         data_min, data_max, errore, run_id),
+    )
+    conn.commit()
+
+
+def ultimo_run_riuscito(conn: sqlite3.Connection, scraper_id: str) -> sqlite3.Row | None:
+    """Ritorna il dict dell'ultimo run completato senza errori, o None."""
+    return conn.execute(
+        """SELECT * FROM scraper_runs
+           WHERE scraper_id=? AND completato_a IS NOT NULL AND errore IS NULL
+           ORDER BY avviato_a DESC LIMIT 1""",
+        (scraper_id,),
+    ).fetchone()
 
 
 def red_flags_per_ente(conn: sqlite3.Connection, codice_istat: str) -> list[sqlite3.Row]:
@@ -350,4 +408,7 @@ __all__ = [
     "salva_check_esito",
     "salva_red_flag",
     "red_flags_per_ente",
+    "inizia_run",
+    "termina_run",
+    "ultimo_run_riuscito",
 ]
