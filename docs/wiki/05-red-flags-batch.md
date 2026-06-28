@@ -18,6 +18,33 @@ nessun LLM. Ognuna deve essere oggettiva, misurabile e linkata agli atti.
 | **Trasparenza** | mancata/tardiva pubblicazione obbligatoria (D.lgs. 33/2013) | oggettiva e misurabile: presenza/ritardo pubblicazione |
 | **Antimafia (Sicilia)** | imprese interdette che ricompaiono | altra ragione sociale o nei subappalti |
 
+## Red flag da contenuto PDF (Fase 2 — richiede download)
+
+I seguenti check **non sono rilevabili dai soli metadati** e richiedono l'analisi del testo dell'atto.
+Vengono eseguiti solo sugli atti già flaggati dalla Fase 1.
+
+| Check ID | Descrizione | Segnale |
+|---|---|---|
+| `revoca_motivazione_vaga` | Revoca in autotutela con motivazione generica, senza accertamento dei fatti | Assenza di riferimenti a: indagine interna, responsabile accertato, misure adottate |
+| `gdpr_breach_non_notificato` | Violazione di dati personali in procedura concorsuale senza notifica al Garante | Revoca cita "divulgazione" o "violazione segretezza" ma nessun atto separato di notifica ex art. 33 GDPR |
+| `dpo_segretario_conflitto` | Il DPO è la stessa persona che firma/gestisce l'atto irregolare | Richiede dato esterno: ruolo DPO dell'ente. Check: firmatario atto = soggetto DPO registrato |
+| `numero_atto_incoerente` | Riferimento a numero determinazione diverso tra oggetto e dispositivo | Es.: oggetto revoca cita "N. 33/2025", corpo e dispositivo citano "N. 35/2025" |
+| `commissione_nominata_nel_bando` | Commissione esaminatrice nominata nell'atto di indizione anziché dopo scadenza domande | Anomalia procedurale: i candidati conoscono i commissari prima di presentare domanda |
+| `attestazione_finanziaria_vuota` | Attestazione di copertura finanziaria firmata con tabella impegni/importi vuota | Attestazione formalmente valida ma senza dati economici concreti |
+
+### Caso studio: Palma di Montechiaro — Det. SG 35/2025 + revoca (giugno 2026)
+
+Fascicolo analizzato manualmente per validare l'approccio a due fasi:
+
+- **Fase 1 (metadati):** keyword `REVOCA IN AUTOTUTELA` nell'oggetto della det. 16/2026 → flag immediato. Discrepanza rilevabile: la revoca cita "N. 33/2025" ma in DB l'atto di indizione è "N. 35/2025".
+- **Fase 2 (PDF):** emersi 4 elementi invisibili dai metadati:
+  1. Causa reale: bozza di graduatoria divulgata prima dell'ufficializzazione → potenziale **data breach GDPR** (art. 33 GDPR: notifica Garante entro 72h). La revoca non la menziona.
+  2. Esistenza di una **seconda procedura parallela** (Cat. D, Istruttori → Funzionari) coinvolta nella stessa violazione ma non formalmente revocata.
+  3. Il Segretario Generale è anche **RPCT e DPO** → conflitto: è il soggetto che dovrebbe notificare il breach ed è anche il firmatario degli atti irregolari.
+  4. Attestazione di copertura finanziaria con tabella impegni/importi **vuota**.
+
+> Segnalazioni da verificare, non accertamenti. Il fascicolo è disponibile in `data/samples/1/` (anonimizzato).
+
 ## Principi di design delle regole
 
 1. **Soglie esplicite e documentate** — ogni numero magico (12 mesi, soglie affidamento) ha fonte normativa citata nel codice.

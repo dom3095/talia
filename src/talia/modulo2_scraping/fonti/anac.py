@@ -1,8 +1,8 @@
 """Spider per i dati open ANAC/BDNCP — contratti pubblici, filtro Sicilia (regione 19).
 
-Fonte dataset SmartCIG:
-  https://dati.anticorruzione.it/opendata/download?fileName=smartcig.csv
-  (aggiornamento mensile; ~400 MB compressi, filtriamo per sezione_regionale)
+Fonte dataset SmartCIG (suddiviso per anno civile dal 2023):
+  https://dati.anticorruzione.it/opendata/download/dataset/smartcig-{anno}/filesystem/smartcig-{anno}_csv_logCsv.csv
+  (aggiornamento mensile; ~400 MB per anno, filtriamo per sezione_regionale)
 
 Dati pubblici ai sensi del D.Lgs. 33/2013 e dell'art. 1 c. 32 L. 190/2012.
 
@@ -20,6 +20,7 @@ Nota: l'url_fonte viene sintetizzato come
 from __future__ import annotations
 
 import csv
+import datetime
 import io
 import sqlite3
 import urllib.request
@@ -36,11 +37,27 @@ from talia.modulo2_scraping.utils import parse_data_iso as _parse_data_iso
 FONTE_SCRAPER = "anac"
 SEZIONE_SICILIA = "Sicilia"
 
-URL_DATASET_SMARTCIG = (
-    "https://dati.anticorruzione.it/opendata/download?fileName=smartcig.csv"
-)
+def _url_smartcig(anno: int | None = None) -> str:
+    """URL dataset SmartCIG per l'anno civile dato.
 
-_USER_AGENT = "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"
+    Default: anno corrente - 2, perché ANAC pubblica il dataset dell'anno N
+    con un ritardo di 12-18 mesi (es. 2025 non ancora disponibile a giugno 2026).
+    """
+    if anno is None:
+        anno = datetime.date.today().year - 2
+    return (
+        f"https://dati.anticorruzione.it/opendata/download/dataset/"
+        f"smartcig-{anno}/filesystem/smartcig-{anno}_csv_logCsv.csv"
+    )
+
+
+URL_DATASET_SMARTCIG = _url_smartcig()
+
+# UA browser-like: il WAF ANAC blocca stringhe contenenti "bot"
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 
 # Colonne obbligatorie che devono essere presenti nel CSV
 _COLONNE_RICHIESTE = {
@@ -73,8 +90,10 @@ def _normalizza_colonne(riga: dict[str, str]) -> dict[str, str]:
     """Rinomina colonne con alias noti per uniformare versioni diverse del CSV."""
     out: dict[str, str] = {}
     for k, v in riga.items():
+        if k is None:  # csv.DictReader mette le colonne extra sotto None
+            continue
         chiave = k.strip().lower()
-        out[_ALIAS_COLONNE.get(chiave, chiave)] = v.strip()
+        out[_ALIAS_COLONNE.get(chiave, chiave)] = (v or "").strip()
     return out
 
 

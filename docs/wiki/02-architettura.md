@@ -45,10 +45,51 @@ Raccolta **continua** degli atti pubblicati (albi pretori, ANAC, GURS, UREGA) pe
 statistiche. Parte da **un solo software di albo pretorio** o una sola provincia.
 → vedi [05 Red flags batch](05-red-flags-batch.md) e [07 Fonti dati](07-fonti-dati.md).
 
+### Pipeline scraping in due fasi
+
+Il download dei PDF avviene **solo su atti già segnalati**, non su tutto il corpus:
+
+```
+FASE 1 — metadati (sempre)
+  scraping albo pretorio
+    → tipo, numero, oggetto, date, url_fonte
+    → red flag batch su metadati (regex + SQL)
+    → atti sospetti → coda `da_analizzare`
+
+FASE 2 — PDF on-demand (solo flag positivi)
+  download allegati da url_fonte
+    → OCR se scansione (Tesseract)
+    → estrazione entità (regex + spaCy)
+    → checklist deterministiche contenuto
+    → LLM solo su casi filtrati (qualità motivazione, GDPR, ecc.)
+```
+
+**Perché non scaricare tutto?** Su un comune medio ~5-10 revoche/annullamenti/anno su 500+ atti totali.
+Scaricare solo i flaggati riduce il traffico al 2% e rende il sistema scalabile a centinaia di comuni.
+
+**Segnali che attivano la Fase 2** (keyword nell'oggetto):
+`REVOCA`, `ANNULLAMENTO`, `SOSPENSIONE`, `AUTOTUTELA`, `DECADENZA`, `IRREGOLARITÀ`
+
 ## Modulo 3 — Dashboard per comune
 
 Aggregazioni dei risultati: indici, trend, confronti tra pari (comuni di taglia simile), drill-down fino
-al documento sorgente.
+al documento sorgente. **MVP implementato (TAL-30).**
+
+### Funzionalità MVP (`src/talia/modulo3_dashboard/app.py`)
+
+- **Panoramica comuni** — tabella con conteggio red flags per tipo (frazionamento, concentrazione, tempi)
+  e severità (alta/media/bassa), ordinata per numero di segnalazioni.
+- **Drill-down** — per ogni red flag: descrizione, periodo, elenco atti/CIG con link diretto a `url_fonte`.
+- **Comuni virtuosi** — sezione dedicata ai comuni senza segnalazioni (principio di simmetria).
+- **Anonimizzazione** — per comuni < 5.000 abitanti il drill-down nominativo è disabilitato; vengono
+  mostrate solo le aggregazioni (tutela privacy in contesti dove i soggetti sono identificabilissimi).
+- **Disclaimer permanente** in cima alla pagina: *"Segnalazioni da verificare, non accertamenti."*
+
+### Avvio
+
+```bash
+TALIA_DB=talia.db streamlit run src/talia/modulo3_dashboard/app.py
+```
 
 ## Confini tra i moduli
 

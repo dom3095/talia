@@ -20,6 +20,9 @@ from dataclasses import dataclass
 
 from talia.modulo2_scraping.db import salva_red_flag
 
+from talia.engine.catena import ricostruisci_catene
+
+from .catena_revoca import RevocaInCatenaRilevata, rileva_revoche_in_catena
 from .concentrazione import ConcentrazioneRilevata, rileva_concentrazione
 from .frazionamento import FrazionamentoRilevato, rileva_frazionamento
 from .tempi_anomali import TempoAnomalioRilevato, rileva_tempi_anomali
@@ -27,6 +30,30 @@ from .tempi_anomali import TempoAnomalioRilevato, rileva_tempi_anomali
 # ---------------------------------------------------------------------------
 # Mapping → DB
 # ---------------------------------------------------------------------------
+
+
+def _salva_revoca_in_catena(conn: sqlite3.Connection, rc: RevocaInCatenaRilevata) -> int:
+    oggetto = rc.oggetto or "n/d"
+    giorni = f" dopo {rc.giorni_elapsed} giorni" if rc.giorni_elapsed is not None else ""
+    descrizione = (
+        f"Procedimento {rc.stato_finale}{giorni}: {oggetto}. "
+        f"Avvio: {rc.data_avvio or 'n/d'} — "
+        f"{rc.stato_finale.capitalize()}: {rc.data_revoca or 'n/d'}. "
+        f"Catena individuata via: {rc.metodo_individuazione or 'n/d'}."
+    )
+    return salva_red_flag(
+        conn,
+        ente_id=rc.ente_id,
+        tipo_flag="revoca_in_catena",
+        severita="alta",
+        descrizione=descrizione,
+        atti_cig=[
+            {"id": a["id"], "url": a["url"], "ruolo": a["ruolo"], "data": a["data"]}
+            for a in rc.atti
+        ],
+        periodo_da=rc.data_avvio,
+        periodo_a=rc.data_revoca,
+    )
 
 
 def _salva_frazionamento(conn: sqlite3.Connection, rf: FrazionamentoRilevato) -> int:
@@ -99,6 +126,7 @@ class RapportoRunner:
     frazionamento: dict
     concentrazione: dict
     tempi_anomali: dict
+    revoche_catena: dict
 
     @property
     def totale_flag(self) -> int:
@@ -106,6 +134,7 @@ class RapportoRunner:
             self.frazionamento["n_salvati"]
             + self.concentrazione["n_salvati"]
             + self.tempi_anomali["n_salvati"]
+            + self.revoche_catena["n_salvati"]
         )
 
 
@@ -118,6 +147,9 @@ def esegui_tutti(conn: sqlite3.Connection) -> RapportoRunner:
     Returns:
         ``RapportoRunner`` con i contatori per regola.
     """
+    # --- Catene di eventi (prerequisito per revoche_catena) ---
+    ricostruisci_catene(conn)
+
     # --- Frazionamento ---
     frazi = rileva_frazionamento(conn)
     n_frazi_salvati = sum(1 for rf in frazi if _salva_frazionamento(conn, rf) > 0)
@@ -130,8 +162,13 @@ def esegui_tutti(conn: sqlite3.Connection) -> RapportoRunner:
     tempi = rileva_tempi_anomali(conn)
     n_tempi_salvati = sum(1 for ta in tempi if _salva_tempo_anomalo(conn, ta) > 0)
 
+    # --- Revoche in catena ---
+    revoche = rileva_revoche_in_catena(conn)
+    n_revoche_salvati = sum(1 for rc in revoche if _salva_revoca_in_catena(conn, rc) > 0)
+
     return RapportoRunner(
         frazionamento={"n_rilevati": len(frazi), "n_salvati": n_frazi_salvati},
         concentrazione={"n_rilevati": len(conc), "n_salvati": n_conc_salvati},
         tempi_anomali={"n_rilevati": len(tempi), "n_salvati": n_tempi_salvati},
+        revoche_catena={"n_rilevati": len(revoche), "n_salvati": n_revoche_salvati},
     )
