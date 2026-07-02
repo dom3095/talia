@@ -31,6 +31,16 @@ in `anac.py`; fix strutturale: trovare il nuovo URL del dataset.
 
 ---
 
+## [BUG-6] Dashboard: tab Panoramica vuota
+
+**Rilevato:** 2026-06-28, test Playwright
+**File:** `src/talia/modulo3_dashboard/app.py` — `_mostra_panoramica()`
+**Sintomo:** tab "📊 Panoramica" carica senza errori ma non mostra dati (tabella/chart assenti sotto "Comuni con segnalazioni"). Tab Dettaglio e Procedimenti funzionano.
+**Causa probabile:** DataFrame vuoto per filtro o colonna mancante, oppure eccezione silenziosa nel rendering.
+**Stato:** ❌ Aperto.
+
+---
+
 ## [BUG-4] Trapani spider: `_RE_PANEL` non matcha più la struttura HTML corrente
 
 **Rilevato:** 2026-06-28, test automatico con agente (2 pagine, DB temporaneo)

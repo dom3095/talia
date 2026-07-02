@@ -215,7 +215,7 @@ def collega_per_cig(conn: sqlite3.Connection, cig: str) -> int | None:
         stato_finale=_stato_da_ruoli(ruoli),
         metodo_individuazione="cig",
     )
-    for atto, ruolo in zip(atti, ruoli):
+    for atto, ruolo in zip(atti, ruoli, strict=False):
         _collega_atto(conn, atto_id=atto["id"], procedimento_id=proc_id, ruolo=ruolo)
 
     conn.commit()
@@ -361,7 +361,7 @@ def collega_per_oggetto_simile(
             stato_finale=_stato_da_ruoli(ruoli),
             metodo_individuazione="oggetto_simile_da_verificare",
         )
-        for atto, ruolo in zip(gruppo, ruoli):
+        for atto, ruolo in zip(gruppo, ruoli, strict=False):
             assegnazioni[atto["id"]] = proc_id
             _collega_atto(conn, atto_id=atto["id"], procedimento_id=proc_id, ruolo=ruolo)
         n_creati += 1

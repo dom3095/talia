@@ -18,9 +18,8 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-from talia.modulo2_scraping.db import salva_red_flag
-
 from talia.engine.catena import ricostruisci_catene
+from talia.modulo2_scraping.db import salva_red_flag
 
 from .catena_revoca import RevocaInCatenaRilevata, rileva_revoche_in_catena
 from .concentrazione import ConcentrazioneRilevata, rileva_concentrazione

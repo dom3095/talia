@@ -61,6 +61,18 @@ Trapani:                38 atti  2026-06-11 → 2026-06-24  ← scraper ROTTO (B
 
 ---
 
+## Bug aperti (bloccanti per PR TAL-30)
+
+### BUG-6: Dashboard — tab Panoramica vuota
+
+**Rilevato:** 2026-06-28, test manuale con Playwright
+**Sintomo:** tab "📊 Panoramica" si carica senza errori ma non mostra dati (tabella/chart assenti sotto il titolo "Comuni con segnalazioni"). Tab "🔍 Dettaglio comune" funziona (dati reali presenti). Tab "⛓️ Procedimenti" graceful degradation OK (catene non ancora costruite).
+**Causa probabile:** query `carica_panoramica()` restituisce dati ma il componente Streamlit (dataframe o chart) non li renderizza — potrebbe essere colonna mancante, DataFrame vuoto per un filtro troppo stretto, o eccezione silenziosa.
+**File:** `src/talia/modulo3_dashboard/app.py` — sezione tab Panoramica
+**Fix necessario prima di chiudere la PR TAL-30.**
+
+---
+
 ## Prossimi passi
 
 ### 0 — Fix Trapani (urgente, ~30 min)

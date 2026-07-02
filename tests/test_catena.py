@@ -6,11 +6,9 @@ import pytest
 
 from talia.engine.catena import (
     CatenaEventi,
-    RiferimentoAtto,
     classifica_ruolo,
     collega_per_cig,
     collega_per_oggetto_simile,
-    collega_per_riferimenti_incrociati,
     costruisci_catena_da_testi,
     estrai_riferimenti,
     ricostruisci_catene,
@@ -137,7 +135,7 @@ def test_collega_per_cig_crea_procedimento(db, ente_ag):
 
     _evolvi_schema(db)
 
-    id1 = inserisci_atto(
+    inserisci_atto(
         db,
         _atto(
             "084028",
@@ -149,7 +147,7 @@ def test_collega_per_cig_crea_procedimento(db, ente_ag):
             testo_estratto="Bando di concorso pubblico per 7 operatori esperti",
         ),
     )
-    id2 = inserisci_atto(
+    inserisci_atto(
         db,
         _atto(
             "084028",
@@ -237,7 +235,9 @@ def test_collega_per_cig_solo_metadati_senza_testo(db, ente_ag):
 
     ruoli = {
         r["ruolo_in_catena"]
-        for r in db.execute("SELECT ruolo_in_catena FROM atti WHERE procedimento_id=?", (proc_id,)).fetchall()
+        for r in db.execute(
+            "SELECT ruolo_in_catena FROM atti WHERE procedimento_id=?", (proc_id,)
+        ).fetchall()
     }
     assert "avvio" in ruoli
     assert "revoca" in ruoli
@@ -286,7 +286,9 @@ def test_collega_per_oggetto_simile(db, ente_ag):
     n = collega_per_oggetto_simile(db, ente_ag)
     assert n >= 1
 
-    n_proc = db.execute("SELECT COUNT(*) FROM procedimenti WHERE ente_id=?", (ente_ag,)).fetchone()[0]
+    n_proc = db.execute(
+        "SELECT COUNT(*) FROM procedimenti WHERE ente_id=?", (ente_ag,)
+    ).fetchone()[0]
     assert n_proc >= 1
 
     proc = db.execute(
@@ -365,7 +367,11 @@ def test_costruisci_catena_da_testi_revoca():
 def test_costruisci_catena_da_testi_aggiudicazione():
     testi = [
         {"testo": "Bando gara CIG AB1234567C", "tipo": "bando", "data": "2024-01-10"},
-        {"testo": "Aggiudicazione definitiva gara CIG AB1234567C", "tipo": "determina", "data": "2024-06-01"},
+        {
+            "testo": "Aggiudicazione definitiva gara CIG AB1234567C",
+            "tipo": "determina",
+            "data": "2024-06-01",
+        },
     ]
     catena = costruisci_catena_da_testi(testi)
     assert catena.stato_finale == "aggiudicato"

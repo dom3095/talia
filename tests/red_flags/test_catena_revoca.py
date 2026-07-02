@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from talia.engine.catena import _evolvi_schema
+from talia.engine.catena import ricostruisci_catene
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,
@@ -14,7 +14,6 @@ from talia.modulo2_scraping.db import (
     upsert_ente,
 )
 from talia.modulo2_scraping.red_flags.catena_revoca import rileva_revoche_in_catena
-from talia.engine.catena import ricostruisci_catene
 
 # ---------------------------------------------------------------------------
 # Fixtures
