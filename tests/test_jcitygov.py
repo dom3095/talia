@@ -5,8 +5,6 @@ I test non fanno chiamate HTTP: usano HTML fixture sintetiche.
 
 from __future__ import annotations
 
-import pytest
-
 from talia.modulo2_scraping.fonti.jcitygov import (
     _parse_date_cella,
     _parse_pagina,
@@ -57,7 +55,11 @@ _ISTAT = "085003"
 
 
 def test_parse_tipo_con_sottocategoria():
-    html = '<span class="categoria_categoria">DETERMINE</span><span class="categoria_separatore"> /</span><span class="categoria_sottocategoria">DETERMINA DIRIGENZIALE</span>'
+    html = (
+        '<span class="categoria_categoria">DETERMINE</span>'
+        '<span class="categoria_separatore"> /</span>'
+        '<span class="categoria_sottocategoria">DETERMINA DIRIGENZIALE</span>'
+    )
     assert _parse_tipo(html) == "determine / determina dirigenziale"
 
 

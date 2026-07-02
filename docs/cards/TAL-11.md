@@ -10,6 +10,29 @@
 Check 3: valutare la qualità della motivazione (specifica vs boilerplate). **Unico check che usa LLM**,
 e solo sui documenti già flaggati.
 
+## 📋 Spec
+
+### Interfaccia
+```python
+def check_motivazione(testo_atto: str, contesto: CheckContext) -> CheckResult:
+    # CheckContext: atti già flaggati da check precedenti
+    # CheckResult: esito ("verde"|"giallo"|"rosso"), citazione, spiegazione
+```
+
+### Comportamento
+Analizza la sezione "motivazione" di un atto **già flaggato** da almeno un check deterministico.
+Valuta densità e specificità della motivazione rispetto ai requisiti giurisprudenziali (interesse pubblico concreto e attuale, comparazione con affidamenti dei privati). Usa LLM open locale con RAG sul corpus normativo. Restituisce sempre una citazione testuale del passaggio valutato.
+
+### Casi limite
+- Se la sezione motivazione è assente o < 50 caratteri → 🔴 automatico senza chiamata LLM
+- Se l'atto non è flaggato da check precedenti → skip (non chiamare il check)
+- Se il modello LLM non è disponibile → eccezione esplicita, nessun fallback silenzioso
+
+## ❓ Domande aperte
+- [ ] Quale modello LLM locale di riferimento? (Llama 3 / Mistral / Qwen — vedi wiki/03)
+- [ ] Soglia minima di lunghezza motivazione per considerarla "robusta"?
+- [ ] Il RAG deve coprire solo le norme citate nell'atto o tutto il corpus?
+
 ## 📚 Contesto
 [wiki/04](../wiki/04-checklist-modulo1.md) check 3. Filtro a imbuto: regole prima, LLM eccezione ([wiki/03](../wiki/03-stack.md)).
 

@@ -35,7 +35,12 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
-from talia.modulo2_scraping.db import connetti, inizia_run, inizializza_db, termina_run  # noqa: E402
+from talia.modulo2_scraping.db import (  # noqa: E402
+    connetti,
+    inizia_run,
+    inizializza_db,
+    termina_run,
+)
 from talia.modulo2_scraping.red_flags.runner import esegui_tutti  # noqa: E402
 
 # Quanti duplicati consecutivi senza un inserimento prima di fermare la paginazione.
@@ -103,10 +108,10 @@ def _run_trapani(conn, max_pagine: int = 50, **_kwargs) -> dict:
 def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     try:
         from talia.modulo2_scraping.fonti.agrigento import prepara_ente, salva_atti, scarica_atti
-    except ImportError:
+    except ImportError as exc:
         raise RuntimeError(
             "Agrigento richiede Playwright: pip install playwright && playwright install chromium"
-        )
+        ) from exc
 
     prepara_ente(conn)
     print(f"  [Agrigento] Scarico albo pretorio con Playwright (max {max_pagine} pagine)…")
@@ -123,23 +128,34 @@ def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
 # jCityGov (Liferay *.trasparenza-valutazione-merito.it)
 # Messina esclusa: SSL self-signed cert — da risolvere separatamente.
 
+_BASE = "https://{}.trasparenza-valutazione-merito.it"
 _JCITYGOV_COMUNI = [
     # (nome_log, base_url, codice_istat, denominazione)
-    ("caltanissetta",    "https://caltanissetta.trasparenza-valutazione-merito.it",    "085003", "Comune di Caltanissetta"),
-    ("enna",             "https://enna.trasparenza-valutazione-merito.it",             "086010", "Comune di Enna"),
-    ("palma",            "https://palmadimontechiaro.trasparenza-valutazione-merito.it", "084028", "Comune di Palma di Montechiaro"),
-    ("ragusa",           "https://ragusa.trasparenza-valutazione-merito.it",           "088009", "Comune di Ragusa"),
+    ("caltanissetta", _BASE.format("caltanissetta"), "085003", "Comune di Caltanissetta"),
+    ("enna", _BASE.format("enna"), "086010", "Comune di Enna"),
+    (
+        "palma",
+        "https://palmadimontechiaro.trasparenza-valutazione-merito.it",
+        "084028",
+        "Comune di Palma di Montechiaro",
+    ),
+    ("ragusa", _BASE.format("ragusa"), "088009", "Comune di Ragusa"),
 ]
 
 
-def _run_jcitygov_comune(conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs):
+def _run_jcitygov_comune(
+    conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
+):
     from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
     from talia.modulo2_scraping.fonti.jcitygov import scarica_atti
 
     upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
     limit = max_pagine * 20
     stop_label = " [backfill, stop disabilitato]" if no_stop else ""
-    print(f"  [{nome.capitalize()}] Scarico albo pretorio jCityGov (max {max_pagine} pagine){stop_label}…")
+    print(
+        f"  [{nome.capitalize()}] Scarico albo pretorio jCityGov"
+        f" (max {max_pagine} pagine){stop_label}…"
+    )
     t0 = time.monotonic()
 
     inseriti = duplicati = consecutivi_dup = 0
@@ -257,13 +273,38 @@ Esempi:
         default=None,
         dest="anac_file",
         metavar="FILE",
-        help="Carica il CSV SmartCIG da file locale invece di scaricarlo (utile se il WAF ANAC blocca il download automatico)",
+        help=(
+            "Carica il CSV SmartCIG da file locale invece di scaricarlo"
+            " (utile se il WAF ANAC blocca il download automatico)"
+        ),
     )
     p.add_argument(
         "--no-stop",
         action="store_true",
         dest="no_stop",
-        help="Disabilita lo stop-on-known (backfill storico: scarica tutte le pagine anche se già in DB)",
+        help=(
+            "Disabilita lo stop-on-known"
+            " (backfill storico: scarica tutte le pagine anche se già in DB)"
+        ),
+    )
+    p.add_argument(
+        "--llm-modello",
+        default=None,
+        dest="llm_modello",
+        metavar="MODELLO",
+        help=(
+            "Modello Ollama per classificare i procedimenti non classificati dalle regex"
+            " (es. 'llama3.2'). Richiede Ollama attivo su localhost:11434."
+            " Default: skip (solo classificazione deterministica)."
+        ),
+    )
+    p.add_argument(
+        "--llm-limite",
+        type=int,
+        default=200,
+        dest="llm_limite",
+        metavar="N",
+        help="Numero massimo di procedimenti da passare all'LLM per run (default: 200).",
     )
     return p.parse_args()
 
@@ -292,10 +333,16 @@ def main() -> int:
         print(f"\n── {nome.upper()} ──")
         run_id = inizia_run(conn, nome)
         try:
-            esito = fn(conn, max_pagine=args.max_pagine, anac_file=args.anac_file, no_stop=args.no_stop)
+            esito = fn(
+                conn,
+                max_pagine=args.max_pagine,
+                anac_file=args.anac_file,
+                no_stop=args.no_stop,
+            )
             risultati[nome] = esito
             termina_run(
-                conn, run_id,
+                conn,
+                run_id,
                 n_trovati=esito.get("n_trovati", 0),
                 n_inseriti=esito.get("inseriti", 0),
                 n_duplicati=esito.get("duplicati", 0),
@@ -311,12 +358,22 @@ def main() -> int:
 
     if not args.no_red_flags:
         print("\n── RED FLAGS ──")
+        if args.llm_modello:
+            print(
+                f"  [LLM] Classificazione procedimenti sconosciuto con '{args.llm_modello}'"
+                f" (max {args.llm_limite})…"
+            )
         try:
-            report = esegui_tutti(conn)
+            report = esegui_tutti(
+                conn,
+                modello_llm=args.llm_modello,
+                llm_limite=args.llm_limite,
+            )
             print(
                 f"  frazionamento:  {report.frazionamento}\n"
                 f"  concentrazione: {report.concentrazione}\n"
                 f"  tempi anomali:  {report.tempi_anomali}\n"
+                f"  revoche catena: {report.revoche_catena}\n"
                 f"  totale flag:    {report.totale_flag}"
             )
         except Exception:

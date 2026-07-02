@@ -31,6 +31,24 @@ in `anac.py`; fix strutturale: trovare il nuovo URL del dataset.
 
 ---
 
+## [BUG-6] Dashboard: tab Panoramica vuota
+
+**Rilevato:** 2026-06-28, test Playwright
+**File:** `src/talia/modulo3_dashboard/app.py` — `_mostra_panoramica()`
+**Sintomo:** tab "📊 Panoramica" carica senza errori ma non mostra dati (tabella/chart assenti sotto "Comuni con segnalazioni"). Tab Dettaglio e Procedimenti funzionano.
+**Causa probabile:** DataFrame vuoto per filtro o colonna mancante, oppure eccezione silenziosa nel rendering.
+**Stato:** ✅ Chiuso il 2026-07-03 — **non era un bug**: falso positivo del metodo di
+verifica. `st.dataframe` renderizza la tabella in un canvas (glide-data-grid), che è
+invisibile all'estrazione testuale `inner_text()` usata dal test Playwright del
+2026-06-28: il testo della tabella non compare nel DOM, ma la tabella c'è.
+Verificato con screenshot Playwright su DB reale: i 3 comuni con segnalazioni
+(AG/SR/TP, 1 flag media ciascuno) sono renderizzati correttamente.
+**Lezione per i test UI Streamlit:** verificare `st.dataframe` con screenshot o con i
+selettori del data-grid (`[data-testid="stDataFrame"]`), mai con l'estrazione del testo.
+Fix collaterale: `use_container_width=True` (deprecato, rimozione post-2025) → `width="stretch"`.
+
+---
+
 ## [BUG-4] Trapani spider: `_RE_PANEL` non matcha più la struttura HTML corrente
 
 **Rilevato:** 2026-06-28, test automatico con agente (2 pagine, DB temporaneo)

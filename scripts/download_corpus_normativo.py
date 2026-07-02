@@ -42,7 +42,10 @@ NORME_NAZIONALI = [
         "titolo": "D.Lgs. 14 marzo 2013, n. 33 — Trasparenza (Decreto Trasparenza)",
         "urn": "urn:nir:stato:decreto.legislativo:2013-03-14;33",
         "area": "nazionale",
-        "rilevanza": "obblighi pubblicazione albo pretorio, FOIA (art. 5-5bis), limite dati personali (art. 7-bis)",
+        "rilevanza": (
+            "obblighi pubblicazione albo pretorio, FOIA (art. 5-5bis),"
+            " limite dati personali (art. 7-bis)"
+        ),
     },
     {
         "id": "l-190-2012",
@@ -84,7 +87,10 @@ NORME_NAZIONALI = [
         "titolo": "D.Lgs. 30 giugno 2003, n. 196 — Codice Privacy (come mod. da D.Lgs. 101/2018)",
         "urn": "urn:nir:stato:decreto.legislativo:2003-06-30;196",
         "area": "nazionale",
-        "rilevanza": "trattamento dati PA, base giuridica art. 2-ter, categorie particolari art. 2-sexies",
+        "rilevanza": (
+            "trattamento dati PA, base giuridica art. 2-ter,"
+            " categorie particolari art. 2-sexies"
+        ),
     },
     {
         "id": "dlgs-165-2001",
@@ -122,7 +128,10 @@ NORME_UE = [
         "titolo": "Reg. UE 2016/679 (GDPR) — Protezione dati personali",
         "celex": "32016R0679",
         "area": "ue",
-        "rilevanza": "minimizzazione dati negli output TALIA, anonimizzazione, base giuridica interesse pubblico",
+        "rilevanza": (
+            "minimizzazione dati negli output TALIA, anonimizzazione,"
+            " base giuridica interesse pubblico"
+        ),
     },
     {
         "id": "dir-2014-24-ue",
@@ -165,8 +174,8 @@ def _clean_text(html: str) -> str:
                      "noscript", "svg", "button", "form", "aside"]):
         tag.decompose()
     body = soup.find("body") or soup
-    lines = [l.strip() for l in body.get_text(separator="\n").splitlines()]
-    lines = [l for l in lines if l and not NAV_NOISE.match(l)]
+    lines = [line.strip() for line in body.get_text(separator="\n").splitlines()]
+    lines = [line for line in lines if line and not NAV_NOISE.match(line)]
     return "\n".join(lines)
 
 
@@ -278,7 +287,7 @@ def download_norma_ue(session: requests.Session, norma: dict, out_dir: Path) -> 
         r'Feedback|RSS|CELEX|ELI|Documento|Autenticazione|Cerca|Avviso legale).*',
         re.I
     )
-    lines = [l for l in testo.splitlines() if not lex_noise.match(l)]
+    lines = [line for line in testo.splitlines() if not lex_noise.match(line)]
     testo = "\n".join(lines)
 
     md = _build_md_ue(norma, testo, url)
@@ -329,7 +338,7 @@ def main():
     # Warm-up sessione Normattiva
     s.get("https://www.normattiva.it/", timeout=15)
 
-    ok = err = skip = 0
+    ok = err = 0
 
     if args.solo != "ue":
         print("\n=== NORME NAZIONALI (Normattiva) ===")

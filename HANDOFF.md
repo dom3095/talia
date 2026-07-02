@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-06-28
+> Aggiornato: 2026-07-03
 
 ---
 
@@ -27,19 +27,23 @@ Trapani:                38 atti  2026-06-11 → 2026-06-24  ← scraper ROTTO (B
 
 | File | Contenuto |
 |------|-----------|
-| `scripts/run_scrapers.py` | Palma aggiunta; `--no-stop`; `scraper_runs`; stop-on-known; coverage summary; `--anac-file` |
+| `scripts/run_scrapers.py` | Palma aggiunta; `--no-stop`; `scraper_runs`; stop-on-known; coverage summary; `--anac-file`; **`--llm-modello`, `--llm-limite`** |
 | `src/talia/modulo2_scraping/db.py` | Tabella `scraper_runs`; `inizia_run`, `termina_run`, `ultimo_run_riuscito` |
 | `src/talia/modulo2_scraping/fonti/jcitygov.py` | Timeout 30s + 1 retry |
-| `src/talia/engine/catena.py` | Engine catena di eventi (TAL-43) — nuovo file |
+| `src/talia/engine/catena.py` | Engine catena di eventi (TAL-43); pattern AFFIDAMENTO + LIQUIDAZIONE; stato "concluso"; Strategia 4 LLM (Ollama); **TAL-46: strategia 2.5 contenimento, guard-rail gemelli, regex estese, colonna `numero_settoriale`, `reset_procedimenti_da_verificare`** |
 | `src/talia/modulo2_scraping/red_flags/catena_revoca.py` | Red flag revoca in catena (TAL-44) — nuovo file |
-| `src/talia/modulo2_scraping/red_flags/runner.py` | Aggiunto `revoche_catena` |
+| `src/talia/modulo2_scraping/red_flags/runner.py` | Aggiunto `revoche_catena`; **parametri LLM passati a `ricostruisci_catene()`** |
 | `src/talia/modulo3_dashboard/app.py` | Tab ⛓️ Procedimenti (TAL-45) |
-| `tests/test_catena.py` | 29 test motore catena |
+| `tests/test_catena.py` | **41 test** (erano 29) — nuovi: AFFIDAMENTO, LIQUIDAZIONE, LLM fallback, **TAL-46: contenimento caso Palma, revoca cumulativa, guard-rail gemelli, reset** |
+| `docs/cards/TAL-46.md` | **Nuova card (Spec-Driven): engine catena v2 — in Review** |
 | `tests/red_flags/test_catena_revoca.py` | 6 test red flag revoca |
 | `docs/wiki/02-architettura.md` | Pipeline due fasi |
 | `docs/wiki/05-red-flags-batch.md` | 6 check PDF + caso studio Palma |
 | `docs/cards/BOARD.md` | TAL-42..45 aggiunte in Review |
 | `docs/cards/TAL-42..45.md` | Nuove card catena |
+| `docs/cards/_TEMPLATE.md` | **Sezioni `## 📋 Spec`, `## ❓ Domande aperte`, `## 🔬 Tentativi`** |
+| `docs/cards/TAL-11.md` | **Spec compilata (interfaccia + domande aperte)** |
+| `CLAUDE.md` | **Loop di esecuzione; convenzioni Tentativi, Spec/Domande aperte; delega ad agente economico** |
 
 ---
 
@@ -58,6 +62,47 @@ Trapani:                38 atti  2026-06-11 → 2026-06-24  ← scraper ROTTO (B
 | Ragusa | ✅ 40 atti | OK |
 | Siracusa | ✅ 30 atti | OK; mancano test unitari |
 | Trapani | ⚠️ 0 atti | `_RE_PANEL` non matcha più l'HTML → BUG-4 |
+
+---
+
+## Bug aperti
+
+Nessuno bloccante. **BUG-6 chiuso il 2026-07-03: non era un bug** — falso positivo
+del test Playwright del 28/06, che verificava la tabella con `inner_text()`;
+`st.dataframe` renderizza in canvas (glide-data-grid), invisibile all'estrazione
+testuale. Screenshot su DB reale conferma il rendering corretto. Dettagli e lezione
+per i test UI in [`docs/bugs.md`](docs/bugs.md).
+
+---
+
+## Sessione 2026-07-02 — Cosa è cambiato
+
+### Catena eventi: 81% dei procedimenti sconosciuto risolti
+
+Prima di questa sessione, `ricostruisci_catene()` lasciava 574 procedimenti con `stato_finale = 'sconosciuto'` perché mancavano i pattern per le fasi normali di un procedimento amministrativo.
+
+Aggiunti due pattern in `src/talia/engine/catena.py`:
+- **AFFIDAMENTO** → ruolo `aggiudicazione` (es. "affidamento diretto ai sensi", "affidamento del servizio")
+- **LIQUIDAZIONE** → ruolo `liquidazione` (es. "liquidazione fattura", "liquidazione sal") → nuovo stato finale **"concluso"**
+
+Risultato: da 574 a ~109 sconosciuto (-81%).
+
+### Strategia 4 — LLM locale (opt-in)
+
+Per i restanti 109, aggiunta classificazione via Ollama HTTP API come Strategia 4 in `ricostruisci_catene()`.
+
+- Opt-in: `--llm-modello llama3.2` (default: skip)
+- Graceful degradation: se Ollama non risponde, warning nel log e skip silenzioso
+- Tracciabilità: procedimenti classificati via LLM hanno `metodo_individuazione` con suffisso `_llm`
+- Limite configurabile: `--llm-limite N` (default 200 per run)
+
+### Processo di lavoro aggiornato
+
+Aggiornati `CLAUDE.md` e `docs/cards/_TEMPLATE.md` con:
+- **Loop di esecuzione** formale per card (Spec check → Esecuzione → Bugfix → Refactor → Lint → Doc)
+- **`## 🔬 Tentativi`**: log strutturato degli approcci provati (persistente tra sessioni)
+- **`## 📋 Spec` + `## ❓ Domande aperte`**: spec compilata prima di toccare codice; se ci sono domande aperte, bloccarsi
+- **Delega esplorativa**: per task pesanti, delegare a haiku, consolidare, validare
 
 ---
 
@@ -91,34 +136,14 @@ git commit -m "feat(E2): catena eventi, red flag revoca, tab dashboard (TAL-42/4
 python scripts/run_scrapers.py --scrapers palma --max-pagine 50 --no-stop
 ```
 
-### 3 — Validare la catena sul DB reale
+### 3 — ~~Validare la catena sul DB reale~~ ✅ FATTO (2026-07-02, TAL-46)
 
-`data/samples/1/` è un esempio costruito a mano — testarlo è circolare. La validazione vera è sul DB reale:
-
-```bash
-python -c "
-from talia.modulo2_scraping.db import connetti
-from talia.engine.catena import ricostruisci_catene
-
-conn = connetti('talia.db')
-ricostruisci_catene(conn)
-rows = conn.execute('''
-    SELECT e.denominazione, p.stato_finale, p.metodo_individuazione,
-           COUNT(a.id) as n_atti
-    FROM procedimenti p
-    JOIN enti e ON p.ente_id = e.id
-    JOIN atti a ON a.procedimento_id = p.id
-    GROUP BY p.id ORDER BY e.denominazione, p.stato_finale
-''').fetchall()
-for r in rows: print(r)
-conn.close()
-"
-```
-
-Controllare:
-1. Numeri plausibili per ente (poche decine di catene, non migliaia)
-2. Catene con `metodo_individuazione = 'oggetto_simile'` → spot-check manuale (Jaccard è rumoroso)
-3. Il fascicolo Palma (revoca Det. 35/2025) risulta collegato?
+Il fascicolo Palma (`data/samples/1`) È ricostruibile dal DB, ma il fuzzy v1 aveva
+fuso 3 selezioni distinte in una mega-catena (proc. 674). Risolto con TAL-46:
+strategia 2.5 (contenimento oggetto) + guard-rail gemelli. Migrazione applicata
+a `talia.db`: reset di 523 procedimenti fuzzy + rerun → ora 646 da CIG, 10 da
+contenimento (alta confidenza, incluse le 3 catene Palma: proc. 1170/1171/1172),
+521 fuzzy da_verificare. Dettagli in `docs/cards/TAL-46.md` (sezione Tentativi).
 
 ### 4 — TAL-14: check GDPR + numero atto incoerente
 
