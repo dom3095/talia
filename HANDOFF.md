@@ -6,7 +6,10 @@
 
 ## Branch attivo
 
-`feat/TAL-30-dashboard-mvp` — modifiche **non committate** (vedi sotto).
+`main` — il branch `feat/TAL-30-dashboard-mvp` (catch-all TAL-30/42…46) è stato
+**mergiato e cancellato il 2026-07-03** (merge `51014cd`, 290 test verdi).
+Da ora: **un branch per card** (`feat/TAL-XX-slug`), come da convenzione CLAUDE.md.
+Esiste ancora il branch locale `fix/BUG-4-trapani-regex` (fix Trapani, da riprendere).
 
 ## DB attuale
 
@@ -24,6 +27,9 @@ Trapani:                38 atti  2026-06-11 → 2026-06-24  ← scraper ROTTO (B
 ---
 
 ## Modifiche non committate
+
+Nessuna (working tree pulito a parte `data/samples/1/`, locale only).
+La tabella sotto è lo storico di cosa conteneva l'ultima ondata di commit (2026-07-02/03):
 
 | File | Contenuto |
 |------|-----------|
@@ -123,12 +129,10 @@ print(r.read(5000).decode('utf-8', errors='replace'))
 
 Confrontare con `_RE_PANEL` in `trapani.py`, aggiornare la regex, aggiungere fixture di test.
 
-### 1 — Commit (bloccante per tutto il resto)
+### 1 — ~~Commit~~ ✅ FATTO (2026-07-03)
 
-```bash
-git add -p
-git commit -m "feat(E2): catena eventi, red flag revoca, tab dashboard (TAL-42/43/44/45)"
-```
+Tutto committato, mergiato su `main` e pushato; branch cancellato. BUG-6 chiuso
+(falso positivo del test UI — vedi `docs/bugs.md`).
 
 ### 2 — Backfill storico Palma di Montechiaro
 
