@@ -176,7 +176,7 @@ def _mostra_panoramica(conn: sqlite3.Connection) -> None:
                     "Totale flag": r["n_flags"],
                 }
             )
-        st.dataframe(tabella, use_container_width=True)
+        st.dataframe(tabella, width="stretch")
 
     if virtuosi:
         with st.expander(f"✅ Comuni senza segnalazioni ({len(virtuosi)})", expanded=False):

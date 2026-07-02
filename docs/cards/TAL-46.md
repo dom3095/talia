@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🔤 NLP + 🧭 TL
 - **Priorità:** P2
-- **Stato:** Review
+- **Stato:** Done
 - **Branch:** `feat/TAL-30-dashboard-mvp` (come TAL-42…45)
 
 ## 🎯 Obiettivo

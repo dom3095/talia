@@ -3,9 +3,9 @@
 Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio di ogni card nei file
 `TAL-*.md` di questa cartella.
 
-**Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags batch)
-e Modulo 3 (Dashboard Streamlit MVP) implementati su `main` — 233 test verdi.
-In corso: validazione su fascicoli reali (TAL-12).
+**Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags
+batch + catene procedimenti v2) e Modulo 3 (Dashboard Streamlit) su `main` — 290 test verdi.
+In corso: validazione su fascicoli reali (TAL-12). Prossimi: fix Trapani (BUG-4), backfill Palma.
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -49,11 +49,6 @@ In corso: validazione su fascicoli reali (TAL-12).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
-| [TAL-42](TAL-42.md) | Schema DB: tabella procedimenti + colonne catena | 🧭 TL + 🕷️ SCR | `engine/catena._evolvi_schema`; lazy, idempotente |
-| [TAL-43](TAL-43.md) | Engine catena: individuazione e collegamento procedimenti | 🔤 NLP | 3 strategie (CIG/riferimenti/oggetto simile); 21 test |
-| [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | 🔤 NLP + ⚖️ LEX | integrato in runner; 6 test |
-| [TAL-45](TAL-45.md) | Dashboard M3: tab ⛓️ Procedimenti + timeline | 📊 FE | graceful degradation se catene non ancora costruite |
-| [TAL-46](TAL-46.md) | Engine catena v2: contenimento oggetto, guard-rail fuzzy, fix riferimenti | 🔤 NLP + 🧭 TL | strategia 2.5; caso Palma: 674 → 3 catene; 290 test verdi |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca scansione campione per test OCR reale |
@@ -74,7 +69,12 @@ In corso: validazione su fascicoli reali (TAL-12).
 | [TAL-21](TAL-21.md) | Schema DB atti + storage | `db.py`: DDL + helper CRUD + dataclass AttoMetadato/EnteMetadato |
 | [TAL-22](TAL-22.md) | Pipeline ANAC open data (regione 19) | `anac.py`: filtro Sicilia + idempotenza + 22 test offline |
 | [TAL-23](TAL-23.md) | Red flags batch deterministici | `red_flags/`: frazionamento + concentrazione + tempi anomali + runner; 20 test |
-| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | `modulo3_dashboard/app.py`: panoramica comuni, drill-down fonte, anonimizzazione; 7 test |
+| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | `modulo3_dashboard/app.py`: panoramica comuni, drill-down fonte, anonimizzazione; 7 test; BUG-6 chiuso (falso positivo) |
+| [TAL-42](TAL-42.md) | Schema DB: tabella procedimenti + colonne catena | `engine/catena._evolvi_schema`; lazy, idempotente |
+| [TAL-43](TAL-43.md) | Engine catena: individuazione e collegamento procedimenti | 3 strategie (CIG/riferimenti/oggetto simile) |
+| [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | integrato in runner; 6 test |
+| [TAL-45](TAL-45.md) | Dashboard M3: tab ⛓️ Procedimenti + timeline | graceful degradation se catene non costruite |
+| [TAL-46](TAL-46.md) | Engine catena v2: contenimento oggetto + guard-rail gemelli | strategia 2.5; caso Palma: mega-catena → 3 catene; migrazione DB applicata |
 
 ## Legenda priorità
 
