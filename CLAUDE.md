@@ -71,7 +71,7 @@ talia/
 
 ## Modulo 2 — Stato scraper per capoluogo
 
-Aggiornato: 2026-06-28 (test con `--max-pagine 2`, DB temporaneo isolato).
+Aggiornato: 2026-07-03.
 
 | Comune | Scraper | Piattaforma | Stato | Note |
 |--------|---------|------------|-------|------|
@@ -83,16 +83,16 @@ Aggiornato: 2026-06-28 (test con `--max-pagine 2`, DB temporaneo isolato).
 | Palermo | — | SISPI JSP | ❌ mancante | Playwright obbligatorio (JS stateful); URL reale: `albopretorio.comune.palermo.it`; stessa logica di `agrigento.py` |
 | Ragusa | `jcitygov.py` | jCityGov/Liferay | ✅ OK | nel default run |
 | Siracusa | `siracusa.py` | portalepa PHP | ✅ OK | nel default run; mancano test unitari |
-| Trapani | `trapani.py` | e-pal.it | ⚠️ ROTTO | 0 atti — `_RE_PANEL` non matcha più la struttura HTML corrente |
+| Trapani | `trapani.py` | e-pal.it | ✅ OK | BUG-4 risolto 2026-07-03: era il filtro data server-side, non la regex (`al` ora = oggi+60gg). L'albo espone solo atti in pubblicazione (~15-30 gg): serve scraping continuo |
 
-Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico da completare).
+Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo).
 
 ### Fragilità comuni
 
-- **Fallimento silenzioso a 0 atti**: nessuno scraper logga WARNING esplicito se il parsing ritorna zero righe. Sempre aggiungere un log quando `len(atti) == 0`.
+- **Fallimento silenzioso a 0 atti**: quasi nessuno scraper logga WARNING esplicito se il parsing ritorna zero righe (Trapani ✅ fatto). Sempre aggiungere un log quando `len(atti) == 0`.
 - **Nessun retry su HTTPError**: `jcitygov.py` gestisce solo `TimeoutError`; errori 4xx/5xx propagano senza retry.
 - **Regex fragili sull'HTML**: `_RE_PANEL` (Trapani) e `_RE_NEXT` (jCityGov) falliscono silenziosamente a struttura cambiata.
-- **Nessun test unitario** per `siracusa.py` e `trapani.py` (da aggiungere con HTML fixture).
+- **Filtri data server-side controintuitivi**: e-pal.it esclude gli atti la cui pubblicazione termina dopo `dataPubblicazioneAl` — con `al=oggi` si perdono i più recenti (era BUG-4). Non fidarsi dei default "dal/al=oggi".
 
 ### Come testare uno scraper
 
