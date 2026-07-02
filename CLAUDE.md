@@ -142,14 +142,65 @@ Una card è "Done" quando:
 2. Se stai lavorando sull'architettura E2, leggi anche **`docs/handoff/epica_E2.md`**.
 3. Per la visione d'insieme: `talia.md` e `docs/wiki/`.
 
-### Durante il lavoro
+### Loop di esecuzione (per ogni card)
 
-4. Prendi una card da `docs/cards/BOARD.md` (colonna *To Do*), spostala in *In Progress*.
-5. Implementa col determinismo prima del LLM. Se servono dati reali, chiedi fascicoli campione.
-6. Aggiorna la card e la wiki a fine lavoro.
-7. In dubbio su normativa: segnala l'incertezza, non inventare riferimenti di legge.
+Seguire questo ordine. Non saltare fasi, non fonderle.
+
+**0. Spec check** — Prima di toccare codice, leggere `## 📋 Spec` e `## ❓ Domande aperte` della card.
+   Se ci sono domande aperte non barrate: fermarsi e chiedere. Solo quando sono tutte risolte si procede.
+
+**1. Esecuzione** — Implementare secondo la spec. Determinismo prima del LLM.
+   Se servono dati reali, chiedere fascicoli campione.
+
+**2. Bugfix** — Correggere i problemi emersi in fase di esecuzione/test.
+
+**3. Refactor** — Solo se il codice lo richiede. Motivare esplicitamente cosa e perché.
+   Non introdurre astrazioni per uso futuro ipotetico.
+
+**4. Lint** — `ruff check . && ruff format .`
+
+**5. Doc update** — Aggiornare nell'ordine:
+   - Card: spostare in *Review*, aggiornare `## ✅ Task` e `## 🔬 Tentativi`
+   - Wiki: se introduce un concetto nuovo
+   - Tabella scraper in `CLAUDE.md` se tocca uno scraper
+   - `BOARD.md`
 
 ### A fine sessione
 
-8. Aggiorna **`HANDOFF.md`** (root) con branch, DB snapshot e prossimi passi.
-   Se si chiude un'epica, aggiorna o crea il relativo `docs/handoff/epica_E*.md`.
+Aggiornare **`HANDOFF.md`** con branch, DB snapshot e prossimi passi.
+Se si chiude un'epica, aggiornare o creare `docs/handoff/epica_E*.md`.
+
+### Convenzione `## 🔬 Tentativi`
+
+Ogni volta che un approccio produce un risultato significativo (positivo, negativo, parziale),
+aggiungere una voce nella card:
+
+```markdown
+### YYYY-MM-DD — Tentativo N
+**Approccio:** cosa si è provato
+**Esito:** ✅ / ❌ / ⚠️ parziale
+**Appreso:** perché ha funzionato o fallito, cosa cambiare
+```
+
+Scopo: permettere di riprendere un'attività in sessioni future senza ri-esplorare strade già percorse.
+
+### Convenzione `## 📋 Spec` e `## ❓ Domande aperte`
+
+La Spec si compila quando si sposta una card in *To Do* (non in anticipo sul backlog).
+Se `## ❓ Domande aperte` ha checkbox ancora aperti: bloccarsi e chiedere prima di procedere.
+Se è vuota o tutta barrata: procedere autonomamente.
+
+### Delegare il lavoro esplorativo
+
+Quando un task richiede molte chiamate (analisi dati, debug iterativo, esplorazione codebase estesa):
+
+1. **Delega** l'esplorazione a un sotto-agente con modello economico (`haiku`): fagli raccogliere dati, formulare ipotesi, identificare pattern.
+2. **Consolida** le sue considerazioni nel contesto principale.
+3. **Valida** sperimentando direttamente (eseguendo codice, leggendo file critici).
+
+Non delegare: decisioni architetturali, scrittura di codice finale, aggiornamenti a file di configurazione sensibili.
+
+### In dubbio
+
+- Su normativa: segnalare l'incertezza, non inventare riferimenti di legge.
+- Su architettura: proporre, non decidere unilateralmente.

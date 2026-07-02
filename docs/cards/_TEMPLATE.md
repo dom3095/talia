@@ -9,6 +9,27 @@
 ## 🎯 Obiettivo
 Una frase: cosa deve esistere a fine card.
 
+## 📋 Spec
+
+### Interfaccia
+<!-- Firma funzione / endpoint / formato I/O. Abbastanza precisa da poter scrivere i test prima del codice. -->
+```python
+# es: def check_motivazione(testo: str, soglia: float = 0.5) -> CheckResult
+```
+
+### Comportamento
+<!-- Cosa fa, in prosa. Includi casi normali e varianti attese. -->
+…
+
+### Casi limite
+<!-- Cosa succede quando l'input è assente, malformato, o ai margini del dominio. -->
+- Se … → …
+- Se … → …
+
+## ❓ Domande aperte
+<!-- Ambiguità da risolvere CON l'utente prima di iniziare. Se vuota o tutta barrata, procedo autonomamente. -->
+- [ ] …
+
 ## 📚 Contesto
 Link a wiki/talia.md rilevanti.
 
@@ -20,6 +41,14 @@ Link a wiki/talia.md rilevanti.
 - [ ] …
 - [ ] Test passano (`pytest`)
 - [ ] DoD rispettata (vedi CLAUDE.md)
+
+## 🔬 Tentativi
+<!-- Log degli approcci provati. Aggiornare ad ogni iterazione significativa. -->
+
+### YYYY-MM-DD — Tentativo N
+**Approccio:** …
+**Esito:** ✅ / ❌ / ⚠️ parziale
+**Appreso:** …
 
 ## 🔗 Dipendenze
 TAL-…
