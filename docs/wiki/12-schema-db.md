@@ -58,6 +58,31 @@ Atti amministrativi raccolti dallo scraping (albi pretori, ANAC, GURS, …).
 
 **Chiave di unicità:** `(ente_id, url_fonte)` — un re-run non duplica.
 
+Colonne aggiunte da `engine/catena._evolvi_schema` (lazy, idempotente — TAL-42/46):
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| procedimento_id | INTEGER FK→procedimenti | catena di appartenenza |
+| ruolo_in_catena | TEXT | avvio / aggiudicazione / liquidazione / revoca / annullamento / modifica / proroga / altro |
+| numero_settoriale | TEXT | registro settoriale (es. "35/2025") — è il numero citato nei riferimenti incrociati; `numero` è il registro generale. Popolamento: follow-up TAL-46 |
+
+### `procedimenti`
+
+Catene di atti dello stesso procedimento (TAL-42/43/46). Creata lazy da
+`engine/catena._evolvi_schema`.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | INTEGER PK | |
+| ente_id | INTEGER FK→enti | |
+| tipo | TEXT | 'gara', 'generico' |
+| cig | TEXT | se individuato per CIG |
+| oggetto | TEXT | oggetto rappresentativo |
+| data_avvio / data_chiusura | TEXT | ISO 8601 |
+| stato_finale | TEXT | in_corso / aggiudicato / concluso / revocato / annullato / sconosciuto |
+| metodo_individuazione | TEXT | 'cig', 'contenimento_oggetto', 'oggetto_simile_da_verificare' (+suffisso '_llm') — le catene `…da_verificare` richiedono revisione umana |
+| creato_a | TEXT | ISO 8601 |
+
 ### `entita_estratte`
 
 Entità estratte dal testo di un atto (date, CIG, importi, firmatari, norme).

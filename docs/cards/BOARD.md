@@ -53,6 +53,7 @@ In corso: validazione su fascicoli reali (TAL-12).
 | [TAL-43](TAL-43.md) | Engine catena: individuazione e collegamento procedimenti | 🔤 NLP | 3 strategie (CIG/riferimenti/oggetto simile); 21 test |
 | [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | 🔤 NLP + ⚖️ LEX | integrato in runner; 6 test |
 | [TAL-45](TAL-45.md) | Dashboard M3: tab ⛓️ Procedimenti + timeline | 📊 FE | graceful degradation se catene non ancora costruite |
+| [TAL-46](TAL-46.md) | Engine catena v2: contenimento oggetto, guard-rail fuzzy, fix riferimenti | 🔤 NLP + 🧭 TL | strategia 2.5; caso Palma: 674 → 3 catene; 290 test verdi |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca scansione campione per test OCR reale |

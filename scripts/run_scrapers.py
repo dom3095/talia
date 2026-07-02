@@ -132,20 +132,19 @@ _BASE = "https://{}.trasparenza-valutazione-merito.it"
 _JCITYGOV_COMUNI = [
     # (nome_log, base_url, codice_istat, denominazione)
     ("caltanissetta", _BASE.format("caltanissetta"), "085003", "Comune di Caltanissetta"),
-    ("enna",          _BASE.format("enna"),          "086010", "Comune di Enna"),
+    ("enna", _BASE.format("enna"), "086010", "Comune di Enna"),
     (
         "palma",
         "https://palmadimontechiaro.trasparenza-valutazione-merito.it",
         "084028",
         "Comune di Palma di Montechiaro",
     ),
-    ("ragusa",        _BASE.format("ragusa"),        "088009", "Comune di Ragusa"),
+    ("ragusa", _BASE.format("ragusa"), "088009", "Comune di Ragusa"),
 ]
 
 
 def _run_jcitygov_comune(
-    conn, nome, base_url, codice_istat, denominazione,
-    max_pagine=10, no_stop=False, **_kwargs
+    conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
 ):
     from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
     from talia.modulo2_scraping.fonti.jcitygov import scarica_atti
@@ -288,6 +287,25 @@ Esempi:
             " (backfill storico: scarica tutte le pagine anche se già in DB)"
         ),
     )
+    p.add_argument(
+        "--llm-modello",
+        default=None,
+        dest="llm_modello",
+        metavar="MODELLO",
+        help=(
+            "Modello Ollama per classificare i procedimenti non classificati dalle regex"
+            " (es. 'llama3.2'). Richiede Ollama attivo su localhost:11434."
+            " Default: skip (solo classificazione deterministica)."
+        ),
+    )
+    p.add_argument(
+        "--llm-limite",
+        type=int,
+        default=200,
+        dest="llm_limite",
+        metavar="N",
+        help="Numero massimo di procedimenti da passare all'LLM per run (default: 200).",
+    )
     return p.parse_args()
 
 
@@ -323,7 +341,8 @@ def main() -> int:
             )
             risultati[nome] = esito
             termina_run(
-                conn, run_id,
+                conn,
+                run_id,
                 n_trovati=esito.get("n_trovati", 0),
                 n_inseriti=esito.get("inseriti", 0),
                 n_duplicati=esito.get("duplicati", 0),
@@ -339,12 +358,22 @@ def main() -> int:
 
     if not args.no_red_flags:
         print("\n── RED FLAGS ──")
+        if args.llm_modello:
+            print(
+                f"  [LLM] Classificazione procedimenti sconosciuto con '{args.llm_modello}'"
+                f" (max {args.llm_limite})…"
+            )
         try:
-            report = esegui_tutti(conn)
+            report = esegui_tutti(
+                conn,
+                modello_llm=args.llm_modello,
+                llm_limite=args.llm_limite,
+            )
             print(
                 f"  frazionamento:  {report.frazionamento}\n"
                 f"  concentrazione: {report.concentrazione}\n"
                 f"  tempi anomali:  {report.tempi_anomali}\n"
+                f"  revoche catena: {report.revoche_catena}\n"
                 f"  totale flag:    {report.totale_flag}"
             )
         except Exception:

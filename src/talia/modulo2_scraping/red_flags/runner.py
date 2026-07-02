@@ -68,8 +68,7 @@ def _salva_frazionamento(conn: sqlite3.Connection, rf: FrazionamentoRilevato) ->
         severita="alta",
         descrizione=descrizione,
         atti_cig=[
-            {"id": a["id"], "url": a["url_fonte"], "importo": a["importo_euro"]}
-            for a in rf.atti
+            {"id": a["id"], "url": a["url_fonte"], "importo": a["importo_euro"]} for a in rf.atti
         ],
         periodo_da=rf.periodo_da,
         periodo_a=rf.periodo_a,
@@ -89,8 +88,7 @@ def _salva_concentrazione(conn: sqlite3.Connection, rc: ConcentrazioneRilevata) 
         severita="media",
         descrizione=descrizione,
         atti_cig=[
-            {"id": a["id"], "url": a["url_fonte"], "tipo": a["tipo"]}
-            for a in rc.atti_campione
+            {"id": a["id"], "url": a["url_fonte"], "tipo": a["tipo"]} for a in rc.atti_campione
         ],
         periodo_da=f"{rc.anno}-01-01",
         periodo_a=f"{rc.anno}-12-31",
@@ -137,17 +135,31 @@ class RapportoRunner:
         )
 
 
-def esegui_tutti(conn: sqlite3.Connection) -> RapportoRunner:
+def esegui_tutti(
+    conn: sqlite3.Connection,
+    modello_llm: str | None = None,
+    llm_base_url: str = "http://localhost:11434",
+    llm_limite: int = 200,
+) -> RapportoRunner:
     """Esegue tutte le regole di rilevamento e salva i flag nel DB.
 
     Args:
         conn: connessione SQLite con il DB già inizializzato (tabella ``red_flags``).
+        modello_llm: modello Ollama per classificare i procedimenti sconosciuto (es. 'llama3.2').
+                     None = skip (comportamento precedente).
+        llm_base_url: URL base Ollama.
+        llm_limite: numero massimo di procedimenti da passare all'LLM per run.
 
     Returns:
         ``RapportoRunner`` con i contatori per regola.
     """
     # --- Catene di eventi (prerequisito per revoche_catena) ---
-    ricostruisci_catene(conn)
+    ricostruisci_catene(
+        conn,
+        modello_llm=modello_llm,
+        llm_base_url=llm_base_url,
+        llm_limite=llm_limite,
+    )
 
     # --- Frazionamento ---
     frazi = rileva_frazionamento(conn)
