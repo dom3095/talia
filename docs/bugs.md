@@ -49,14 +49,15 @@ Fix collaterale: `use_container_width=True` (deprecato, rimozione post-2025) →
 
 ---
 
-## [BUG-4] Trapani spider: `_RE_PANEL` non matcha più la struttura HTML corrente
+## [BUG-4] Trapani spider: 0 atti — filtro data lato server (NON la regex)
 
 **Rilevato:** 2026-06-28, test automatico con agente (2 pagine, DB temporaneo)
 **Spider:** `src/talia/modulo2_scraping/fonti/trapani.py`
-**Sintomo:** 0 atti trovati su 2 pagine. Nessuna eccezione: il portale `servizi-trapani.e-pal.it` risponde HTTP 200, ma `_RE_PANEL` non estrae nessun record.
-**Causa probabile:** la struttura HTML di e-pal.it è cambiata rispetto a quella attesa dal lookahead nella regex `_RE_PANEL` (delimita i div `panel panel-primary`). Qualsiasi variazione nel nesting HTML causa il match a zero senza warning.
-**Stato:** ❌ Aperto — da fixare.
-**Fix:** scaricare l'HTML corrente di `ricercaAlbo`, confrontare con `_RE_PANEL`, aggiornare la regex, aggiungere test con HTML fixture reale.
+**Sintomo:** 0 atti trovati su 2 pagine. Nessuna eccezione: il portale `servizi-trapani.e-pal.it` risponde HTTP 200.
+**Causa reale (2026-07-03):** `_RE_PANEL` funzionava — la causa era il default `dataPubblicazioneAl=oggi`. Il server e-pal.it **esclude gli atti la cui finestra di pubblicazione termina dopo `dataPubblicazioneAl`**: con `al=oggi` restano fuori tutti gli atti ancora in pubblicazione (cioè quelli mostrati dall'albo), quindi nei giorni in cui nessun atto scaduto è più listato il risultato è 0.
+**Stato:** ✅ Risolto — 2026-07-03.
+**Fix:** default `al = oggi + 60 giorni` (`_MARGINE_FUTURO_GIORNI` in `trapani.py`); WARNING esplicito se la pagina 1 produce 0 atti; test in `tests/fonti/test_trapani.py`. Verificato con run reale: +329 atti recuperati (copertura 2026-04-10 → 2026-07-02).
+**Nota:** l'albo e-pal.it espone solo gli atti in pubblicazione (~15-30 gg): lo storico non è recuperabile, serve scraping continuo per non perdere atti.
 
 ---
 

@@ -14,11 +14,12 @@ Dati pubblici ai sensi del D.lgs. 33/2013.
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 import urllib.request
 from collections.abc import Iterable, Iterator
-from datetime import date
+from datetime import date, timedelta
 from html import unescape
 
 from talia.modulo2_scraping.db import (
@@ -36,6 +37,13 @@ from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
 FONTE_SCRAPER = "trapani"
 CODICE_ISTAT = "081021"
 
+_LOG = logging.getLogger(__name__)
+
+# Il server esclude gli atti la cui finestra di pubblicazione termina DOPO
+# dataPubblicazioneAl: con al=oggi si perdono gli atti ancora in pubblicazione
+# (nei giorni peggiori: 0 risultati — BUG-4). Margine futuro per includerli.
+_MARGINE_FUTURO_GIORNI = 60
+
 _BASE_URL = "https://servizi-trapani.e-pal.it"
 _ALBO_PATH = "/AlboOnline/ricercaAlbo"
 
@@ -47,14 +55,14 @@ _RE_PANEL = re.compile(
     re.DOTALL,
 )
 _RE_HEADING = re.compile(r'<div class="panel-heading titolo-albo"[^>]*>(.*?)</div>', re.DOTALL)
-_RE_OGGETTO = re.compile(r'Oggetto:\s*(.*?)(?=</div>|$)', re.DOTALL)
-_RE_NUMERO_ALBO = re.compile(r'Registrazione Albo n\.\s*([\d]+)/(\d{4})')
+_RE_OGGETTO = re.compile(r"Oggetto:\s*(.*?)(?=</div>|$)", re.DOTALL)
+_RE_NUMERO_ALBO = re.compile(r"Registrazione Albo n\.\s*([\d]+)/(\d{4})")
 _RE_TIPO_PUB = re.compile(
     r'Tipo pubblicazione:.*?<div class="testata-dati[^"]*"[^>]*>\s*([^<]+)',
     re.DOTALL | re.IGNORECASE,
 )
-_RE_DATA_PUB = re.compile(r'Pubblicazione dal\s+(\d{2}/\d{2}/\d{4})')
-_RE_DATA_FINE = re.compile(r'(?<!\w)al\s+(\d{2}/\d{2}/\d{4})')
+_RE_DATA_PUB = re.compile(r"Pubblicazione dal\s+(\d{2}/\d{2}/\d{4})")
+_RE_DATA_FINE = re.compile(r"(?<!\w)al\s+(\d{2}/\d{2}/\d{4})")
 _RE_NEXT_PAGE = re.compile(
     r'href="(/AlboOnline/ricercaAlbo\?[^"]*page=(\d+)[^"]*)"[^>]*class="step"',
 )
@@ -100,18 +108,20 @@ def _parse_page(html: str) -> list[AttoMetadato]:
         # Permalink non disponibile sul sito: URL sintetica per unicità DB
         url = f"{_BASE_URL}/AlboOnline/albo/{numero_plain}/{anno}"
 
-        atti.append(AttoMetadato(
-            ente_codice_istat=CODICE_ISTAT,
-            tipo=tipo,
-            url_fonte=url,
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=ora_utc(),
-            numero=numero,
-            oggetto=oggetto,
-            data_atto=parse_data_iso(data_m.group(1)) if data_m else None,
-            data_scadenza=parse_data_iso(data_fine_m.group(1)) if data_fine_m else None,
-            cig=estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=CODICE_ISTAT,
+                tipo=tipo,
+                url_fonte=url,
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=ora_utc(),
+                numero=numero,
+                oggetto=oggetto,
+                data_atto=parse_data_iso(data_m.group(1)) if data_m else None,
+                data_scadenza=parse_data_iso(data_fine_m.group(1)) if data_fine_m else None,
+                cig=estrai_cig(oggetto),
+            )
+        )
     return atti
 
 
@@ -125,9 +135,21 @@ def _next_page_url(html: str, current_page: int) -> str | None:
 
 def _build_url(dal: str, al: str, page: int = 1) -> str:
     return (
-        f"{_BASE_URL}{_ALBO_PATH}"
-        f"?dataPubblicazioneDal={dal}&dataPubblicazioneAl={al}&page={page}"
+        f"{_BASE_URL}{_ALBO_PATH}?dataPubblicazioneDal={dal}&dataPubblicazioneAl={al}&page={page}"
     )
+
+
+def _intervallo_default(oggi: date | None = None) -> tuple[str, str]:
+    """Intervallo di ricerca di default: 1 gennaio → oggi + margine futuro.
+
+    Il margine futuro è necessario perché il server esclude gli atti la cui
+    finestra di pubblicazione termina dopo dataPubblicazioneAl (BUG-4).
+    """
+    if oggi is None:
+        oggi = date.today()
+    dal = f"{oggi.year}-01-01"
+    al = (oggi + timedelta(days=_MARGINE_FUTURO_GIORNI)).isoformat()
+    return dal, al
 
 
 # ---------------------------------------------------------------------------
@@ -142,14 +164,16 @@ def scarica_atti(
 ) -> Iterator[AttoMetadato]:
     """Scarica atti dall'albo pretorio di Trapani.
 
-    dal/al: stringhe ISO yyyy-mm-dd. Default: 1 gennaio anno corrente → oggi.
-    Richiede connettività di rete. Per i test usa _parse_page() con HTML fixture.
+    dal/al: stringhe ISO yyyy-mm-dd. Default: 1 gennaio anno corrente → oggi+60gg
+    (il margine futuro serve a includere gli atti ancora in pubblicazione, vedi
+    _MARGINE_FUTURO_GIORNI). Richiede connettività di rete. Per i test usa
+    _parse_page() con HTML fixture.
     """
-    oggi = date.today()
+    dal_default, al_default = _intervallo_default()
     if dal is None:
-        dal = f"{oggi.year}-01-01"
+        dal = dal_default
     if al is None:
-        al = oggi.isoformat()
+        al = al_default
 
     url: str | None = _build_url(dal, al, 1)
     current_page = 1
@@ -160,6 +184,12 @@ def scarica_atti(
             html = r.read().decode("utf-8", errors="replace")
         atti = _parse_page(html)
         if not atti:
+            if current_page == 1:
+                _LOG.warning(
+                    "[Trapani] 0 atti dalla pagina 1 (%s): struttura HTML "
+                    "cambiata o filtro data che esclude tutto?",
+                    url,
+                )
             break
         yield from atti
         url = _next_page_url(html, current_page)
@@ -187,8 +217,11 @@ def salva_atti(
 
 def prepara_ente(conn: sqlite3.Connection) -> None:
     """Upsert del Comune di Trapani nel DB (prerequisito per inserisci_atto)."""
-    upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Trapani",
-        codice_istat=CODICE_ISTAT,
-        provincia="TP",
-    ))
+    upsert_ente(
+        conn,
+        EnteMetadato(
+            denominazione="Comune di Trapani",
+            codice_istat=CODICE_ISTAT,
+            provincia="TP",
+        ),
+    )

@@ -5,6 +5,10 @@ Nessuna chiamata di rete — tutte le fixture sono inline nel file.
 
 from __future__ import annotations
 
+import io
+import logging
+from datetime import date
+
 import pytest
 
 from talia.modulo2_scraping.db import (
@@ -15,11 +19,14 @@ from talia.modulo2_scraping.db import (
     upsert_ente,
 )
 from talia.modulo2_scraping.fonti.trapani import (
+    _MARGINE_FUTURO_GIORNI,
     CODICE_ISTAT,
     FONTE_SCRAPER,
+    _intervallo_default,
     _next_page_url,
     _parse_page,
     salva_atti,
+    scarica_atti,
 )
 
 # ---------------------------------------------------------------------------
@@ -99,11 +106,14 @@ _HTML_VUOTO = "<html><body><div class='risultati-ricerca'></div></body></html>"
 def db():
     conn = connetti(":memory:")
     inizializza_db(conn)
-    upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Trapani",
-        codice_istat=CODICE_ISTAT,
-        provincia="TP",
-    ))
+    upsert_ente(
+        conn,
+        EnteMetadato(
+            denominazione="Comune di Trapani",
+            codice_istat=CODICE_ISTAT,
+            provincia="TP",
+        ),
+    )
     return conn
 
 
@@ -231,3 +241,43 @@ def test_salva_atti_idempotente(db):
 def test_salva_atti_lista_vuota(db):
     esito = salva_atti([], db)
     assert esito["inseriti"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test intervallo date di default (fix BUG-4)
+# ---------------------------------------------------------------------------
+
+
+def test_intervallo_default_dal_primo_gennaio():
+    dal, _ = _intervallo_default(date(2026, 7, 3))
+    assert dal == "2026-01-01"
+
+
+def test_intervallo_default_al_nel_futuro():
+    """Il server esclude gli atti ancora in pubblicazione se al=oggi (BUG-4):
+    'al' deve cadere abbastanza avanti da coprire le finestre di pubblicazione."""
+    oggi = date(2026, 7, 3)
+    _, al = _intervallo_default(oggi)
+    assert date.fromisoformat(al) > oggi
+    assert (date.fromisoformat(al) - oggi).days == _MARGINE_FUTURO_GIORNI
+
+
+def test_scarica_atti_warning_su_zero_atti(monkeypatch, caplog):
+    """Se la pagina 1 non produce atti, va loggato un WARNING esplicito
+    (fallimento silenzioso a 0 atti — fragilità comune degli scraper)."""
+
+    class _FintaRisposta(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=0: _FintaRisposta(_HTML_VUOTO.encode()),
+    )
+    with caplog.at_level(logging.WARNING):
+        atti = list(scarica_atti())
+    assert atti == []
+    assert any("0 atti" in r.message for r in caplog.records)

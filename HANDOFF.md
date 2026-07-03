@@ -6,22 +6,26 @@
 
 ## Branch attivo
 
-`main` — il branch `feat/TAL-30-dashboard-mvp` (catch-all TAL-30/42…46) è stato
+`fix/BUG-4-trapani-filtro-data` — fix BUG-4 committato, da mergiare su `main`.
+Il branch `feat/TAL-30-dashboard-mvp` (catch-all TAL-30/42…46) è stato
 **mergiato e cancellato il 2026-07-03** (merge `51014cd`, 290 test verdi).
 Da ora: **un branch per card** (`feat/TAL-XX-slug`), come da convenzione CLAUDE.md.
-Esiste ancora il branch locale `fix/BUG-4-trapani-regex` (fix Trapani, da riprendere).
+Il vecchio branch locale `fix/BUG-4-trapani-regex` è superato (conteneva solo un
+commit docs, nessun fix): può essere cancellato.
 
 ## DB attuale
 
+Aggiornato 2026-07-03 (notte), dopo fix Trapani + run completo:
+
 ```
-7 enti | 3446 atti | 3 red flags
+7 enti | 4463 atti | 5 red flags
 Agrigento:             278 atti  2026-06-03 → 2026-06-26
 Caltanissetta:        1000 atti  2026-05-18 → 2026-06-25
-Enna:                  400 atti  2022-01-19 → 2026-06-26  (bassa freq. ~3 atti/mese)
-Palma di Montechiaro:   60 atti  2026-01-23 → 2026-06-05  ← backfill storico da fare
+Enna:                  400 atti  2022-01-19 → 2025-04-02  (bassa freq. ~3 atti/mese)
+Palma di Montechiaro:  748 atti  2018-05-11 → 2026-06-05  ✅ backfill completo (già dal 26/06)
 Ragusa:               1000 atti  2023-05-09 → 2026-04-15
 Siracusa:              670 atti  2023-10-03 → 2026-06-26
-Trapani:                38 atti  2026-06-11 → 2026-06-24  ← scraper ROTTO (BUG-4)
+Trapani:               367 atti  2026-04-10 → 2026-07-02  ✅ BUG-4 risolto, +329 atti
 ```
 
 ---
@@ -114,31 +118,27 @@ Aggiornati `CLAUDE.md` e `docs/cards/_TEMPLATE.md` con:
 
 ## Prossimi passi
 
-### 0 — Fix Trapani (urgente, ~30 min)
+### 0 — ~~Fix Trapani~~ ✅ FATTO (2026-07-03, branch `fix/BUG-4-trapani-filtro-data`)
 
-```bash
-python3 -c "
-import urllib.request, http.cookiejar
-jar = http.cookiejar.CookieJar()
-opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
-r = opener.open('https://servizi-trapani.e-pal.it/AlboOnline/ricercaAlbo', timeout=15)
-print(r.read(5000).decode('utf-8', errors='replace'))
-" > /tmp/trapani_raw.html
-```
-
-Confrontare con `_RE_PANEL` in `trapani.py`, aggiornare la regex, aggiungere fixture di test.
+**La regex era innocente**: `_RE_PANEL` matchava ancora. La causa era il default
+`dataPubblicazioneAl=oggi` — il server e-pal.it esclude gli atti la cui finestra di
+pubblicazione termina dopo `al`, cioè proprio quelli in pubblicazione. Fix: `al = oggi+60gg`
+(`_MARGINE_FUTURO_GIORNI`), WARNING su 0 atti, 4 test nuovi (23 totali su Trapani).
+Run reale: +329 atti. **Nota strutturale**: l'albo espone solo atti in pubblicazione
+(~15-30 gg), lo storico non è recuperabile → serve scraping continuo per non perdere atti.
+Dettagli in `docs/bugs.md` (BUG-4). **Da fare: mergiare il branch su `main`.**
 
 ### 1 — ~~Commit~~ ✅ FATTO (2026-07-03)
 
 Tutto committato, mergiato su `main` e pushato; branch cancellato. BUG-6 chiuso
 (falso positivo del test UI — vedi `docs/bugs.md`).
 
-### 2 — Backfill storico Palma di Montechiaro
+### 2 — ~~Backfill storico Palma di Montechiaro~~ ✅ GIÀ FATTO (2026-06-26)
 
-```bash
-python scripts/run_scrapers.py --scrapers palma --max-pagine 50 --no-stop
-```
+Il backfill era già stato eseguito il 2026-06-26 (688 inseriti, vedi `scraper_runs`):
+la voce "60 atti / backfill da fare" nell'HANDOFF era stantia. Rerun di verifica del
+2026-07-03: 748 trovati, 748 duplicati, 0 nuovi → l'albo espone 748 atti totali
+(2018-05-11 → 2026-06-05), tutto lo storico disponibile è in DB.
 
 ### 3 — ~~Validare la catena sul DB reale~~ ✅ FATTO (2026-07-02, TAL-46)
 
