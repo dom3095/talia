@@ -13,8 +13,10 @@ logs/
 .env.*
 !.env.example
 
-# Database locali
+# Database locali (incluse le appendici WAL/SHM di SQLite)
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 
