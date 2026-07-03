@@ -119,7 +119,11 @@ Download CSV SmartCIG ANAC bloccato da WAF (TLS fingerprinting). Workaround atti
 ## Convenzioni di sviluppo
 
 - **Lingua codice:** identificatori e commenti in italiano OK (dominio giuridico italiano); messaggi/log chiari.
-- **Branch:** `feat/<card-id>-slug`, `fix/<card-id>-slug`. Mai commit diretti su `main` senza richiesta.
+- **Branch:** `feat/<card-id>-slug`, `fix/<card-id>-slug`.
+- **`main` è protetto per convenzione: MAI commit o push diretti, MAI merge locale.**
+  Ogni modifica arriva via branch + Pull Request; il merge lo fa (o lo conferma
+  esplicitamente) l'utente. Vale anche per fix piccoli, doc e "emergenze CI":
+  se `main` è rotto, la correzione passa comunque da una PR.
 - **Commit:** conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`). Riferire la card: `feat(M1): ... (TAL-12)`.
 - **Test:** ogni regola deterministica ha test con esempio reale (atto anonimizzato) + caso negativo.
 - **No segreti nel repo.** API key/credenziali via `.env` (gitignored).
