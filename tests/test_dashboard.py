@@ -10,6 +10,10 @@ import json
 
 import pytest
 
+# L'app importa streamlit (extra 'dashboard'): senza, i test si skippano
+# come i test OCR senza Tesseract. In CI l'extra è installato.
+pytest.importorskip("streamlit", reason="extra 'dashboard' non installato")
+
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,

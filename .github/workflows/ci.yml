@@ -23,8 +23,10 @@ jobs:
       - name: Installa Tesseract (lingua ita)
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-ita
 
+      # 'dashboard' incluso: senza streamlit i test del Modulo 3 si skippano
+      # (importorskip) e la CI non li coprirebbe.
       - name: Installa il pacchetto
-        run: pip install -e '.[dev]'
+        run: pip install -e '.[dev,dashboard]'
 
       - name: Lint (ruff)
         run: ruff check .
