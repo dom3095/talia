@@ -506,35 +506,112 @@ def scarica_pdf_procedimento(
 
 
 # ---------------------------------------------------------------------------
-# Interfaccia CLI (per test manuali)
+# Selezione catene
+# ---------------------------------------------------------------------------
+
+# Fonti i cui atti sono scaricabili da questo modulo (dettaglio jCityGov/Liferay)
+_FONTI_SUPPORTATE = ("jcitygov",)
+
+
+def procedimenti_critici(
+    conn: sqlite3.Connection,
+    fonti: tuple[str, ...] = _FONTI_SUPPORTATE,
+    limite: int | None = 20,
+) -> list[int]:
+    """ID dei procedimenti revocati/annullati i cui atti vengono da fonti supportate.
+
+    È il criterio di selezione della Fase 2: le catene con esito critico hanno
+    priorità sul resto. Le catene su altre piattaforme (portalepa, ASP.NET)
+    restano fuori finché non esiste un downloader dedicato.
+
+    Con ``limite``, la selezione è diversificata per comune (round-robin tra gli
+    enti, un procedimento a testa per giro): un campione vario tra amministrazioni
+    dice di più dello stesso numero di catene di un solo ente.
+    """
+    segnaposto = ",".join("?" * len(fonti))
+    rows = conn.execute(
+        f"""
+        SELECT DISTINCT p.id, p.ente_id
+        FROM procedimenti p
+        JOIN atti a ON a.procedimento_id = p.id
+        WHERE p.stato_finale IN ('revocato', 'annullato')
+          AND a.fonte_scraper IN ({segnaposto})
+        ORDER BY p.ente_id, p.id
+        """,
+        fonti,
+    ).fetchall()
+
+    if limite is None:
+        return [r[0] for r in rows]
+
+    # Round-robin tra enti: un procedimento per ente a ogni giro
+    per_ente: dict[int, list[int]] = {}
+    for proc_id, ente_id in rows:
+        per_ente.setdefault(ente_id, []).append(proc_id)
+
+    selezionati: list[int] = []
+    code = list(per_ente.values())
+    while code and len(selezionati) < limite:
+        for coda in list(code):
+            if len(selezionati) >= limite:
+                break
+            selezionati.append(coda.pop(0))
+            if not coda:
+                code.remove(coda)
+    return selezionati
+
+
+# ---------------------------------------------------------------------------
+# Interfaccia CLI
 # ---------------------------------------------------------------------------
 
 
 def main():
-    """Test manuale: scarica allegati dai 3 atti di Palma (proc. 653-655)."""
+    """CLI: scarica i PDF delle catene critiche (o di procedimenti espliciti)."""
+    import argparse
     import sys
+
+    parser = argparse.ArgumentParser(
+        description="Download PDF on-demand da catene ricostruite (TAL-47)."
+    )
+    parser.add_argument(
+        "proc_ids",
+        nargs="*",
+        type=int,
+        help="ID procedimenti espliciti; se assenti, seleziona le catene critiche "
+        "(revocato/annullato) su fonti supportate",
+    )
+    parser.add_argument("--db", default="talia.db", help="percorso DB (default: talia.db)")
+    parser.add_argument(
+        "--limite",
+        type=int,
+        default=20,
+        help="massimo catene da scaricare, diversificate per comune (default: 20)",
+    )
+    args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    db_path = Path("talia.db")
+    db_path = Path(args.db)
     if not db_path.exists():
         print(f"DB non trovato: {db_path}")
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
 
-    # Scarica i 3 procedimenti (653, 654, 655)
-    procs = [653, 654, 655]
+    procs = args.proc_ids or procedimenti_critici(conn, limite=args.limite)
+    _logger.info(f"Procedimenti da scaricare: {len(procs)} → {procs}")
+
     for proc_id in procs:
-        _logger.info(f"\n=== Procedimento {proc_id} ===")
+        _logger.info(f"=== Procedimento {proc_id} ===")
         try:
             downloaded = scarica_pdf_procedimento(conn, proc_id)
-            print(f"Scaricati {len(downloaded)} file")
+            print(f"Proc. {proc_id}: {len(downloaded)} file")
         except Exception as e:
-            print(f"Errore: {e}", file=sys.stderr)
+            print(f"Proc. {proc_id}: errore: {e}", file=sys.stderr)
 
     conn.close()
 

@@ -16,6 +16,7 @@ from talia.modulo2_scraping import db
 from talia.modulo2_scraping.pdf_download import (
     _url_display_format,
     motivo_selezione,
+    procedimenti_critici,
     scarica_pdf_allegato,
     scarica_pdf_procedimento,
     trova_allegati,
@@ -283,6 +284,41 @@ def test_scarica_procedimento_end_to_end(tmp_path):
 def test_motivo_selezione_procedimento_inesistente():
     conn = _db_con_procedimento()
     assert motivo_selezione(conn, 999) == {}
+
+
+def test_procedimenti_critici_seleziona_solo_fonti_supportate():
+    conn = _db_con_procedimento()
+    # Il proc. 653 (revocato, fonte jcitygov) è selezionato
+    assert procedimenti_critici(conn) == [653]
+    # Con una fonte diversa non c'è nulla da scaricare
+    assert procedimenti_critici(conn, fonti=("portalepa",)) == []
+    # Un procedimento 'aggiudicato' non è critico
+    conn.execute("UPDATE procedimenti SET stato_finale = 'aggiudicato' WHERE id = 653")
+    assert procedimenti_critici(conn) == []
+
+
+def test_procedimenti_critici_round_robin_e_limite():
+    conn = _db_con_procedimento()
+    db.upsert_ente(conn, db.EnteMetadato(denominazione="Comune B", codice_istat="099998"))
+    # Ente 1 ha già il proc. 653; aggiungo 700 (ente 1) e 800, 801 (ente 2)
+    for proc_id, ente_id in ((700, 1), (800, 2), (801, 2)):
+        conn.execute(
+            """INSERT INTO procedimenti (id, ente_id, stato_finale, metodo_individuazione, creato_a)
+               VALUES (?, ?, 'revocato', 'cig', '2026-07-06')""",
+            (proc_id, ente_id),
+        )
+        conn.execute(
+            """INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper,
+                                 metadati, procedimento_id)
+               VALUES (?, 'determina', '2026-07-06', ?, 'jcitygov', '{}', ?)""",
+            (ente_id, f"https://esempio.tvm.it/display/{proc_id}", proc_id),
+        )
+    conn.commit()
+
+    # Round-robin: un procedimento per ente a ogni giro, non tutti dell'ente 1 prima
+    assert procedimenti_critici(conn, limite=3) == [653, 800, 700]
+    # Senza limite: tutti, ordinati per ente
+    assert procedimenti_critici(conn, limite=None) == [653, 700, 800, 801]
 
 
 def test_scarica_procedimento_inesistente(caplog):
