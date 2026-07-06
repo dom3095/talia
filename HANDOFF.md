@@ -1,17 +1,66 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-03
+> Aggiornato: 2026-07-06
 
 ---
 
 ## Branch attivo
 
-`fix/BUG-4-trapani-filtro-data` — fix BUG-4 committato, da mergiare su `main`.
-Il branch `feat/TAL-30-dashboard-mvp` (catch-all TAL-30/42…46) è stato
-**mergiato e cancellato il 2026-07-03** (merge `51014cd`, 290 test verdi).
-Da ora: **un branch per card** (`feat/TAL-XX-slug`), come da convenzione CLAUDE.md.
+`feat/TAL-47-pdf-on-demand` — download PDF on-demand da catene ricostruite (Fase 2, MVP).
+Da committare e aprire PR. Il fix BUG-4 Trapani è stato mergiato su `main` (`097c203`).
 Il vecchio branch locale `fix/BUG-4-trapani-regex` è superato (conteneva solo un
 commit docs, nessun fix): può essere cancellato.
+
+## Sessione 2026-07-05/06 — TAL-47: download PDF on-demand (Fase 2, MVP)
+
+**Decisione di processo (utente):** quando l'engine catena ricostruisce una catena,
+il sistema scarica i PDF degli atti; l'analisi e la rilevazione delle criticità è
+**in capo al codice, non a Claude**. Fascicoli con violazioni → salvati con file di
+spiegazione; senza violazioni → salvati comunque, senza spiegazione.
+
+**Fatto (loop: agente haiku esplora → contesto principale consolida):**
+- Nuovo modulo `src/talia/modulo2_scraping/pdf_download.py`: `trova_allegati()` +
+  `scarica_pdf_procedimento()`. Endpoint scoperto: `/papca/display/<id>` espone gli
+  allegati in `<tr data-chiave-allegato>`; URL di download base64 negli onclick
+  (`atob('…')`), endpoint Liferay `p_p_lifecycle=2&p_p_resource_id=downloadAllegato`.
+  HTTP puro, niente Playwright.
+- Validazione: 31 allegati scaricati dai proc. Palma 653/654/655; hash SHA256 4/4
+  identici ai PDF veri di `data/samples/1/`. Idempotenza verificata (2° run: 0 download).
+- 3 bug dell'agente corretti in consolidamento: estensione dai magic bytes `%PDF`
+  (non dal mimetype dichiarato), idempotenza reale su file esistente, `url_pdf` al
+  primo PDF vero (non all'ultimo allegato = firma). Dettagli in TAL-47 § Tentativi.
+- `motivo_selezione.json` in ogni cartella scaricata: giustificazione esplicabile della
+  selezione generata dal DB (stato, metodo, ruoli atti + url_fonte, red flags, disclaimer).
+- 11 test nuovi (`tests/test_pdf_download.py`), **304 test verdi totali**, lint ok.
+- Doc: card `docs/cards/TAL-47.md` (Review), wiki `docs/wiki/14-pdf-on-demand.md`.
+
+**Batch 2026-07-06 — 20 catene critiche scaricate (limite utente: 20, diversificate per comune):**
+`procedimenti_critici(limite=20)` con round-robin per ente. Scaricate: Caltanissetta 6,
+Palma 6, Ragusa 5, Enna 3 (+ proc. 692 Palma, residuo di un run precedente interrotto:
+21 cartelle totali su disco). **136 allegati** in `data/raw/pdf/<ente>/<proc>/`, ognuna
+con `meta.json` + `motivo_selezione.json`. Escluse dal giro (fonti non supportate):
+Siracusa 5 catene (portalepa) e Agrigento 2 (ASP.NET) → servono downloader dedicati.
+
+**4 atti con 0 allegati** (WARNING nel log, comportamento atteso — l'albo non li espone più):
+atti 1088, 1089, 1424 (Caltanissetta), 298 (Enna). Conferma la lezione Trapani: gli albi
+espongono gli allegati solo per un periodo → il download va fatto vicino alla scoperta.
+
+**Segnali per catena in `motivo_selezione.json` (feedback utente):** esito critico
+con evidenza, avvio/chiusura stesso giorno, chiusura rapida, avvio non in albo,
+riferimento citato non riscontrato (condizionato alla copertura DB dell'ente —
+verifica anti-overfitting su tutte le 28 catene, vedi TAL-47 Tentativo 6), metodo
+fuzzy da verificare.
+
+**Nuova card TAL-48 (To Do):** red flag "riapertura dopo revoca" — idea utente
+verificata empiricamente: Palma 656 (bando ZES annullato 2023, ripubblicato 2026),
+Ragusa 1079 (determina riadottata dopo 18gg). Guardia anti-periodicità necessaria
+(falso positivo: atti trimestrali Enna). Vedi `docs/cards/TAL-48.md`.
+
+**Prossimi (Fase 2):** TAL-48 (riapertura dopo revoca), estrazione testo dai PDF
+scaricati (riuso engine OCR), run dei check e salvataggio fascicoli con/senza
+spiegazione, integrazione in `run_scrapers.py` (`--download-pdf`), estensione ad
+altre piattaforme (e-pal, portalepa, ASP.NET), confronto bando originale vs
+rilanciato (dipende da TAL-48 + estrazione testo).
 
 ## DB attuale
 
@@ -155,10 +204,10 @@ Card in Review. Casi concreti trovati su fascicolo Palma:
 - Bozza graduatoria divulgata prima dell'ufficializzazione → `gdpr_breach_non_notificato`
 - Revoca cita "N. 33/2025" ma l'atto in DB è "N. 35/2025" → `numero_atto_incoerente`
 
-### 5 — Fase 2 pipeline: PDF on-demand
+### 5 — ~~Fase 2 pipeline: PDF on-demand (MVP)~~ ✅ AVVIATA (2026-07-06, TAL-47)
 
-Download PDF solo per atti con `REVOCA`, `AUTOTUTELA`, `ANNULLAMENTO` nell'oggetto.
-Alimenta TAL-14 e TAL-11. Da pianificare come nuova card E2.
+Downloader jCityGov funzionante e validato (vedi sezione sessione 2026-07-05/06).
+Restano: selezione automatica catene, estrazione testo, check sui PDF, altre piattaforme.
 
 ### 6 — ANAC
 
