@@ -29,7 +29,9 @@ spiegazione; senza violazioni → salvati comunque, senza spiegazione.
 - 3 bug dell'agente corretti in consolidamento: estensione dai magic bytes `%PDF`
   (non dal mimetype dichiarato), idempotenza reale su file esistente, `url_pdf` al
   primo PDF vero (non all'ultimo allegato = firma). Dettagli in TAL-47 § Tentativi.
-- 10 test nuovi (`tests/test_pdf_download.py`), **303 test verdi totali**, lint ok.
+- `motivo_selezione.json` in ogni cartella scaricata: giustificazione esplicabile della
+  selezione generata dal DB (stato, metodo, ruoli atti + url_fonte, red flags, disclaimer).
+- 11 test nuovi (`tests/test_pdf_download.py`), **304 test verdi totali**, lint ok.
 - Doc: card `docs/cards/TAL-47.md` (Review), wiki `docs/wiki/14-pdf-on-demand.md`.
 
 **DB:** `atti.url_pdf` + `hash_sha256` ora valorizzati per gli atti 3388-3393.

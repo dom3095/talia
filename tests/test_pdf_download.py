@@ -15,6 +15,7 @@ from pathlib import Path
 from talia.modulo2_scraping import db
 from talia.modulo2_scraping.pdf_download import (
     _url_display_format,
+    motivo_selezione,
     scarica_pdf_allegato,
     scarica_pdf_procedimento,
     trova_allegati,
@@ -209,19 +210,31 @@ def test_idempotenza_skip_se_gia_scaricato(tmp_path):
 def _db_con_procedimento() -> sqlite3.Connection:
     conn = db.connetti(":memory:")
     db.inizializza_db(conn)
+    # Stesso schema di engine/catena._evolvi_schema
     conn.executescript(
         """
-        CREATE TABLE procedimenti (id INTEGER PRIMARY KEY, ente_id INTEGER);
+        CREATE TABLE procedimenti (
+            id INTEGER PRIMARY KEY, ente_id INTEGER, tipo TEXT, cig TEXT,
+            oggetto TEXT, data_avvio TEXT, data_chiusura TEXT, stato_finale TEXT,
+            metodo_individuazione TEXT, creato_a TEXT
+        );
         ALTER TABLE atti ADD COLUMN procedimento_id INTEGER;
+        ALTER TABLE atti ADD COLUMN ruolo_in_catena TEXT;
         """
     )
     db.upsert_ente(conn, db.EnteMetadato(denominazione="Comune di Esempio", codice_istat="099999"))
-    conn.execute("INSERT INTO procedimenti (id, ente_id) VALUES (653, 1)")
+    conn.execute(
+        """
+        INSERT INTO procedimenti (id, ente_id, oggetto, stato_finale,
+                                  metodo_individuazione, creato_a)
+        VALUES (653, 1, 'SELEZIONE DI ESEMPIO', 'revocato', 'contenimento_oggetto', '2026-07-05')
+        """
+    )
     conn.execute(
         """
         INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper,
-                          metadati, procedimento_id)
-        VALUES (1, 'determina', '2026-07-05', ?, 'jcitygov', '{}', 653)
+                          metadati, procedimento_id, ruolo_in_catena, numero)
+        VALUES (1, 'determina', '2026-07-05', ?, 'jcitygov', '{}', 653, 'revoca', '932')
         """,
         (
             "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/1",
@@ -256,6 +269,20 @@ def test_scarica_procedimento_end_to_end(tmp_path):
     assert len(meta) == 2
     assert meta[0]["filename_originale"] == "determina.pdf"
     assert all(m["hash_sha256"] for m in meta)
+
+    # motivo_selezione.json: giustificazione esplicabile della selezione, dal DB
+    motivo = json.loads((tmp_path / "motivo_selezione.json").read_text())
+    assert motivo["procedimento_id"] == 653
+    assert motivo["stato_finale"] == "revocato"
+    assert motivo["metodo_individuazione"] == "contenimento_oggetto"
+    assert motivo["atti"][0]["ruolo_in_catena"] == "revoca"
+    assert motivo["atti"][0]["url_fonte"].startswith("https://")
+    assert "disclaimer" in motivo
+
+
+def test_motivo_selezione_procedimento_inesistente():
+    conn = _db_con_procedimento()
+    assert motivo_selezione(conn, 999) == {}
 
 
 def test_scarica_procedimento_inesistente(caplog):

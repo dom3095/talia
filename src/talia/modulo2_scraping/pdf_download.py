@@ -293,6 +293,76 @@ def scarica_pdf_allegato(
     return dest_path, filename, hash_sha
 
 
+def motivo_selezione(conn: sqlite3.Connection, procedimento_id: int) -> dict:
+    """Costruisce la giustificazione (esplicabile, dal DB) della selezione di una catena.
+
+    Risponde a "perché questi PDF sono stati scaricati?" con soli dati deterministici:
+    stato finale della catena, metodo con cui l'engine l'ha individuata, ruolo di ogni
+    atto con il suo url_fonte, e le red flags registrate per l'ente. Nessun giudizio:
+    segnalazioni da verificare, non accertamenti.
+    """
+    proc = conn.execute(
+        """
+        SELECT p.id, p.stato_finale, p.metodo_individuazione, p.oggetto, p.ente_id,
+               e.denominazione
+        FROM procedimenti p JOIN enti e ON p.ente_id = e.id
+        WHERE p.id = ?
+        """,
+        (procedimento_id,),
+    ).fetchone()
+    if proc is None:
+        return {}
+
+    atti = conn.execute(
+        """
+        SELECT id, numero, ruolo_in_catena, data_pub, oggetto, url_fonte
+        FROM atti WHERE procedimento_id = ? ORDER BY data_pub, id
+        """,
+        (procedimento_id,),
+    ).fetchall()
+
+    flags = conn.execute(
+        """
+        SELECT tipo_flag, severita, descrizione, data_rilevazione
+        FROM red_flags WHERE ente_id = ?
+        """,
+        (proc[4],),
+    ).fetchall()
+
+    return {
+        "procedimento_id": proc[0],
+        "ente": proc[5],
+        "criterio_selezione": (
+            "catena ricostruita dall'engine (stato_finale != 'sconosciuto'); "
+            "priorità a revocato/annullato"
+        ),
+        "stato_finale": proc[1],
+        "metodo_individuazione": proc[2],
+        "oggetto": proc[3],
+        "atti": [
+            {
+                "atto_id": a[0],
+                "numero": a[1],
+                "ruolo_in_catena": a[2],
+                "data_pub": a[3],
+                "oggetto": a[4],
+                "url_fonte": a[5],
+            }
+            for a in atti
+        ],
+        "red_flags_ente": [
+            {
+                "tipo_flag": f[0],
+                "severita": f[1],
+                "descrizione": f[2],
+                "data_rilevazione": f[3],
+            }
+            for f in flags
+        ],
+        "disclaimer": "Segnalazioni da verificare, non accertamenti.",
+    }
+
+
 def scarica_pdf_procedimento(
     conn: sqlite3.Connection,
     procedimento_id: int,
@@ -411,7 +481,7 @@ def scarica_pdf_procedimento(
 
         time.sleep(delay)  # Pausa tra atti
 
-    # Salva meta.json
+    # Salva meta.json + motivo_selezione.json (perché questa catena è stata scaricata)
     if metadati:
         meta_path = dest_dir / "meta.json"
         try:
@@ -420,6 +490,16 @@ def scarica_pdf_procedimento(
             _logger.info(f"Salvato {meta_path} con {len(metadati)} allegati")
         except OSError as e:
             _logger.error(f"Errore salvataggio meta.json: {e}")
+
+        motivo = motivo_selezione(conn, procedimento_id)
+        if motivo:
+            motivo_path = dest_dir / "motivo_selezione.json"
+            try:
+                with open(motivo_path, "w") as f:
+                    json.dump(motivo, f, indent=2, ensure_ascii=False)
+                _logger.info(f"Salvato {motivo_path}")
+            except OSError as e:
+                _logger.error(f"Errore salvataggio motivo_selezione.json: {e}")
 
     conn.commit()
     return downloaded

@@ -72,8 +72,11 @@ Il DB `talia.db` contiene una tabella `procedimenti` (catene di atti ricostruite
   - [x] Bugfix estensione: magic bytes `%PDF` invece del `data-mimetype` dichiarato
   - [x] Bugfix idempotenza: skip reale se file già presente (0 richieste HTTP al re-run)
   - [x] Bugfix `atti.url_pdf`: punta al primo allegato PDF, non all'ultimo (spesso una firma .bin)
-  - [x] 10 test pytest (`tests/test_pdf_download.py`): fixture sintetiche, opener finto, DB in memoria
-  - [x] Lint verde, suite completa 303 test verdi
+  - [x] 11 test pytest (`tests/test_pdf_download.py`): fixture sintetiche, opener finto, DB in memoria
+  - [x] Lint verde, suite completa 304 test verdi
+  - [x] `motivo_selezione.json` accanto a `meta.json`: giustificazione esplicabile della
+        selezione, generata dal DB (stato finale, metodo, ruoli atti + url_fonte, red flags
+        ente, disclaimer) — richiesta utente: "perché questa catena?" deve rispondere il codice
 
 ---
 

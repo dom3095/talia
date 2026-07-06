@@ -138,7 +138,8 @@ data/raw/pdf/
 │   │   ├── 3388_3659563.bin
 │   │   ├── 3391_3659546.pdf
 │   │   ├── ...
-│   │   └── meta.json                 # Metadati allegati
+│   │   ├── meta.json                 # Metadati allegati (url, hash, date)
+│   │   └── motivo_selezione.json     # Perché la catena è stata scaricata (dal DB)
 │   ├── 654/
 │   └── 655/
 └── (altri enti)
@@ -160,6 +161,22 @@ data/raw/pdf/
   ...
 ]
 ```
+
+### motivo_selezione.json
+
+Ogni cartella di procedimento contiene la **giustificazione esplicabile** della selezione,
+generata da `motivo_selezione(conn, procedimento_id)` con soli dati deterministici del DB:
+
+- `criterio_selezione` — la regola che ha fatto scattare il download
+- `stato_finale` + `metodo_individuazione` — cosa ha ricostruito l'engine catena e con
+  quale confidenza
+- `atti[]` — ruolo in catena (avvio/revoca/…), numero, data di pubblicazione, oggetto e
+  `url_fonte` di ogni atto (esplicabilità: ogni segnalazione linka la fonte)
+- `red_flags_ente[]` — le red flag batch registrate per l'ente
+- `disclaimer` — "Segnalazioni da verificare, non accertamenti."
+
+Principio: alla domanda "perché questi PDF sono stati scaricati?" risponde il **codice**,
+non un giudizio umano o di un LLM.
 
 ---
 
