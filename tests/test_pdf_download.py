@@ -221,6 +221,7 @@ def _db_con_procedimento() -> sqlite3.Connection:
         );
         ALTER TABLE atti ADD COLUMN procedimento_id INTEGER;
         ALTER TABLE atti ADD COLUMN ruolo_in_catena TEXT;
+        ALTER TABLE atti ADD COLUMN numero_settoriale TEXT;
         """
     )
     db.upsert_ente(conn, db.EnteMetadato(denominazione="Comune di Esempio", codice_istat="099999"))
@@ -279,11 +280,71 @@ def test_scarica_procedimento_end_to_end(tmp_path):
     assert motivo["atti"][0]["ruolo_in_catena"] == "revoca"
     assert motivo["atti"][0]["url_fonte"].startswith("https://")
     assert "disclaimer" in motivo
+    # I segnali sono specifici della catena, non formule generiche
+    tipi = {s["tipo"] for s in motivo["segnali"]}
+    assert "esito_critico" in tipi
+    assert "avvio_non_in_albo" in tipi  # la catena di test ha solo la revoca
 
 
 def test_motivo_selezione_procedimento_inesistente():
     conn = _db_con_procedimento()
     assert motivo_selezione(conn, 999) == {}
+
+
+def test_segnali_stesso_giorno_e_riferimento_non_riscontrato():
+    conn = _db_con_procedimento()
+    # Aggiungo l'atto di avvio pubblicato lo STESSO GIORNO della revoca,
+    # e la revoca cita "N. 33/2025" che non esiste nella catena (caso reale Palma)
+    conn.execute(
+        "UPDATE atti SET data_pub = '2026-06-05', "
+        "oggetto = \"REVOCA IN AUTOTUTELA DELL'AVVISO APPROVATO CON DETERMINAZIONE N. 33/2025\" "
+        "WHERE id = 1"
+    )
+    conn.execute(
+        """INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper, metadati,
+                             procedimento_id, ruolo_in_catena, numero, numero_settoriale, data_pub)
+           VALUES (1, 'determina', '2026-07-06', 'https://esempio.tvm.it/display/2', 'jcitygov',
+                   '{}', 653, 'avvio', '1706', '35/2025', '2026-06-05')"""
+    )
+    # Atto vecchio fuori catena: estende la copertura DB dell'ente al 2024, così
+    # il riferimento citato "N. 33/2025" è DENTRO la finestra e il segnale scatta
+    conn.execute(
+        """INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper,
+                             metadati, data_pub)
+           VALUES (1, 'determina', '2026-07-06', 'https://esempio.tvm.it/display/3',
+                   'jcitygov', '{}', '2024-01-01')"""
+    )
+    conn.commit()
+
+    motivo = motivo_selezione(conn, 653)
+    tipi = {s["tipo"] for s in motivo["segnali"]}
+    assert "avvio_e_chiusura_stesso_giorno" in tipi
+    assert "riferimento_non_riscontrato" in tipi  # 33/2025 ∉ {1706, 35/2025, 932}
+    assert "avvio_non_in_albo" not in tipi  # ora l'avvio c'è
+
+    # Se la revoca cita un numero presente in catena, nessun falso positivo
+    conn.execute(
+        "UPDATE atti SET oggetto = \"REVOCA DELL'AVVISO APPROVATO CON DETERMINAZIONE N. 35/2025\" "
+        "WHERE id = 1"
+    )
+    conn.commit()
+    motivo = motivo_selezione(conn, 653)
+    assert "riferimento_non_riscontrato" not in {s["tipo"] for s in motivo["segnali"]}
+
+
+def test_riferimento_fuori_copertura_non_scatta():
+    """Un numero citato di un anno PRECEDENTE alla copertura DB dell'ente non è
+    un'anomalia dell'ente: è un limite del nostro scraping (anti-falso-positivo)."""
+    conn = _db_con_procedimento()
+    # Copertura ente: solo 2026. La revoca cita un atto del 2008.
+    conn.execute(
+        "UPDATE atti SET data_pub = '2026-06-05', "
+        "oggetto = \"REVOCA DELL'AVVISO APPROVATO CON DETERMINAZIONE N. 81/2008\" "
+        "WHERE id = 1"
+    )
+    conn.commit()
+    motivo = motivo_selezione(conn, 653)
+    assert "riferimento_non_riscontrato" not in {s["tipo"] for s in motivo["segnali"]}
 
 
 def test_procedimenti_critici_seleziona_solo_fonti_supportate():

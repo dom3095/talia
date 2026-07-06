@@ -30,7 +30,7 @@ import sqlite3
 import time
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -293,12 +293,134 @@ def scarica_pdf_allegato(
     return dest_path, filename, hash_sha
 
 
+# Metodi di individuazione ad alta confidenza (vs fuzzy da verificare)
+_METODI_ALTA_CONFIDENZA = ("cig", "riferimento", "contenimento_oggetto")
+
+_RUOLI_CHIUSURA = ("revoca", "annullamento")
+
+# "N. 33/2025", "n.33/2025", "N 33/2025" citati nell'oggetto di una revoca
+_RE_NUMERO_CITATO = re.compile(r"\bn\.?\s*(\d{1,5}\s*/\s*20\d\d)\b", re.IGNORECASE)
+
+
+def _segnali_catena(proc_row, atti_rows, anno_min_copertura: int | None = None) -> list[dict]:
+    """Segnali specifici della catena, calcolati solo da dati deterministici del DB.
+
+    Ogni segnale ha un dettaglio con l'evidenza: è la risposta concreta a
+    "perché QUESTA catena?", non una formula uguale per tutte.
+
+    ``anno_min_copertura`` è l'anno del più vecchio atto raccolto per l'ente:
+    i segnali basati sull'assenza di un atto (es. riferimento citato e non
+    riscontrato) scattano solo dentro la finestra di copertura del DB, per non
+    confondere "l'ente ha sbagliato" con "il nostro scraping non arriva lì".
+    """
+    stato = proc_row[1]
+    metodo = proc_row[2] or ""
+    segnali: list[dict] = []
+
+    chiusure = [a for a in atti_rows if a[2] in _RUOLI_CHIUSURA]
+    avvii = [a for a in atti_rows if a[2] == "avvio"]
+
+    # 1. Esito critico (il criterio base, ma con l'evidenza dell'atto)
+    for c in chiusure:
+        segnali.append(
+            {
+                "tipo": "esito_critico",
+                "dettaglio": f"catena conclusa con {c[2]}: atto n.{c[1] or '?'} "
+                f"pubblicato il {c[3] or 'data non nota'}",
+            }
+        )
+    if not chiusure:
+        segnali.append(
+            {
+                "tipo": "esito_critico",
+                "dettaglio": f"stato finale '{stato}' assegnato dall'engine catena",
+            }
+        )
+
+    # 2. Distanza avvio→chiusura (stesso giorno = anomalia temporale da verificare)
+    date_avvio = sorted(a[3] for a in avvii if a[3])
+    date_chiusura = sorted(c[3] for c in chiusure if c[3])
+    if date_avvio and date_chiusura:
+        d_avvio, d_fine = date_avvio[0], date_chiusura[-1]
+        giorni = (date.fromisoformat(d_fine) - date.fromisoformat(d_avvio)).days
+        if giorni == 0:
+            segnali.append(
+                {
+                    "tipo": "avvio_e_chiusura_stesso_giorno",
+                    "dettaglio": f"atto di avvio e atto di {chiusure[0][2]} risultano "
+                    f"pubblicati lo stesso giorno ({d_avvio})",
+                }
+            )
+        elif 0 < giorni <= 30:
+            segnali.append(
+                {
+                    "tipo": "chiusura_rapida",
+                    "dettaglio": f"{giorni} giorni tra avvio ({d_avvio}) e "
+                    f"{chiusure[0][2]} ({d_fine})",
+                }
+            )
+
+    # 3. Atto di avvio assente dall'albo raccolto
+    if not avvii:
+        segnali.append(
+            {
+                "tipo": "avvio_non_in_albo",
+                "dettaglio": "nessun atto con ruolo 'avvio' nella catena: l'atto "
+                "revocato/annullato non risulta tra quelli raccolti dall'albo",
+            }
+        )
+
+    # 4. Riferimenti citati e non riscontrati (es. revoca cita "N. 33/2025"
+    #    ma nessun atto della catena ha quel numero). Scatta SOLO se l'anno
+    #    citato rientra nella copertura del DB per l'ente: fuori finestra
+    #    l'assenza è colpa dello scraping, non dell'ente.
+    numeri_catena = {str(a[1]).strip() for a in atti_rows if a[1]}
+    numeri_catena |= {str(a[6]).strip() for a in atti_rows if len(a) > 6 and a[6]}
+    for c in chiusure:
+        for citato in _RE_NUMERO_CITATO.findall(c[4] or ""):
+            citato_norm = citato.replace(" ", "")
+            anno_citato = int(citato_norm.split("/")[1])
+            if anno_min_copertura is not None and anno_citato < anno_min_copertura:
+                continue
+            if citato_norm not in numeri_catena and citato_norm.split("/")[0] not in numeri_catena:
+                segnali.append(
+                    {
+                        "tipo": "riferimento_non_riscontrato",
+                        "dettaglio": f"l'atto di {c[2]} n.{c[1] or '?'} cita "
+                        f"'N. {citato}' ma nessun atto della catena ha quel numero "
+                        "(possibile numero errato o atto mai pubblicato; l'anno "
+                        f"citato {anno_citato} rientra nella copertura del DB "
+                        f"per l'ente)",
+                    }
+                )
+
+    # 5. Confidenza del metodo di individuazione
+    if metodo and metodo not in _METODI_ALTA_CONFIDENZA:
+        segnali.append(
+            {
+                "tipo": "individuazione_da_verificare",
+                "dettaglio": f"catena individuata con metodo fuzzy '{metodo}': "
+                "il collegamento tra gli atti è da verificare",
+            }
+        )
+
+    # Dedup preservando l'ordine (catene con più chiusure gemelle producono doppioni)
+    visti: set[tuple[str, str]] = set()
+    unici = []
+    for s in segnali:
+        chiave = (s["tipo"], s["dettaglio"])
+        if chiave not in visti:
+            visti.add(chiave)
+            unici.append(s)
+    return unici
+
+
 def motivo_selezione(conn: sqlite3.Connection, procedimento_id: int) -> dict:
     """Costruisce la giustificazione (esplicabile, dal DB) della selezione di una catena.
 
     Risponde a "perché questi PDF sono stati scaricati?" con soli dati deterministici:
-    stato finale della catena, metodo con cui l'engine l'ha individuata, ruolo di ogni
-    atto con il suo url_fonte, e le red flags registrate per l'ente. Nessun giudizio:
+    stato finale, metodo di individuazione, segnali specifici della catena (con
+    evidenza), atti con url_fonte, red flags dell'ente pertinenti. Nessun giudizio:
     segnalazioni da verificare, non accertamenti.
     """
     proc = conn.execute(
@@ -315,12 +437,15 @@ def motivo_selezione(conn: sqlite3.Connection, procedimento_id: int) -> dict:
 
     atti = conn.execute(
         """
-        SELECT id, numero, ruolo_in_catena, data_pub, oggetto, url_fonte
+        SELECT id, numero, ruolo_in_catena, data_pub, oggetto, url_fonte,
+               numero_settoriale
         FROM atti WHERE procedimento_id = ? ORDER BY data_pub, id
         """,
         (procedimento_id,),
     ).fetchall()
 
+    # Red flags dell'ente pertinenti a QUESTA catena: la descrizione del flag
+    # cita l'oggetto del procedimento (i flag di catena lo incorporano)
     flags = conn.execute(
         """
         SELECT tipo_flag, severita, descrizione, data_rilevazione
@@ -328,21 +453,32 @@ def motivo_selezione(conn: sqlite3.Connection, procedimento_id: int) -> dict:
         """,
         (proc[4],),
     ).fetchall()
+    oggetto_proc = (proc[3] or "")[:60]
+    flags_pertinenti = [f for f in flags if oggetto_proc and oggetto_proc in (f[2] or "")]
+
+    # Copertura DB per l'ente: anno del più vecchio atto raccolto
+    riga_copertura = conn.execute(
+        "SELECT MIN(COALESCE(data_atto, data_pub)) FROM atti WHERE ente_id = ?",
+        (proc[4],),
+    ).fetchone()
+    anno_min = int(riga_copertura[0][:4]) if riga_copertura and riga_copertura[0] else None
 
     return {
         "procedimento_id": proc[0],
         "ente": proc[5],
         "criterio_selezione": (
-            "catena ricostruita dall'engine (stato_finale != 'sconosciuto'); "
-            "priorità a revocato/annullato"
+            "catena ricostruita dall'engine con esito critico "
+            "(stato_finale in: revocato, annullato)"
         ),
         "stato_finale": proc[1],
         "metodo_individuazione": proc[2],
         "oggetto": proc[3],
+        "segnali": _segnali_catena(proc, atti, anno_min_copertura=anno_min),
         "atti": [
             {
                 "atto_id": a[0],
                 "numero": a[1],
+                "numero_settoriale": a[6],
                 "ruolo_in_catena": a[2],
                 "data_pub": a[3],
                 "oggetto": a[4],
@@ -350,14 +486,14 @@ def motivo_selezione(conn: sqlite3.Connection, procedimento_id: int) -> dict:
             }
             for a in atti
         ],
-        "red_flags_ente": [
+        "red_flags_procedimento": [
             {
                 "tipo_flag": f[0],
                 "severita": f[1],
                 "descrizione": f[2],
                 "data_rilevazione": f[3],
             }
-            for f in flags
+            for f in flags_pertinenti
         ],
         "disclaimer": "Segnalazioni da verificare, non accertamenti.",
     }

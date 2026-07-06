@@ -167,6 +167,31 @@ Liferay cambia, fallisce. Mitigata dal WARNING a 0 allegati.
 
 ---
 
+### 2026-07-06 — Tentativo 6: segnali per catena + verifica anti-overfitting
+**Approccio:** l'utente ha osservato che (a) `motivo_selezione.json` era una formula
+identica per tutte le catene, (b) rischiavamo di overfittare sul caso Palma noto.
+Aggiunti segnali specifici per catena (`_segnali_catena`), poi misurata la loro
+distribuzione su TUTTE le 28 catene critiche per verificare la generalizzazione.
+
+**Esito:** ✅ segnali implementati; ⚠️ l'analisi ha confermato in parte il sospetto
+
+**Appreso — la distribuzione smaschera due difetti:**
+1. `riferimento_non_riscontrato` scattava anche per citazioni di atti del 2001/2008,
+   che mancano dal DB per limiti di copertura scraping, non per errore dell'ente.
+   Fix: il segnale scatta solo se l'anno citato è ≥ dell'anno del più vecchio atto
+   raccolto per quell'ente. Dopo il fix: 4 casi superstiti, tutti Palma — corretto,
+   perché solo Palma ha il backfill completo 2018→2026 che rende il segnale affidabile.
+2. `avvio_e_chiusura_stesso_giorno` scatta solo su Palma non per overfitting della
+   regola, ma perché altrove manca l'atto di avvio (23/28 catene monche): il segnale
+   è condizionato alla copertura, non al comune.
+
+**Regola generale ricavata:** ogni segnale basato sull'ASSENZA di qualcosa deve
+essere condizionato alla copertura del DB per l'ente. La vera validazione
+anti-overfitting resta TAL-12: ground truth su fascicoli NON usati per progettare
+i check (le 17 catene non-Palma scaricate sono esattamente quel set).
+
+---
+
 ## 📌 Note tecniche
 
 ### Struttura endpoint download
