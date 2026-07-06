@@ -34,8 +34,16 @@ spiegazione; senza violazioni → salvati comunque, senza spiegazione.
 - 11 test nuovi (`tests/test_pdf_download.py`), **304 test verdi totali**, lint ok.
 - Doc: card `docs/cards/TAL-47.md` (Review), wiki `docs/wiki/14-pdf-on-demand.md`.
 
-**DB:** `atti.url_pdf` + `hash_sha256` ora valorizzati per gli atti 3388-3393.
-PDF locali in `data/raw/pdf/comune_di_palma_di_montechiaro/{653,654,655}/` (gitignored).
+**Batch 2026-07-06 — 20 catene critiche scaricate (limite utente: 20, diversificate per comune):**
+`procedimenti_critici(limite=20)` con round-robin per ente. Scaricate: Caltanissetta 6,
+Palma 6, Ragusa 5, Enna 3 (+ proc. 692 Palma, residuo di un run precedente interrotto:
+21 cartelle totali su disco). **136 allegati** in `data/raw/pdf/<ente>/<proc>/`, ognuna
+con `meta.json` + `motivo_selezione.json`. Escluse dal giro (fonti non supportate):
+Siracusa 5 catene (portalepa) e Agrigento 2 (ASP.NET) → servono downloader dedicati.
+
+**4 atti con 0 allegati** (WARNING nel log, comportamento atteso — l'albo non li espone più):
+atti 1088, 1089, 1424 (Caltanissetta), 298 (Enna). Conferma la lezione Trapani: gli albi
+espongono gli allegati solo per un periodo → il download va fatto vicino alla scoperta.
 
 **Prossimi (Fase 2):** selezione automatica catene da scaricare (revocato/annullato
 prima), estrazione testo dai PDF scaricati (riuso engine OCR), run dei check e
