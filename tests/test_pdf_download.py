@@ -1,0 +1,266 @@
+"""Test download PDF on-demand da catene (TAL-47).
+
+I test non fanno chiamate HTTP: usano HTML fixture sintetiche e un opener finto.
+Struttura fixture ricalcata sulla pagina di dettaglio reale jCityGov
+(/papca/display/<id>), anonimizzata.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import sqlite3
+from pathlib import Path
+
+from talia.modulo2_scraping import db
+from talia.modulo2_scraping.pdf_download import (
+    _url_display_format,
+    scarica_pdf_allegato,
+    scarica_pdf_procedimento,
+    trova_allegati,
+)
+
+# ---------------------------------------------------------------------------
+# Fixture: pagina di dettaglio con 2 allegati
+# ---------------------------------------------------------------------------
+
+_URL_PDF_1 = "https://esempio.trasparenza-valutazione-merito.it/dl?id=111"
+_URL_PDF_2 = "https://esempio.trasparenza-valutazione-merito.it/dl?id=222"
+
+
+def _b64(url: str) -> str:
+    return base64.b64encode(url.encode()).decode()
+
+
+_HTML_DETTAGLIO = f"""
+<table class="allegati">
+<tbody>
+<tr data-chiave-allegato="111" data-mimetype="application/pdf" class="riga">
+  <td>determina.pdf</td>
+  <td><a onclick="window.open(atob('{_b64(_URL_PDF_1)}'))">scarica</a></td>
+</tr>
+<tr data-chiave-allegato="222" data-mimetype="application/octet-stream" class="riga">
+  <td>firma.p7m</td>
+  <td><a onclick="window.open(atob('{_b64(_URL_PDF_2)}'))">scarica</a></td>
+</tr>
+</tbody>
+</table>
+"""
+
+_HTML_SENZA_ALLEGATI = "<html><body><p>Dettaglio pubblicazione</p></body></html>"
+
+# Pagina corrotta: righe allegato presenti ma base64 non decodificabile
+_HTML_CORROTTO = """
+<tr data-chiave-allegato="333" data-mimetype="application/pdf">
+  <td><a onclick="window.open(atob('!!!non-base64!!!'))">scarica</a></td>
+</tr>
+"""
+
+_PDF_BYTES = b"%PDF-1.4 contenuto finto del pdf"
+_P7M_BYTES = b"\x30\x82firma binaria finta"
+
+
+# ---------------------------------------------------------------------------
+# Opener finto (niente HTTP)
+# ---------------------------------------------------------------------------
+
+
+class _RispostaFinta:
+    def __init__(self, body: bytes, content_disposition: str = ""):
+        self._body = body
+        self._cd = content_disposition
+
+    def read(self) -> bytes:
+        return self._body
+
+    @property
+    def headers(self):
+        return self
+
+    def get_content_charset(self, default: str) -> str:
+        return default
+
+    def get(self, name: str, default: str = "") -> str:
+        if name.lower() == "content-disposition":
+            return self._cd or default
+        return default
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _OpenerFinto:
+    """Mappa url → risposta; registra le richieste fatte."""
+
+    def __init__(self, risposte: dict[str, _RispostaFinta]):
+        self._risposte = risposte
+        self.richieste: list[str] = []
+
+    def open(self, req, timeout=None):
+        url = req.full_url
+        self.richieste.append(url)
+        if url not in self._risposte:
+            raise AssertionError(f"URL inatteso: {url}")
+        return self._risposte[url]
+
+
+# ---------------------------------------------------------------------------
+# _url_display_format
+# ---------------------------------------------------------------------------
+
+
+def test_url_display_da_mostradettaglio():
+    url = (
+        "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g"
+        "?p_p_id=jcitygovalbopubblicazioni_WAR_jcitygovalbiportlet"
+        "&_jcitygovalbopubblicazioni_WAR_jcitygovalbiportlet_id=4692608"
+        "&_jcitygovalbopubblicazioni_WAR_jcitygovalbiportlet_action=mostraDettaglio"
+    )
+    assert _url_display_format(url) == (
+        "https://esempio.trasparenza-valutazione-merito.it"
+        "/web/trasparenza/papca-g/-/papca/display/4692608"
+    )
+
+
+def test_url_display_fallback_se_non_riconosciuto():
+    url = "https://altro-portale.example/dettaglio?id=1"
+    assert _url_display_format(url) == url
+
+
+# ---------------------------------------------------------------------------
+# trova_allegati
+# ---------------------------------------------------------------------------
+
+
+def _opener_dettaglio(html: str, url: str) -> _OpenerFinto:
+    return _OpenerFinto({url: _RispostaFinta(html.encode())})
+
+
+def test_trova_allegati_caso_normale():
+    url = "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/1"
+    allegati = trova_allegati(url, opener=_opener_dettaglio(_HTML_DETTAGLIO, url))
+    assert len(allegati) == 2
+    assert allegati[0].chiave_allegato == "111"
+    assert allegati[0].mimetype == "application/pdf"
+    assert allegati[0].url_download == _URL_PDF_1
+    assert allegati[1].chiave_allegato == "222"
+    assert allegati[1].url_download == _URL_PDF_2
+
+
+def test_trova_allegati_zero_allegati(caplog):
+    url = "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/2"
+    with caplog.at_level("WARNING"):
+        allegati = trova_allegati(url, opener=_opener_dettaglio(_HTML_SENZA_ALLEGATI, url))
+    assert allegati == []
+    # Convenzione progetto: 0 risultati → WARNING esplicito, mai silenzio
+    assert any("essun allegato" in r.message for r in caplog.records)
+
+
+def test_trova_allegati_base64_corrotto():
+    url = "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/3"
+    allegati = trova_allegati(url, opener=_opener_dettaglio(_HTML_CORROTTO, url))
+    # La riga c'è ma l'URL non è decodificabile: allegato senza url_download
+    assert len(allegati) == 1
+    assert allegati[0].url_download is None
+
+
+# ---------------------------------------------------------------------------
+# scarica_pdf_allegato: estensione dai magic bytes + idempotenza
+# ---------------------------------------------------------------------------
+
+
+def test_estensione_pdf_da_magic_bytes(tmp_path):
+    opener = _OpenerFinto({_URL_PDF_1: _RispostaFinta(_PDF_BYTES)})
+    result = scarica_pdf_allegato(_URL_PDF_1, tmp_path / "3388_111", opener=opener)
+    assert result is not None
+    path, _, _ = result
+    assert path.suffix == ".pdf"
+    assert path.read_bytes() == _PDF_BYTES
+
+
+def test_estensione_bin_se_non_pdf(tmp_path):
+    opener = _OpenerFinto({_URL_PDF_2: _RispostaFinta(_P7M_BYTES)})
+    result = scarica_pdf_allegato(_URL_PDF_2, tmp_path / "3388_222", opener=opener)
+    assert result is not None
+    path, _, _ = result
+    assert path.suffix == ".bin"
+
+
+def test_idempotenza_skip_se_gia_scaricato(tmp_path):
+    opener = _OpenerFinto({_URL_PDF_1: _RispostaFinta(_PDF_BYTES)})
+    base = tmp_path / "3388_111"
+    scarica_pdf_allegato(_URL_PDF_1, base, opener=opener)
+    assert len(opener.richieste) == 1
+
+    # Secondo giro: il file esiste → nessuna nuova richiesta HTTP
+    result = scarica_pdf_allegato(_URL_PDF_1, base, opener=opener)
+    assert result is not None
+    assert len(opener.richieste) == 1
+
+
+# ---------------------------------------------------------------------------
+# scarica_pdf_procedimento: end-to-end su DB in memoria
+# ---------------------------------------------------------------------------
+
+
+def _db_con_procedimento() -> sqlite3.Connection:
+    conn = db.connetti(":memory:")
+    db.inizializza_db(conn)
+    conn.executescript(
+        """
+        CREATE TABLE procedimenti (id INTEGER PRIMARY KEY, ente_id INTEGER);
+        ALTER TABLE atti ADD COLUMN procedimento_id INTEGER;
+        """
+    )
+    db.upsert_ente(conn, db.EnteMetadato(denominazione="Comune di Esempio", codice_istat="099999"))
+    conn.execute("INSERT INTO procedimenti (id, ente_id) VALUES (653, 1)")
+    conn.execute(
+        """
+        INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper,
+                          metadati, procedimento_id)
+        VALUES (1, 'determina', '2026-07-05', ?, 'jcitygov', '{}', 653)
+        """,
+        (
+            "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/1",
+        ),
+    )
+    conn.commit()
+    return conn
+
+
+def test_scarica_procedimento_end_to_end(tmp_path):
+    conn = _db_con_procedimento()
+    url_dettaglio = "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/1"
+    opener = _OpenerFinto(
+        {
+            url_dettaglio: _RispostaFinta(_HTML_DETTAGLIO.encode()),
+            _URL_PDF_1: _RispostaFinta(_PDF_BYTES, 'attachment; filename="determina.pdf"'),
+            _URL_PDF_2: _RispostaFinta(_P7M_BYTES, 'attachment; filename="firma.p7m"'),
+        }
+    )
+
+    scaricati = scarica_pdf_procedimento(conn, 653, dest_dir=tmp_path, opener=opener, delay=0)
+
+    assert len(scaricati) == 2
+    assert sorted(p.suffix for p in scaricati) == [".bin", ".pdf"]
+
+    # url_pdf punta al PRIMO allegato PDF (non alla firma .bin)
+    row = conn.execute("SELECT url_pdf FROM atti WHERE id = 1").fetchone()
+    assert row["url_pdf"] == _URL_PDF_1
+
+    # meta.json presente e coerente
+    meta = json.loads((tmp_path / "meta.json").read_text())
+    assert len(meta) == 2
+    assert meta[0]["filename_originale"] == "determina.pdf"
+    assert all(m["hash_sha256"] for m in meta)
+
+
+def test_scarica_procedimento_inesistente(caplog):
+    conn = _db_con_procedimento()
+    with caplog.at_level("WARNING"):
+        scaricati = scarica_pdf_procedimento(conn, 999, dest_dir=Path("/nonusato"), delay=0)
+    assert scaricati == []
+    assert any("essun atto" in r.message for r in caplog.records)

@@ -1,17 +1,44 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-03
+> Aggiornato: 2026-07-06
 
 ---
 
 ## Branch attivo
 
-`fix/BUG-4-trapani-filtro-data` — fix BUG-4 committato, da mergiare su `main`.
-Il branch `feat/TAL-30-dashboard-mvp` (catch-all TAL-30/42…46) è stato
-**mergiato e cancellato il 2026-07-03** (merge `51014cd`, 290 test verdi).
-Da ora: **un branch per card** (`feat/TAL-XX-slug`), come da convenzione CLAUDE.md.
+`feat/TAL-47-pdf-on-demand` — download PDF on-demand da catene ricostruite (Fase 2, MVP).
+Da committare e aprire PR. Il fix BUG-4 Trapani è stato mergiato su `main` (`097c203`).
 Il vecchio branch locale `fix/BUG-4-trapani-regex` è superato (conteneva solo un
 commit docs, nessun fix): può essere cancellato.
+
+## Sessione 2026-07-05/06 — TAL-47: download PDF on-demand (Fase 2, MVP)
+
+**Decisione di processo (utente):** quando l'engine catena ricostruisce una catena,
+il sistema scarica i PDF degli atti; l'analisi e la rilevazione delle criticità è
+**in capo al codice, non a Claude**. Fascicoli con violazioni → salvati con file di
+spiegazione; senza violazioni → salvati comunque, senza spiegazione.
+
+**Fatto (loop: agente haiku esplora → contesto principale consolida):**
+- Nuovo modulo `src/talia/modulo2_scraping/pdf_download.py`: `trova_allegati()` +
+  `scarica_pdf_procedimento()`. Endpoint scoperto: `/papca/display/<id>` espone gli
+  allegati in `<tr data-chiave-allegato>`; URL di download base64 negli onclick
+  (`atob('…')`), endpoint Liferay `p_p_lifecycle=2&p_p_resource_id=downloadAllegato`.
+  HTTP puro, niente Playwright.
+- Validazione: 31 allegati scaricati dai proc. Palma 653/654/655; hash SHA256 4/4
+  identici ai PDF veri di `data/samples/1/`. Idempotenza verificata (2° run: 0 download).
+- 3 bug dell'agente corretti in consolidamento: estensione dai magic bytes `%PDF`
+  (non dal mimetype dichiarato), idempotenza reale su file esistente, `url_pdf` al
+  primo PDF vero (non all'ultimo allegato = firma). Dettagli in TAL-47 § Tentativi.
+- 10 test nuovi (`tests/test_pdf_download.py`), **303 test verdi totali**, lint ok.
+- Doc: card `docs/cards/TAL-47.md` (Review), wiki `docs/wiki/14-pdf-on-demand.md`.
+
+**DB:** `atti.url_pdf` + `hash_sha256` ora valorizzati per gli atti 3388-3393.
+PDF locali in `data/raw/pdf/comune_di_palma_di_montechiaro/{653,654,655}/` (gitignored).
+
+**Prossimi (Fase 2):** selezione automatica catene da scaricare (revocato/annullato
+prima), estrazione testo dai PDF scaricati (riuso engine OCR), run dei check e
+salvataggio fascicoli con/senza spiegazione, integrazione in `run_scrapers.py`
+(`--download-pdf`), estensione ad altre piattaforme (e-pal, portalepa, ASP.NET).
 
 ## DB attuale
 
@@ -155,10 +182,10 @@ Card in Review. Casi concreti trovati su fascicolo Palma:
 - Bozza graduatoria divulgata prima dell'ufficializzazione → `gdpr_breach_non_notificato`
 - Revoca cita "N. 33/2025" ma l'atto in DB è "N. 35/2025" → `numero_atto_incoerente`
 
-### 5 — Fase 2 pipeline: PDF on-demand
+### 5 — ~~Fase 2 pipeline: PDF on-demand (MVP)~~ ✅ AVVIATA (2026-07-06, TAL-47)
 
-Download PDF solo per atti con `REVOCA`, `AUTOTUTELA`, `ANNULLAMENTO` nell'oggetto.
-Alimenta TAL-14 e TAL-11. Da pianificare come nuova card E2.
+Downloader jCityGov funzionante e validato (vedi sezione sessione 2026-07-05/06).
+Restano: selezione automatica catene, estrazione testo, check sui PDF, altre piattaforme.
 
 ### 6 — ANAC
 

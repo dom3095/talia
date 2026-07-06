@@ -4,8 +4,8 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 **Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags
-batch + catene procedimenti v2) e Modulo 3 (Dashboard Streamlit) su `main` — 290 test verdi.
-In corso: validazione su fascicoli reali (TAL-12). Prossimi: fix Trapani (BUG-4), backfill Palma.
+batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard Streamlit) —
+303 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review), validazione fascicoli reali (TAL-12).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -61,6 +61,7 @@ In corso: validazione su fascicoli reali (TAL-12). Prossimi: fix Trapani (BUG-4)
 | [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | 📊 FE | formato scelto: HTML statico + JSON + CLI |
 | [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | 🔤 NLP | NER sm rumoroso: resta discovery, non in motore |
 | [TAL-14](TAL-14.md) | Check 7: data breach GDPR non notificato | ⚖️ LEX + 🔤 NLP | check-8 DPO conflict rimandato a TAL-25 |
+| [TAL-47](TAL-47.md) | Download PDF on-demand da catene (Fase 2, MVP jCityGov) | 🕷️ SCR | branch `feat/TAL-47-pdf-on-demand`; validato hash 4/4 su fascicolo Palma; 10 test |
 
 ### ✅ Done
 | ID | Titolo | Note |
