@@ -38,6 +38,7 @@ batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard S
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
+| [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca (bando simile rilanciato) | E2 | 🔤 NLP + ⚖️ LEX | P1 |
 | [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | E1 | 🔤 NLP | P2 |
 
 ### 🔧 In Progress

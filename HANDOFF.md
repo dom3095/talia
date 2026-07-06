@@ -45,10 +45,22 @@ Siracusa 5 catene (portalepa) e Agrigento 2 (ASP.NET) → servono downloader ded
 atti 1088, 1089, 1424 (Caltanissetta), 298 (Enna). Conferma la lezione Trapani: gli albi
 espongono gli allegati solo per un periodo → il download va fatto vicino alla scoperta.
 
-**Prossimi (Fase 2):** selezione automatica catene da scaricare (revocato/annullato
-prima), estrazione testo dai PDF scaricati (riuso engine OCR), run dei check e
-salvataggio fascicoli con/senza spiegazione, integrazione in `run_scrapers.py`
-(`--download-pdf`), estensione ad altre piattaforme (e-pal, portalepa, ASP.NET).
+**Segnali per catena in `motivo_selezione.json` (feedback utente):** esito critico
+con evidenza, avvio/chiusura stesso giorno, chiusura rapida, avvio non in albo,
+riferimento citato non riscontrato (condizionato alla copertura DB dell'ente —
+verifica anti-overfitting su tutte le 28 catene, vedi TAL-47 Tentativo 6), metodo
+fuzzy da verificare.
+
+**Nuova card TAL-48 (To Do):** red flag "riapertura dopo revoca" — idea utente
+verificata empiricamente: Palma 656 (bando ZES annullato 2023, ripubblicato 2026),
+Ragusa 1079 (determina riadottata dopo 18gg). Guardia anti-periodicità necessaria
+(falso positivo: atti trimestrali Enna). Vedi `docs/cards/TAL-48.md`.
+
+**Prossimi (Fase 2):** TAL-48 (riapertura dopo revoca), estrazione testo dai PDF
+scaricati (riuso engine OCR), run dei check e salvataggio fascicoli con/senza
+spiegazione, integrazione in `run_scrapers.py` (`--download-pdf`), estensione ad
+altre piattaforme (e-pal, portalepa, ASP.NET), confronto bando originale vs
+rilanciato (dipende da TAL-48 + estrazione testo).
 
 ## DB attuale
 
