@@ -31,8 +31,63 @@ Sessione autonoma del 2026-07-07 (TAL-49): censimento albi + rollout scraper.
 
 ## DB attuale
 
-`talia.db` NON toccato in questa sessione (tutti i test su DB isolati in scratchpad).
-Stato al 2026-07-03: 7 enti | 4463 atti | 5 red flags (vedi sotto).
+**Migrazione ISTAT applicata il 2026-07-07 sera** (backup: `talia.db.bak-20260707`,
+gitignored): i 4 enti ora hanno i codici corretti (Siracusa 089017, Caltanissetta
+085004, Enna 086009, Palma 084027). Subito dopo è stato lanciato il **run completo
+di test con tutti i 64 scraper HTTP** direttamente su `talia.db` (decisione di Dom).
+
+## 🤝 Istruzioni per la prossima sessione (test run + backfill)
+
+Contesto: Dom ha lanciato il run completo per testare tutti gli scraper nuovi.
+Il tuo compito è **sistemare gli errori che emergono**, alla bisogna.
+
+### Dove guardare
+
+1. `sqlite3 talia.db "SELECT scraper_id, esito, n_trovati, n_inseriti, errore FROM scraper_runs ORDER BY avviato_a DESC LIMIT 70;"`
+   — esiti dell'ultimo run per scraper (nota: può esserci un run 'in corso' orfano
+   delle 18:00 del 2026-07-07: è un processo interrotto e rilanciato, ignoralo).
+2. Coverage: `sqlite3 talia.db "SELECT e.denominazione, COUNT(*), MIN(a.data_pub), MAX(a.data_pub) FROM atti a JOIN enti e ON e.id=a.ente_id GROUP BY 1 ORDER BY 2 DESC;"`
+3. Comuni a 0 atti o in errore → riprodurre con:
+   `python scripts/run_scrapers.py --scrapers <nome> --max-pagine 2 --db /tmp/test_<nome>.db --no-red-flags`
+
+### Errori tipici attesi (e cosa fare)
+
+- **Timeout/5xx su singoli comuni jCityGov**: transitorio; `jcitygov.py` ha 1 retry
+  solo su TimeoutError. Se un HTTPError ricorre, valutare retry anche su 5xx (fragilità
+  nota in CLAUDE.md). Non escludere il comune al primo errore.
+- **0 atti da un comune verificato oggi**: era vivo il 2026-07-07 (10 atti reali);
+  se ora dà 0 è probabilmente struttura/manutenzione — loggare nella card TAL-49
+  (sezione Tentativi) e passare oltre.
+- **Palermo/Catania**: flussi stateful documentati nei docstring di `palermo.py` /
+  `catania.py`. Il server di Catania a volte è completamente giù (non è colpa nostra):
+  riprovare più tardi.
+- **Enti duplicati nel DB**: NON dovrebbe più succedere (migrazione fatta). Se vedi
+  un ente doppio, è un codice ISTAT sbagliato in `_JCITYGOV_COMUNI`: correggere il
+  codice e fondere gli enti a mano (UPDATE atti SET ente_id=..., DELETE ente doppio).
+
+### Backfill storico (richiesta esplicita di Dom)
+
+Come per Palma (2026-06-26): per ogni comune jCityGov nuovo, backfill senza
+stop-on-known. Palma ha mostrato che gli albi jCityGov espongono spesso TUTTO lo
+storico (2018→oggi), quindi il valore è alto. Procedura consigliata, a lotti per
+non martellare i server:
+
+```bash
+# lotto da ~10 comuni per volta, direttamente su talia.db (idempotente)
+python scripts/run_scrapers.py --scrapers marsala bagheria modica acireale mazaradelvallo \
+    paterno misterbianco alcamo licata augusta --max-pagine 50 --no-stop
+```
+
+Poi verificare coverage (query sopra) e aggiornare la sezione DB di questo file.
+NON ha senso il backfill per Palermo/Catania/Trapani: espongono solo gli atti in
+pubblicazione (~15-30 gg), lo storico non è raggiungibile.
+
+### Regole di sempre
+
+- MAI push su main, MAI merge: branch + PR, il merge lo fa Dom (PR #8 è sua da rivedere).
+- Fix agli scraper: commit sul branch `feat/E3-censimento-comuni-sicilia` finché
+  la PR #8 è aperta (sono la stessa unità di lavoro), poi branch nuovi.
+- Ogni tentativo significativo va nella card `docs/cards/TAL-49.md`, sezione 🔬 Tentativi.
 
 ## Modifiche non committate
 
