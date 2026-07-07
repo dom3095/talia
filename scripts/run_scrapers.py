@@ -243,6 +243,20 @@ _JCITYGOV_COMUNI = [
         "Comune di Santa Maria di Licodia",
     ),
     ("nicolosi", _BASE.format("nicolosi"), "087031", "Comune di Nicolosi"),
+    ("gangi", _BASE.format("gangi"), "082036", "Comune di Gangi"),
+    ("rometta", _BASE.format("rometta"), "083076", "Comune di Rometta"),
+    ("montelepre", _BASE.format("montelepre"), "082050", "Comune di Montelepre"),
+    ("custonaci", _BASE.format("custonaci"), "081007", "Comune di Custonaci"),
+    ("casteldiiudica", _BASE.format("casteldiiudica"), "087013", "Comune di Castel di Iudica"),
+    ("sanvitolocapo", _BASE.format("sanvitolocapo"), "081020", "Comune di San Vito Lo Capo"),
+    ("favignana", _BASE.format("favignana"), "081009", "Comune di Favignana"),
+    ("busetopalizzolo", _BASE.format("busetopalizzolo"), "081002", "Comune di Buseto Palizzolo"),
+    ("nissoria", _BASE.format("nissoria"), "086013", "Comune di Nissoria"),
+    ("vita", _BASE.format("vita"), "081023", "Comune di Vita"),
+    ("bompietro", _BASE.format("bompietro"), "082012", "Comune di Bompietro"),
+    ("ustica", _BASE.format("ustica"), "082075", "Comune di Ustica"),
+    ("blufi", _BASE.format("blufi"), "082082", "Comune di Blufi"),
+    ("comitini", _BASE.format("comitini"), "084016", "Comune di Comitini"),
 ]
 
 

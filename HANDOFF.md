@@ -1,83 +1,38 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-06
+> Aggiornato: 2026-07-07
 
 ---
 
 ## Branch attivo
 
-`feat/TAL-47-pdf-on-demand` — download PDF on-demand da catene ricostruite (Fase 2, MVP).
-Da committare e aprire PR. Il fix BUG-4 Trapani è stato mergiato su `main` (`097c203`).
-Il vecchio branch locale `fix/BUG-4-trapani-regex` è superato (conteneva solo un
-commit docs, nessun fix): può essere cancellato.
+`feat/E3-censimento-comuni-sicilia` — **PR draft #8 aperta**, tutto committato e pushato.
+Sessione autonoma del 2026-07-07 (TAL-49): censimento albi + rollout scraper.
 
-## Sessione 2026-07-05/06 — TAL-47: download PDF on-demand (Fase 2, MVP)
+### Cosa contiene la PR #8 (da rivedere e mergiare)
 
-**Decisione di processo (utente):** quando l'engine catena ricostruisce una catena,
-il sistema scarica i PDF degli atti; l'analisi e la rilevazione delle criticità è
-**in capo al codice, non a Claude**. Fascicoli con violazioni → salvati con file di
-spiegazione; senza violazioni → salvati comunque, senza spiegazione.
+- `data/comuni_sicilia.csv` — 391 comuni per popolazione (codici ISTAT ufficiali)
+- **Palermo** (`palermo.py`): SISPI in HTTP puro (la nota "Playwright obbligatorio" era errata) — 8 test
+- **Catania** (`catania.py`): wizard URBI in HTTP puro — 6 test
+- **Rollout jCityGov**: sweep 391/391 → 68 hit → **60 comuni verificati e registrati** (runner dinamici)
+- **Fix 4 codici ISTAT errati** (Caltanissetta era Butera!, Siracusa era Solarino!, Enna e Palma off-by-one)
+- Wiki censimento: `docs/wiki/14-censimento-albi.md` (copertura ≈ **55% della popolazione siciliana**, 65 comuni attivi)
+- 322 test verdi, ruff pulito
 
-**Fatto (loop: agente haiku esplora → contesto principale consolida):**
-- Nuovo modulo `src/talia/modulo2_scraping/pdf_download.py`: `trova_allegati()` +
-  `scarica_pdf_procedimento()`. Endpoint scoperto: `/papca/display/<id>` espone gli
-  allegati in `<tr data-chiave-allegato>`; URL di download base64 negli onclick
-  (`atob('…')`), endpoint Liferay `p_p_lifecycle=2&p_p_resource_id=downloadAllegato`.
-  HTTP puro, niente Playwright.
-- Validazione: 31 allegati scaricati dai proc. Palma 653/654/655; hash SHA256 4/4
-  identici ai PDF veri di `data/samples/1/`. Idempotenza verificata (2° run: 0 download).
-- 3 bug dell'agente corretti in consolidamento: estensione dai magic bytes `%PDF`
-  (non dal mimetype dichiarato), idempotenza reale su file esistente, `url_pdf` al
-  primo PDF vero (non all'ultimo allegato = firma). Dettagli in TAL-47 § Tentativi.
-- `motivo_selezione.json` in ogni cartella scaricata: giustificazione esplicabile della
-  selezione generata dal DB (stato, metodo, ruoli atti + url_fonte, red flags, disclaimer).
-- 11 test nuovi (`tests/test_pdf_download.py`), **304 test verdi totali**, lint ok.
-- Doc: card `docs/cards/TAL-47.md` (Review), wiki `docs/wiki/14-pdf-on-demand.md`.
+### ⚠️ Decisioni per Dom (prima/durante il merge)
 
-**Batch 2026-07-06 — 20 catene critiche scaricate (limite utente: 20, diversificate per comune):**
-`procedimenti_critici(limite=20)` con round-robin per ente. Scaricate: Caltanissetta 6,
-Palma 6, Ragusa 5, Enna 3 (+ proc. 692 Palma, residuo di un run precedente interrotto:
-21 cartelle totali su disco). **136 allegati** in `data/raw/pdf/<ente>/<proc>/`, ognuna
-con `meta.json` + `motivo_selezione.json`. Escluse dal giro (fonti non supportate):
-Siracusa 5 catene (portalepa) e Agrigento 2 (ASP.NET) → servono downloader dedicati.
-
-**4 atti con 0 allegati** (WARNING nel log, comportamento atteso — l'albo non li espone più):
-atti 1088, 1089, 1424 (Caltanissetta), 298 (Enna). Conferma la lezione Trapani: gli albi
-espongono gli allegati solo per un periodo → il download va fatto vicino alla scoperta.
-
-**Segnali per catena in `motivo_selezione.json` (feedback utente):** esito critico
-con evidenza, avvio/chiusura stesso giorno, chiusura rapida, avvio non in albo,
-riferimento citato non riscontrato (condizionato alla copertura DB dell'ente —
-verifica anti-overfitting su tutte le 28 catene, vedi TAL-47 Tentativo 6), metodo
-fuzzy da verificare.
-
-**Nuova card TAL-48 (To Do):** red flag "riapertura dopo revoca" — idea utente
-verificata empiricamente: Palma 656 (bando ZES annullato 2023, ripubblicato 2026),
-Ragusa 1079 (determina riadottata dopo 18gg). Guardia anti-periodicità necessaria
-(falso positivo: atti trimestrali Enna). Vedi `docs/cards/TAL-48.md`.
-
-**Prossimi (Fase 2):** TAL-48 (riapertura dopo revoca), estrazione testo dai PDF
-scaricati (riuso engine OCR), run dei check e salvataggio fascicoli con/senza
-spiegazione, integrazione in `run_scrapers.py` (`--download-pdf`), estensione ad
-altre piattaforme (e-pal, portalepa, ASP.NET), confronto bando originale vs
-rilanciato (dipende da TAL-48 + estrazione testo).
+1. **Migrazione `talia.db`**: i 4 codici ISTAT corretti richiedono UPDATE sugli enti esistenti
+   (SQL pronto in `docs/cards/TAL-49.md`, fare backup prima). Senza migrazione il prossimo run
+   creerebbe enti duplicati.
+2. **Default run**: ora include 64 scraper HTTP (60 jCityGov + siracusa/trapani/palermo/catania).
+   Se troppo aggressivo, ridurre `_SCRAPERS_DEFAULT` a una whitelist.
+3. Gli 8 comuni jCityGov con albo vuoto (Milazzo, Noto, Aragona, Racalmuto, Ribera, Gaggi,
+   Letojanni, Condrò) sono esclusi: ricontrollare in futuro.
 
 ## DB attuale
 
-Aggiornato 2026-07-03 (notte), dopo fix Trapani + run completo:
-
-```
-7 enti | 4463 atti | 5 red flags
-Agrigento:             278 atti  2026-06-03 → 2026-06-26
-Caltanissetta:        1000 atti  2026-05-18 → 2026-06-25
-Enna:                  400 atti  2022-01-19 → 2025-04-02  (bassa freq. ~3 atti/mese)
-Palma di Montechiaro:  748 atti  2018-05-11 → 2026-06-05  ✅ backfill completo (già dal 26/06)
-Ragusa:               1000 atti  2023-05-09 → 2026-04-15
-Siracusa:              670 atti  2023-10-03 → 2026-06-26
-Trapani:               367 atti  2026-04-10 → 2026-07-02  ✅ BUG-4 risolto, +329 atti
-```
-
----
+`talia.db` NON toccato in questa sessione (tutti i test su DB isolati in scratchpad).
+Stato al 2026-07-03: 7 enti | 4463 atti | 5 red flags (vedi sotto).
 
 ## Modifiche non committate
 
@@ -166,6 +121,22 @@ Aggiornati `CLAUDE.md` e `docs/cards/_TEMPLATE.md` con:
 ---
 
 ## Prossimi passi
+
+### 0 — Review e merge PR #8 (TAL-49)
+
+Rivedere la PR, decidere su migrazione ISTAT e default run (vedi sopra), mergiare.
+
+### 1 — Primo run completo post-merge
+
+Dopo migrazione ISTAT: `python scripts/run_scrapers.py` popola i 60 comuni jCityGov
++ Palermo + Catania. Palermo/Catania/Trapani espongono solo atti in pubblicazione
+(~15-30 gg) → questo rafforza l'urgenza dello scraping continuo (pre-cron checklist).
+
+### 2 — Comuni non jCityGov da censire
+
+Top 30 in `docs/wiki/14-censimento-albi.md` (Gela 75k, Vittoria 61k, Caltagirone,
+Sciacca, …): individuare piattaforma e riusare/estendere scraper per famiglia.
+
 
 ### 0 — ~~Fix Trapani~~ ✅ FATTO (2026-07-03, branch `fix/BUG-4-trapani-filtro-data`)
 

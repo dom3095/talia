@@ -38,8 +38,8 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 ## ✅ Task
 - [x] Lista 391 comuni per popolazione (`data/comuni_sicilia.csv`)
 - [x] Refactor registrazione dinamica runner jCityGov
-- [ ] Sweep jCityGov completo + wiki censimento (sweep in corso sui comuni piccoli)
-- [x] Verifica con 10 atti reali per ogni hit e aggiornamento `_JCITYGOV_COMUNI` (+42 comuni)
+- [x] Sweep jCityGov completo (391/391) + wiki censimento (`docs/wiki/14-censimento-albi.md`)
+- [x] Verifica con 10 atti reali per ogni hit e aggiornamento `_JCITYGOV_COMUNI` (68 hit → 60 attivi)
 - [x] Esplorazione Palermo → HTTP puro, `palermo.py` + 8 test, validato e2e
 - [x] Scraper Catania (URBI) — `catania.py` + 6 test, validato e2e
 - [x] Fix codici ISTAT errati (Caltanissetta/Siracusa/Enna/Palma) — migrazione DB da applicare
@@ -65,8 +65,8 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 
 ### 2026-07-07 — Tentativo 3
 **Approccio:** Sweep GET del pattern `<slug>.trasparenza-valutazione-merito.it` su tutti i 391 comuni (0.3s delay, fingerprint Liferay nel body).
-**Esito:** ⚠️ in corso — già >20 hit tra i comuni sopra i 18k abitanti (Marsala, Bagheria, Modica, Acireale, Mazara, Paternò, Misterbianco, Alcamo, …).
-**Appreso:** il parco jCityGov in Sicilia è molto più ampio dei 4 comuni già in registro: è il moltiplicatore principale della copertura.
+**Esito:** ✅ completato su 391/391: 68 hit, 60 verificati e registrati (8 con portale presente ma albo vuoto via API: Milazzo, Noto, Aragona, Racalmuto, Ribera, Gaggi, Letojanni, Condrò).
+**Appreso:** il parco jCityGov in Sicilia è 15× i 4 comuni già in registro: è il moltiplicatore principale della copertura (55% della popolazione siciliana ora coperta). Verificare sempre con atti reali: ~12% degli hit ha il portale ma non espone l'albo.
 
 ### 2026-07-07 — Tentativo 4
 **Approccio:** Palermo: esplorazione delegata ad agent haiku, poi validazione diretta del flusso HTTP.
@@ -98,4 +98,4 @@ UPDATE enti SET codice_istat = '084027' WHERE codice_istat = '084028'; -- Palma 
 UPDATE enti SET codice_istat = '089017' WHERE codice_istat = '089018'; -- Siracusa
 ```
 
-Comuni jCityGov con portale attivo ma albo vuoto via API (esclusi dal registro, da ricontrollare in futuro): Milazzo, Noto, Aragona, Racalmuto.
+Comuni jCityGov con portale attivo ma albo vuoto via API (esclusi dal registro, da ricontrollare in futuro): Milazzo, Noto, Aragona, Racalmuto, Ribera, Gaggi, Letojanni, Condrò.
