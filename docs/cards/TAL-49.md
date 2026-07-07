@@ -122,6 +122,15 @@ Poi implementato **`halley.py`** generico per Vittoria, Sciacca, Adrano, Barcell
 **Esito:** ✅ Backfill: entrambi i lotti completati senza errori (`scraper_runs` pulito, unico run orfano è quello già noto delle 16:01 da ignorare). `talia.db`: 65 enti, 78.323 atti. ✅ Sweep portalepa: **16 nuovi hit**, tutti verificati con atti reali, aggiunti a `_PORTALEPA_COMUNI` (18 totali). Risultato più rilevante: **Caltagirone**, bloccata su jCityGov da WAF/cert scaduto, è raggiungibile su `caltagirone.soluzionipa.it` — sbloccata senza bisogno di intervento del Comune. Villabate era già coperta da jCityGov (rinominata `villabate_portalepa`). **Copertura: 174 comuni unici, 3.496.160 abitanti (69,9% della popolazione, da 67,5%)**.
 **Appreso:** un comune può avere più sistemi di pubblicazione atti in parallelo (es. un vecchio jCityGov abbandonato con cert scaduto + un portalepa/SoluzioniPA più recente e funzionante) — non dare per "bloccato" un comune definitivamente solo perché una piattaforma è down, vale la pena controllare le altre famiglie note prima di rinunciare.
 
+### 2026-07-08 — Tentativo 13 (run completo su talia.db; completamento provincia di Agrigento, gruppo 1/4)
+**Approccio:** Dom ha lanciato il primo run completo con tutti i 177 scraper del default su `talia.db` (mai fatto prima con la copertura di oggi). In parallelo, richiesta di completare la provincia di Agrigento (43 comuni, 18 coperti): sweep mirato con le 3 famiglie note (jCityGov/portalepa/Halley) sui 25 mancanti, poi ricognizione a gruppi di 3 (agenti haiku) sui più popolosi per quelli non risolti dallo sweep.
+**Esito:** ✅ Run completo: **174 enti, 92.948 atti, 22 red flags**, solo 2 errori SSL transitori (Misilmeri, Valledolmo — comuni già coperti, timeout isolato). ✅ Sweep mirato AG: solo 1 hit (Ribera su jCityGov, ma già noto vuoto — confermato). ✅ Ricognizione gruppo 1 (Favara, Ribera, Raffadali):
+- **Favara** e **Raffadali**: entrambi **URBI Cloud** (`cloud.urbi.it`, stesso meccanismo POST/stepper di Catania, `DB_NAME` diverso per tenant) — generalizzato `catania.py` in un nuovo modulo `urbi.py` (base_url/qs_base/ente_mittente parametrici), `catania.py` lasciato intatto.
+- **Ribera**: **non è jCityGov** (il tenant esistente era genuinamente vuoto) — l'albo vero è su **WordPress** del sito istituzionale (`comune.ribera.ag.it/atti-pubblici/albo-pretorio/`, tema "design-comuni-wordpress-theme"), piattaforma mai vista prima. Nuovo scraper dedicato `ribera.py` (paginazione stateless `?Pag=N`).
+
+Tutti e 3 validati con run reale prima dei test (18 nuovi test tra `test_urbi.py` e `test_ribera.py`, 374 totali verdi). Registrati in `run_scrapers.py` (`_URBI_COMUNI`, `ribera` dedicato).
+**Appreso:** un tenant "vuoto" su una piattaforma nota (Ribera su jCityGov) non implica che il comune non pubblichi affatto — può aver spostato l'albo su un sistema completamente diverso (qui il CMS istituzionale stesso). Il tema WordPress di Ribera potrebbe essere condiviso da altri comuni siciliani: da tenere presente per un futuro sweep.
+
 ## 🔗 Dipendenze
 —
 

@@ -135,6 +135,21 @@ def _run_catania(conn, max_pagine: int = 100, **_kwargs) -> dict:
     return esito
 
 
+def _run_ribera(conn, max_pagine: int = 50, **_kwargs) -> dict:
+    from talia.modulo2_scraping.fonti.ribera import prepara_ente, salva_atti, scarica_atti
+
+    prepara_ente(conn)
+    print(f"  [Ribera] Scarico albo pretorio WordPress (max {max_pagine} pagine)…")
+    t0 = time.monotonic()
+    atti = list(scarica_atti(max_pagine=max_pagine))
+    esito = salva_atti(atti, conn)
+    elapsed = time.monotonic() - t0
+    print(f"  [Ribera] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
+    return esito
+
+
 def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     try:
         from talia.modulo2_scraping.fonti.agrigento import prepara_ente, salva_atti, scarica_atti
@@ -770,6 +785,85 @@ def _make_halley_runner(entry):
     return _runner
 
 
+# URBI Cloud (Maggioli): stessa piattaforma di Catania (`catania.py`), riusata
+# da comuni ospitati su cloud.urbi.it con un DB_NAME diverso per tenant
+# (Favara, Raffadali — TAL-49).
+_URBI_COMUNI = [
+    # (nome_log, base_url, qs_base, codice_istat, ente_mittente, denominazione)
+    (
+        "favara",
+        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
+        "DB_NAME=wt00037115&w3cbt=S",
+        "084017",
+        "COMUNE DI FAVARA",
+        "Comune di Favara",
+    ),
+    (
+        "raffadali",
+        "https://cloud.urbi.it/urbi/progs/urp/ur1ME002.sto",
+        "DB_NAME=n1201794&w3cbt=S",
+        "084030",
+        "COMUNE DI RAFFADALI",
+        "Comune di Raffadali",
+    ),
+]
+
+
+def _run_urbi_comune(
+    conn,
+    nome,
+    base_url,
+    qs_base,
+    codice_istat,
+    ente_mittente,
+    denominazione,
+    max_pagine=50,
+    no_stop=False,
+    **_kwargs,
+):
+    from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
+    from talia.modulo2_scraping.fonti.urbi import scarica_atti
+
+    upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
+    stop_label = " [backfill, stop disabilitato]" if no_stop else ""
+    print(
+        f"  [{nome.capitalize()}] Scarico albo pretorio URBI Cloud"
+        f" (max {max_pagine} pagine){stop_label}…"
+    )
+    t0 = time.monotonic()
+
+    inseriti = duplicati = consecutivi_dup = 0
+    dates: list[str] = []
+    for atto in scarica_atti(base_url, qs_base, codice_istat, ente_mittente, max_pagine=max_pagine):
+        if inserisci_atto(conn, atto) is not None:
+            inseriti += 1
+            consecutivi_dup = 0
+            if atto.data_pub:
+                dates.append(atto.data_pub)
+        else:
+            duplicati += 1
+            consecutivi_dup += 1
+        if not no_stop and consecutivi_dup >= _STOP_CONSECUTIVI:
+            break
+    conn.commit()
+
+    n_trovati = inseriti + duplicati
+    elapsed = time.monotonic() - t0
+    esito = {"inseriti": inseriti, "duplicati": duplicati}
+    print(f"  [{nome.capitalize()}] {n_trovati} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = n_trovati
+    esito["data_min"] = min(dates) if dates else None
+    esito["data_max"] = max(dates) if dates else None
+    return esito
+
+
+def _make_urbi_runner(entry):
+    def _runner(conn, **kwargs):
+        return _run_urbi_comune(conn, *entry, **kwargs)
+
+    return _runner
+
+
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
 
 _SCRAPERS: dict[str, callable] = {
@@ -778,18 +872,21 @@ _SCRAPERS: dict[str, callable] = {
     "trapani": _run_trapani,
     "palermo": _run_palermo,
     "catania": _run_catania,
+    "ribera": _run_ribera,
     "agrigento": _run_agrigento,
 }
 _SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
 _SCRAPERS.update({entry[0]: _make_portalepa_runner(entry) for entry in _PORTALEPA_COMUNI})
 _SCRAPERS.update({entry[0]: _make_halley_runner(entry) for entry in _HALLEY_COMUNI})
+_SCRAPERS.update({entry[0]: _make_urbi_runner(entry) for entry in _URBI_COMUNI})
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
 _SCRAPERS_DEFAULT = (
-    ["siracusa", "trapani", "palermo", "catania"]
+    ["siracusa", "trapani", "palermo", "catania", "ribera"]
     + [entry[0] for entry in _JCITYGOV_COMUNI]
     + [entry[0] for entry in _PORTALEPA_COMUNI]
     + [entry[0] for entry in _HALLEY_COMUNI]
+    + [entry[0] for entry in _URBI_COMUNI]
 )
 
 

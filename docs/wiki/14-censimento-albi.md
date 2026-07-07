@@ -41,7 +41,10 @@ Ricognizione su 10 comuni non-jCityGov (Gela, Vittoria, Barcellona P.G., Sciacca
 
 Restano da implementare:
 - **Partinico** (31k ab.): portalepa variante `_full`, mapping colonne diverso da confermare
-- **URBI Cloud** (Favara, 33k): dialetto diverso da Catania, form POST tradizionale invece di stepper StwEvent
+
+### Completamento provincia di Agrigento (2026-07-08)
+
+**Favara** (33k ab.) e **Raffadali** (13k ab.) sono entrambi **URBI Cloud** (`cloud.urbi.it`, stesso meccanismo di Catania) — generalizzato `catania.py` in `urbi.py` parametrico. **Ribera** (19k ab., segnata sopra come "0 atti anche sul percorso alternativo" su jCityGov) in realtà non usa affatto jCityGov: l'albo vero è su **WordPress** del sito istituzionale (`comune.ribera.ag.it`, tema "design-comuni-wordpress-theme") — nuovo scraper dedicato `ribera.py`. Dettagli in `docs/cards/TAL-49.md`, Tentativo 13.
 
 **Caltagirone** ✅ sbloccata il 2026-07-07 tramite sweep portalepa (vedi sotto): era bloccata solo su jCityGov, raggiungibile su `caltagirone.soluzionipa.it`.
 
@@ -122,16 +125,14 @@ Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 8-10.
 | Comune | Note |
 |--------|------|
 | Condrò | 0 atti anche sul percorso alternativo `papca-ap/igrid` |
-| Racalmuto | 0 atti anche sul percorso alternativo `papca-ap/igrid` |
-| Ribera | 0 atti anche sul percorso alternativo `papca-ap/igrid` |
 
-Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o attivarlo in futuro.
+Da ricontrollare periodicamente: potrebbe esporre l'albo su altro portale o attivarlo in futuro
+(come già successo per Racalmuto → "Storico atti" jCityGov, e per Ribera → WordPress).
 
 ## Prossimi comuni da censire (non jCityGov, per popolazione)
 
 | Comune | Prov | Popolazione |
 |--------|------|------------:|
-| Favara | AG | 32.972 |
 | Partinico | PA | 31.401 |
 | Comiso | RG | 30.214 |
 | Aci Catena | CT | 28.749 |
@@ -141,7 +142,6 @@ Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o at
 | Floridia | SR | 22.685 |
 | Pachino | SR | 22.068 |
 | Rosolini | SR | 21.526 |
-| Ribera | AG | 19.302 |
 | Bronte | CT | 19.234 |
 | Carlentini | SR | 17.958 |
 | Aci Sant'Antonio | CT | 17.270 |
