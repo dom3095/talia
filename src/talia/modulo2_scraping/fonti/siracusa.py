@@ -32,7 +32,7 @@ from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
 # ---------------------------------------------------------------------------
 
 FONTE_SCRAPER = "siracusa"
-CODICE_ISTAT = "089018"
+CODICE_ISTAT = "089017"
 
 _BASE_URL = "https://portalepa.comune.siracusa.it"
 _ALBO_PATH = "/openweb/albo/albo_pretorio.php"
