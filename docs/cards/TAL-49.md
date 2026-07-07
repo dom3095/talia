@@ -88,6 +88,16 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 **Esito:** ⚠️ 64/64 completati senza errori HTTP, ma trovato bug di parsing: 12 tenant jCityGov (Castel di Iudica, Lentini, Augusta, Santa Teresa di Riva, San Vito Lo Capo, Mazara del Vallo, Alcamo, Paternò, Pedara, Tremestieri Etneo, Castelvetrano, Comitini) non hanno la colonna "Anno e Numero Registro" → oggetto nel campo numero, date NULL. Fix: mapping colonne dall'header. 3915 atti corrotti ripuliti e ri-scaricati.
 **Appreso:** i tenant jCityGov NON sono uniformi nelle colonne: il parser deve leggere l'header, mai indici fissi. La verifica "10 atti reali" non basta: bisogna controllare anche che i CAMPI siano giusti (date non NULL), non solo che gli atti arrivino. DB dopo il run: 65 enti, ~35k atti, 19 red flags.
 
+### 2026-07-07 — Tentativo 8 (ricognizione 10 comuni non-jCityGov + fix Milazzo)
+**Approccio:** 10 agenti haiku in parallelo (solo ricognizione, no scrittura codice) sui prossimi 10 comuni per popolazione non censiti: Gela, Vittoria, Barcellona P.G., Sciacca, Caltagirone, Monreale, Adrano, Favara, Milazzo, Partinico. Poi validazione diretta.
+**Esito:** ✅ emerse 3 famiglie di piattaforma non ancora coperte:
+- **Halley EG** (Vittoria, Sciacca, Adrano, Barcellona P.G.) — PHP, paginazione `?pag=N`, HTTP puro
+- **SoluzioniPA** (Monreale, Gela*, Partinico) — `<slug>.soluzionipa.it/openweb/albo/`, HTTP puro (*Gela ha dominio proprio con lo stesso path, da confermare stesso vendor); Partinico potrebbe richiedere JS (bundle React) da verificare a mano
+- **URBI Cloud** (Favara) — dialetto diverso da Catania: form POST tradizionale invece di stepper StwEvent
+
+Inoltre **Milazzo era erroneamente segnato come "jCityGov 0 atti"**: in realtà l'albo è raggiungibile ma su un percorso diverso (`papca-ap/igrid/<id>` invece di `papca-g`). Ho verificato che lo stesso vale per altri 4 degli 8 comuni "morti" del censimento: **Aragona, Gaggi, Letojanni, Noto** hanno anch'essi atti reali sullo stesso percorso alternativo (Condrò, Racalmuto, Ribera restano genuinamente a 0). Implementato fallback automatico in `jcitygov.py::scarica_atti`: se il percorso standard ritorna "0 risultati", scopre il percorso alternativo dalla pagina menu `/web/trasparenza/albo-pretorio` (blocco `data-mainurl`) e lo usa per tutta la sessione di paginazione. 4 nuovi test (`test_jcitygov.py`), 326 test totali verdi. I 5 comuni sbloccati aggiunti a `_JCITYGOV_COMUNI` (verificati con run reale: 40/40 atti ciascuno, `--max-pagine 2`).
+**Appreso:** "0 atti dalla API" nel censimento jCityGov non significa "albo vuoto" — può significare "istanza portlet sbagliata". Vale la pena ricontrollare Condrò/Racalmuto/Ribera più a fondo in futuro (magari con un `data-resource` diverso da "Albo pretorio"). Halley EG e SoluzioniPA sono vendor diffusi tra più comuni: convergere su scraper generici (`halley.py`, `soluzionipa.py`) invece di uno per comune, e valutare uno sweep di dominio per SoluzioniPA come già fatto per jCityGov.
+
 ## 🔗 Dipendenze
 —
 

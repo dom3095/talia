@@ -257,6 +257,13 @@ _JCITYGOV_COMUNI = [
     ("ustica", _BASE.format("ustica"), "082075", "Comune di Ustica"),
     ("blufi", _BASE.format("blufi"), "082082", "Comune di Blufi"),
     ("comitini", _BASE.format("comitini"), "084016", "Comune di Comitini"),
+    # --- sbloccati 2026-07-07 (TAL-49): fallback "papca-ap/igrid" per tenant
+    # dove il percorso standard "papca-g" ritorna 0 atti, vedi jcitygov.py ---
+    ("milazzo", _BASE.format("milazzo"), "083049", "Comune di Milazzo"),
+    ("aragona", _BASE.format("aragona"), "084003", "Comune di Aragona"),
+    ("gaggi", _BASE.format("gaggi"), "083029", "Comune di Gaggi"),
+    ("letojanni", _BASE.format("letojanni"), "083038", "Comune di Letojanni"),
+    ("noto", _BASE.format("noto"), "089013", "Comune di Noto"),
 ]
 
 

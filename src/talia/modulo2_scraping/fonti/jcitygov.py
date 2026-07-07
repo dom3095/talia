@@ -24,9 +24,11 @@ Dati pubblici ai sensi del D.lgs. 33/2013.
 from __future__ import annotations
 
 import http.cookiejar
+import logging
 import re
 import sqlite3
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable, Iterator
@@ -47,6 +49,21 @@ _ALBO_PATH = "/web/trasparenza/papca-g/-/papca"
 _PAPCA_PATH = "/web/trasparenza/papca-g"
 _DEFAULT_LIMIT = 200
 _DEFAULT_DELAY = 0.5
+
+# Alcuni tenant (es. Milazzo, Aragona, Gaggi, Letojanni, Noto: 0 atti dalla
+# API standard, TAL-49) espongono l'albo su un'istanza "papca-ap" diversa,
+# con un id "igrid" specifico del tenant che non è prevedibile a priori.
+# Va scoperto leggendo la pagina menu /web/trasparenza/albo-pretorio, che
+# contiene un blocco data-resource="Albo pretorio" con data-mainurl
+# = "/web/trasparenza/papca-ap/-/papca/igrid/<id>". Scoperto 2026-07-07.
+_LANDING_PATH = "/web/trasparenza/albo-pretorio"
+_RE_MAINURL = re.compile(
+    r'data-resource="Albo pretorio"[^>]*data-mainurl="([^"]+)"',
+    re.IGNORECASE,
+)
+_RE_TOTALE = re.compile(r"Sono stati trovati.*?<strong>(\d+)</strong> risultati")
+
+logger = logging.getLogger(__name__)
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -97,6 +114,22 @@ def _parse_date_cella(raw: str) -> tuple[str | None, str | None]:
     d1 = _data_iso(dates[0]) if len(dates) > 0 else None
     d2 = _data_iso(dates[1]) if len(dates) > 1 else None
     return d1, d2
+
+
+def _scopri_percorso_alternativo(opener, base: str) -> str | None:
+    """Scopre il path "papca-ap/.../igrid/<id>" per i tenant la cui API
+    standard (papca-g, categoria 0) ritorna 0 risultati.
+
+    La pagina menu /web/trasparenza/albo-pretorio contiene un blocco
+    data-resource="Albo pretorio" con data-mainurl che punta all'istanza
+    "igrid" corretta per il tenant (scoperto su Milazzo & co., TAL-49).
+    """
+    try:
+        html = _fetch(opener, f"{base}{_LANDING_PATH}")
+    except (TimeoutError, urllib.error.URLError):
+        return None
+    m = _RE_MAINURL.search(html)
+    return m.group(1) if m else None
 
 
 def _url_dettaglio(base_url: str, pub_id: str) -> str:
@@ -218,18 +251,31 @@ def scarica_atti(
     """
     opener = _opener or _build_opener(skip_ssl=skip_ssl)
     base = base_url.rstrip("/")
+    papca_path = _PAPCA_PATH
 
     # 1. Setup sessione
     _fetch(opener, f"{base}{_ALBO_PATH}")
 
     # 2. Pagina 1 tramite eseguiFiltro (POST)
     filter_url = (
-        f"{base}{_PAPCA_PATH}"
+        f"{base}{papca_path}"
         f"?p_p_id={_PORTLET}&p_p_lifecycle=1&p_p_state=pop_up&p_p_mode=view"
         f"&_{_PORTLET}_action=eseguiFiltro&_{_PORTLET}_categoriaId={categoria_id}"
     )
     post_data = urllib.parse.urlencode({f"_{_PORTLET}_categoriaId": categoria_id}).encode()
     html = _fetch(opener, filter_url, data=post_data)
+
+    # Alcuni tenant (Milazzo, Aragona, Gaggi, Letojanni, Noto: TAL-49) non
+    # hanno risultati sul percorso standard: la vera istanza dell'albo è
+    # altrove e va scoperta dalla pagina menu.
+    m_totale = _RE_TOTALE.search(html)
+    if m_totale and m_totale.group(1) == "0":
+        alt_path = _scopri_percorso_alternativo(opener, base)
+        if alt_path:
+            papca_path = alt_path.split("/-/papca")[0]
+            html = _fetch(opener, f"{base}{alt_path}")
+        else:
+            logger.warning("jcitygov %s: 0 atti e nessun percorso alternativo trovato", base)
 
     raccolti = 0
     while raccolti < limit:
@@ -251,7 +297,7 @@ def scarica_atti(
 
         # 3. Pagine successive tramite paginationAction=NEXT (GET, lifecycle=0)
         next_url = (
-            f"{base}{_PAPCA_PATH}"
+            f"{base}{papca_path}"
             f"?p_p_id={_PORTLET}&p_p_lifecycle=0&p_p_state=pop_up&p_p_mode=view"
             f"&_{_PORTLET}_paginationAction=NEXT&_{_PORTLET}_action=mostraLista"
         )

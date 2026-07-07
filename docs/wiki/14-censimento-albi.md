@@ -11,9 +11,23 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 ## Sintesi
 
 - Comuni siciliani: **391** (5.001.690 abitanti)
-- Hit sweep jCityGov: **68** → verificati e attivi: **60**
+- Hit sweep jCityGov: **68** → verificati e attivi: **65** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
-- **Copertura: 65 comuni attivi ≈ 2.749.072 abitanti (55% della popolazione)**
+- **Copertura: 70 comuni attivi ≈ 2.576.990 abitanti (51,5% della popolazione)**
+
+### Fix 2026-07-07 — tenant jCityGov con percorso "papca-ap" alternativo
+
+5 degli 8 comuni nella tabella "Hit jCityGov NON attivabili" sotto in realtà avevano l'albo raggiungibile, ma su un'istanza portlet diversa (`/web/trasparenza/papca-ap/-/papca/igrid/<id>` invece di `/web/trasparenza/papca-g`), scoperta dalla pagina menu `/web/trasparenza/albo-pretorio` (blocco `data-mainurl`). `jcitygov.py::scarica_atti` ora rileva "0 risultati" sul percorso standard e prova automaticamente il fallback. Sbloccati: **Milazzo** (32.146 ab.), **Aragona**, **Gaggi**, **Letojanni**, **Noto** (23.704 ab.). Restano genuinamente a 0 atti: Condrò, Racalmuto, Ribera (da ricontrollare in futuro, magari con un `data-resource` diverso).
+
+### Prossime famiglie di piattaforma individuate (ricognizione 2026-07-07, non ancora implementate)
+
+Ricognizione su 10 comuni non-jCityGov (Gela, Vittoria, Barcellona P.G., Sciacca, Caltagirone, Monreale, Adrano, Favara, Milazzo, Partinico) ha rivelato 2 vendor diffusi tra più comuni siciliani, oltre a Caltagirone che è jCityGov ma bloccato (WAF + cert scaduto dal 2022, come Messina):
+
+- **Halley EG** (HTTP puro, PHP, paginazione `?pag=N`): Vittoria (61k ab.), Sciacca (41k), Adrano (35k), Barcellona Pozzo di Gotto (42k) — candidato per uno scraper generico `halley.py`
+- **SoluzioniPA** (`<slug>.soluzionipa.it/openweb/albo/`, HTTP puro salvo verifica): Monreale (38k), Gela (76k, dominio proprio ma stesso path), Partinico (31k, possibile rendering React lato client da verificare) — candidato per `soluzionipa.py` + eventuale sweep di dominio come per jCityGov
+- **URBI Cloud** (Favara, 33k): dialetto diverso da Catania, form POST tradizionale invece di stepper StwEvent
+
+Dettagli completi in `docs/cards/TAL-49.md`, Tentativo 8.
 
 ## Comuni jCityGov attivi (registro `_JCITYGOV_COMUNI`)
 
@@ -79,19 +93,19 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 | Ustica | PA | 1.287 | https://ustica.trasparenza-valutazione-merito.it |
 | Blufi | PA | 1.083 | https://blufi.trasparenza-valutazione-merito.it |
 | Comitini | AG | 944 | https://comitini.trasparenza-valutazione-merito.it |
+| Milazzo | ME | 32.146 | https://milazzo.trasparenza-valutazione-merito.it (percorso `papca-ap/igrid`, vedi fix 2026-07-07) |
+| Aragona | AG | 9.493 | https://aragona.trasparenza-valutazione-merito.it (percorso `papca-ap/igrid`) |
+| Noto | SR | 23.704 | https://noto.trasparenza-valutazione-merito.it (percorso `papca-ap/igrid`) |
+| Gaggi | ME | 3.138 | https://gaggi.trasparenza-valutazione-merito.it (percorso `papca-ap/igrid`) |
+| Letojanni | ME | 2.699 | https://letojanni.trasparenza-valutazione-merito.it (percorso `papca-ap/igrid`) |
 
 ## Hit jCityGov NON attivabili (portale presente, albo vuoto via API)
 
 | Comune | Note |
 |--------|------|
-| Aragona | 0 atti dalla API albo |
-| Condrò | 0 atti dalla API albo |
-| Gaggi | 0 atti dalla API albo |
-| Letojanni | 0 atti dalla API albo |
-| Milazzo | 0 atti dalla API albo |
-| Noto | 0 atti dalla API albo |
-| Racalmuto | 0 atti dalla API albo |
-| Ribera | 0 atti dalla API albo |
+| Condrò | 0 atti anche sul percorso alternativo `papca-ap/igrid` |
+| Racalmuto | 0 atti anche sul percorso alternativo `papca-ap/igrid` |
+| Ribera | 0 atti anche sul percorso alternativo `papca-ap/igrid` |
 
 Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o attivarlo in futuro.
 
@@ -107,7 +121,6 @@ Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o at
 | Monreale | PA | 38.018 |
 | Adrano | CT | 35.549 |
 | Favara | AG | 32.972 |
-| Milazzo | ME | 32.146 |
 | Partinico | PA | 31.401 |
 | Avola | SR | 31.328 |
 | Comiso | RG | 30.214 |
@@ -115,7 +128,6 @@ Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o at
 | Niscemi | CL | 27.975 |
 | Misilmeri | PA | 27.570 |
 | Termini Imerese | PA | 26.201 |
-| Noto | SR | 23.704 |
 | San Cataldo | CL | 23.424 |
 | Floridia | SR | 22.685 |
 | Piazza Armerina | EN | 22.196 |
