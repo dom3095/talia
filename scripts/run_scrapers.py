@@ -183,20 +183,11 @@ def _run_jcitygov_comune(
     return esito
 
 
-def _run_caltanissetta(conn, **kwargs):
-    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[0], **kwargs)
+def _make_jcitygov_runner(entry):
+    def _runner(conn, **kwargs):
+        return _run_jcitygov_comune(conn, *entry, **kwargs)
 
-
-def _run_enna(conn, **kwargs):
-    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[1], **kwargs)
-
-
-def _run_palma(conn, **kwargs):
-    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[2], **kwargs)
-
-
-def _run_ragusa(conn, **kwargs):
-    return _run_jcitygov_comune(conn, *_JCITYGOV_COMUNI[3], **kwargs)
+    return _runner
 
 
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
@@ -206,14 +197,11 @@ _SCRAPERS: dict[str, callable] = {
     "siracusa": _run_siracusa,
     "trapani": _run_trapani,
     "agrigento": _run_agrigento,
-    "caltanissetta": _run_caltanissetta,
-    "enna": _run_enna,
-    "palma": _run_palma,
-    "ragusa": _run_ragusa,
 }
+_SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
-_SCRAPERS_DEFAULT = ["siracusa", "trapani", "caltanissetta", "enna", "palma", "ragusa"]
+_SCRAPERS_DEFAULT = ["siracusa", "trapani"] + [entry[0] for entry in _JCITYGOV_COMUNI]
 
 
 # ---------------------------------------------------------------------------
