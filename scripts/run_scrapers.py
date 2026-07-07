@@ -323,6 +323,50 @@ _PORTALEPA_COMUNI = [
     # (nome_log, base_url, codice_istat, denominazione)
     ("gela", "https://portale.comune.gela.cl.it", "085007", "Comune di Gela"),
     ("monreale", "https://monreale.soluzionipa.it", "082049", "Comune di Monreale"),
+    # --- sweep di dominio 2026-07-07 (TAL-49): pattern <slug>.soluzionipa.it e
+    # portale(pa).comune.<slug>.<prov>.it, verificati con atti reali ciascuno.
+    # Caltagirone era bloccata su jCityGov (WAF): raggiungibile qui invece. ---
+    ("caltagirone", "https://caltagirone.soluzionipa.it", "087011", "Comune di Caltagirone"),
+    (
+        "villabate_portalepa",
+        "https://villabate.soluzionipa.it",
+        "082079",
+        "Comune di Villabate",
+    ),
+    ("terrasini", "https://terrasini.soluzionipa.it", "082071", "Comune di Terrasini"),
+    (
+        "campobellodimazara",
+        "https://servizi.comune.campobellodimazara.tp.it",
+        "081004",
+        "Comune di Campobello di Mazara",
+    ),
+    ("capaci", "https://capaci.soluzionipa.it", "082020", "Comune di Capaci"),
+    ("misiliscemi", "https://misiliscemi.soluzionipa.it", "081025", "Comune di Misiliscemi"),
+    (
+        "isoladellefemmine",
+        "https://servizi.comune.isoladellefemmine.pa.it",
+        "082043",
+        "Comune di Isola delle Femmine",
+    ),
+    (
+        "lercarafriddi",
+        "https://lercarafriddi.soluzionipa.it",
+        "082045",
+        "Comune di Lercara Friddi",
+    ),
+    ("grotte", "https://grotte.soluzionipa.it", "084018", "Comune di Grotte"),
+    ("gibellina", "https://gibellina.soluzionipa.it", "081010", "Comune di Gibellina"),
+    ("caronia", "https://caronia.soluzionipa.it", "083011", "Comune di Caronia"),
+    (
+        "santangelodibrolo",
+        "https://santangelodibrolo.soluzionipa.it",
+        "083088",
+        "Comune di Sant'Angelo di Brolo",
+    ),
+    ("trappeto", "https://trappeto.soluzionipa.it", "082074", "Comune di Trappeto"),
+    ("vicari", "https://vicari.soluzionipa.it", "082078", "Comune di Vicari"),
+    ("aliminusa", "https://aliminusa.soluzionipa.it", "082003", "Comune di Aliminusa"),
+    ("roccavaldina", "https://roccavaldina.soluzionipa.it", "083073", "Comune di Roccavaldina"),
 ]
 
 

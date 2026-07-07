@@ -13,9 +13,9 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 - Comuni siciliani: **391** (5.001.690 abitanti)
 - Hit sweep jCityGov: **68** → verificati e attivi: **66** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
-- Piattaforma **portalepa** (stessa di Siracusa, generalizzata in `portalepa.py`): Gela, Monreale
+- Piattaforma **portalepa** (stessa di Siracusa, generalizzata in `portalepa.py`): **18 comuni**, di cui 16 trovati con sweep di dominio il 2026-07-07 (vedi sotto)
 - Piattaforma **Halley EG** (generica in `halley.py`): **89 comuni**, di cui 85 trovati con sweep di dominio il 2026-07-07 (vedi sotto)
-- **Copertura: 159 comuni attivi ≈ 3.375.276 abitanti (67,5% della popolazione)**
+- **Copertura: 174 comuni attivi ≈ 3.496.160 abitanti (69,9% della popolazione)**
 
 ### Sweep di dominio Halley EG (2026-07-07)
 
@@ -23,7 +23,11 @@ A differenza di jCityGov, Halley non ha un pattern di dominio unico: i 4 tenant 
 
 Due comuni risultati anche su Halley erano già registrati su jCityGov con lo stesso codice ISTAT (**Racalmuto**, **Favignana**) o path diverso (**San Giovanni la Punta**): rinominati con suffisso `_halley` per evitare collisioni di chiave nello scraper registry — stesso ente, due fonti indipendenti (`upsert_ente` è idempotente sullo stesso `codice_istat`).
 
-Script dello sweep non committato nel repo (one-off in scratchpad); pattern riutilizzabile in futuro per altri vendor.
+### Sweep di dominio portalepa (2026-07-07)
+
+Stesso approccio applicato a portalepa: pattern `<slug>.soluzionipa.it` e `portale(pa).comune.<slug>.<prov>.it/openweb/albo/albo_pretorio.php`, fingerprint su `"paginated_element"`. **16 nuovi hit** (oltre a Gela/Monreale già noti e Siracusa/Partinico già gestiti), tutti verificati con atti reali: Terrasini, Campobello di Mazara, Capaci, Misiliscemi, Isola delle Femmine, Lercara Friddi, Grotte, Gibellina, Caronia, Sant'Angelo di Brolo, Trappeto, Vicari, Aliminusa, Roccavaldina, **Villabate** (già su jCityGov, rinominato `villabate_portalepa`) e — risultato più interessante — **Caltagirone**: bloccata su jCityGov (WAF + cert scaduto), ma raggiungibile via portalepa. Rimane fuori solo **Messina** tra i capoluoghi bloccati.
+
+Script degli sweep non committati nel repo (one-off in scratchpad); pattern riutilizzabile in futuro per altri vendor.
 
 ### Fix 2026-07-07 — tenant jCityGov con percorso "papca-ap" alternativo
 
@@ -38,7 +42,8 @@ Ricognizione su 10 comuni non-jCityGov (Gela, Vittoria, Barcellona P.G., Sciacca
 Restano da implementare:
 - **Partinico** (31k ab.): portalepa variante `_full`, mapping colonne diverso da confermare
 - **URBI Cloud** (Favara, 33k): dialetto diverso da Catania, form POST tradizionale invece di stepper StwEvent
-- **Caltagirone**: jCityGov ma bloccato (WAF + cert scaduto dal 2022, come Messina)
+
+**Caltagirone** ✅ sbloccata il 2026-07-07 tramite sweep portalepa (vedi sotto): era bloccata solo su jCityGov, raggiungibile su `caltagirone.soluzionipa.it`.
 
 Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 8-10.
 
@@ -126,27 +131,20 @@ Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o at
 
 | Comune | Prov | Popolazione |
 |--------|------|------------:|
-| Caltagirone | CT | 38.123 |
 | Favara | AG | 32.972 |
 | Partinico | PA | 31.401 |
-| Avola | SR | 31.328 |
 | Comiso | RG | 30.214 |
 | Aci Catena | CT | 28.749 |
 | Niscemi | CL | 27.975 |
-| Misilmeri | PA | 27.570 |
 | Termini Imerese | PA | 26.201 |
 | San Cataldo | CL | 23.424 |
 | Floridia | SR | 22.685 |
-| Piazza Armerina | EN | 22.196 |
 | Pachino | SR | 22.068 |
 | Rosolini | SR | 21.526 |
 | Ribera | AG | 19.302 |
 | Bronte | CT | 19.234 |
-| Pozzallo | RG | 18.929 |
 | Carlentini | SR | 17.958 |
 | Aci Sant'Antonio | CT | 17.270 |
-| Scordia | CT | 17.185 |
-| Porto Empedocle | AG | 16.841 |
 | Palagonia | CT | 16.540 |
 
 Per questi serve individuare la piattaforma (URBI, Halley, portalepa, e-pal, siti custom…): stessa procedura di TAL-49, esplorazione + scraper riusabile per famiglia di piattaforma.
