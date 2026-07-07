@@ -83,6 +83,11 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 **Esito:** ✅ HTTP puro anche qui, nessuna "enumerazione ID" necessaria.
 **Appreso:** il wizard stepper `.sto` si riproduce con 2 POST (`StwEvent=910001` ricerca, `9100030` paginazione); il filtro data del portale è rotto (0 risultati) → enumerare senza filtri. La lista contiene già tutti i metadati; `IdMePubblica` dà un URL di dettaglio stabile (GET). L'albo ospita atti di altri enti mittenti: vanno scartati. Oltre l'ultima pagina il portale ripete l'ultima → stop su pagina identica. Al mattino il server era completamente giù: l'instabilità è del Comune, riprovare più tardi funziona.
 
+### 2026-07-07 — Tentativo 7 (test run completo)
+**Approccio:** run di tutti i 64 scraper su `talia.db` (dopo migrazione ISTAT, backup fatto). Richiesta di Dom: testare tutto e correggere alla bisogna.
+**Esito:** ⚠️ 64/64 completati senza errori HTTP, ma trovato bug di parsing: 12 tenant jCityGov (Castel di Iudica, Lentini, Augusta, Santa Teresa di Riva, San Vito Lo Capo, Mazara del Vallo, Alcamo, Paternò, Pedara, Tremestieri Etneo, Castelvetrano, Comitini) non hanno la colonna "Anno e Numero Registro" → oggetto nel campo numero, date NULL. Fix: mapping colonne dall'header. 3915 atti corrotti ripuliti e ri-scaricati.
+**Appreso:** i tenant jCityGov NON sono uniformi nelle colonne: il parser deve leggere l'header, mai indici fissi. La verifica "10 atti reali" non basta: bisogna controllare anche che i CAMPI siano giusti (date non NULL), non solo che gli atti arrivino. DB dopo il run: 65 enti, ~35k atti, 19 red flags.
+
 ## 🔗 Dipendenze
 —
 

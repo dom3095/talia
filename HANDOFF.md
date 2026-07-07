@@ -33,8 +33,21 @@ Sessione autonoma del 2026-07-07 (TAL-49): censimento albi + rollout scraper.
 
 **Migrazione ISTAT applicata il 2026-07-07 sera** (backup: `talia.db.bak-20260707`,
 gitignored): i 4 enti ora hanno i codici corretti (Siracusa 089017, Caltanissetta
-085004, Enna 086009, Palma 084027). Subito dopo è stato lanciato il **run completo
-di test con tutti i 64 scraper HTTP** direttamente su `talia.db` (decisione di Dom).
+085004, Enna 086009, Palma 084027).
+
+**Test run completo eseguito (2026-07-07 sera): 64/64 scraper OK, zero errori HTTP.**
+DB: **65 enti | ~35.000 atti | 19 red flags** (era 7 enti / 4.463 atti).
+Dal test è emerso e stato corretto BUG jCityGov: 12 tenant senza colonna
+"Anno e Numero Registro" avevano campi sfalsati e date NULL → parser ora legge
+l'header; 3.915 atti corrotti ripuliti e ri-scaricati con date corrette.
+
+**Backfill lotto 1 lanciato** (in coda alla sessione del 2026-07-07): 17 comuni
+che avevano toccato il tetto dei 1000 atti, `--max-pagine 500 --no-stop
+--no-red-flags`. Al prossimo run di red flags i procedimenti si ricalcolano.
+Lotto 2 (comuni restanti sotto i 1000 atti): a discrezione della prossima sessione.
+
+Nota dati: Lentini ha una `data_pub` "0202-06-16" — refuso della fonte (albo),
+non del parser. Valutare un guard "anno < 1990 → NULL" in `parse_data_iso`.
 
 ## 🤝 Istruzioni per la prossima sessione (test run + backfill)
 
