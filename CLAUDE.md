@@ -85,7 +85,11 @@ Aggiornato: 2026-07-07.
 | Siracusa | `siracusa.py` | portalepa PHP | ✅ OK | nel default run |
 | Trapani | `trapani.py` | e-pal.it | ✅ OK | BUG-4 risolto 2026-07-03: era il filtro data server-side, non la regex (`al` ora = oggi+60gg). L'albo espone solo atti in pubblicazione (~15-30 gg): serve scraping continuo |
 
-Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **65 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con atti reali (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`). 5 di questi (Milazzo, Aragona, Gaggi, Letojanni, Noto) richiedono il percorso alternativo `papca-ap/igrid/<id>` invece dello standard `papca-g`: `jcitygov.py` lo scopre e usa automaticamente quando il percorso standard ritorna 0 risultati.
+Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **66 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con atti reali (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`). 6 di questi (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto) richiedono un percorso alternativo (`papca-ap/igrid/<id>`, risorsa "Albo pretorio" o "Storico atti") invece dello standard `papca-g`: `jcitygov.py` lo scopre e usa automaticamente quando il percorso standard ritorna 0 risultati.
+
+Due piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07):
+- **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): Gela, Monreale
+- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): Vittoria, Sciacca, Adrano, Barcellona Pozzo di Gotto
 
 ⚠️ **Codici ISTAT**: il 2026-07-07 sono stati corretti 4 codici errati (Caltanissetta era Butera, Siracusa era Solarino, Enna e Palma off-by-one). `talia.db` esistente ha gli enti con i codici vecchi: serve migrazione prima del prossimo run (SQL nella card TAL-49).
 

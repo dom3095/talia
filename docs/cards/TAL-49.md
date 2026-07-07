@@ -103,6 +103,15 @@ Inoltre **Milazzo era erroneamente segnato come "jCityGov 0 atti"**: in realtà 
 **Esito:** ✅ **Racalmuto** ha "Albo pretorio" vuoto ma **"Storico atti" con 3.384 atti reali** (2022-10-27 → 2022-11-14: dati storici, non un flusso continuo). Condrò e Ribera restano a 0 su entrambe le risorse — genuinamente senza atti pubblicati su questo portale. Generalizzato il fallback in `jcitygov.py`: prova "Albo pretorio" poi "Storico atti" in sequenza, si ferma alla prima non vuota; se nessuna funziona logga un WARNING esplicito (fragilità "0 atti silenzioso" già nota in CLAUDE.md). 2 nuovi test, 327 totali verdi. Racalmuto aggiunto a `_JCITYGOV_COMUNI` e verificato con run reale.
 **Appreso:** i tenant jCityGov possono avere più "risorse" (correnti/storiche) con `igrid` diversi sotto lo stesso menu: quando una manca di dati non è detto che il tenant sia morto, vale la pena enumerare tutte le risorse del menu prima di arrendersi. Prossimo passo confermato: Halley EG.
 
+### 2026-07-07 — Tentativo 10 (portalepa generalizzato + Halley EG implementato)
+**Approccio:** prima di scrivere `soluzionipa.py` per Gela/Monreale/Partinico (ipotesi del Tentativo 8), verifica diretta della struttura HTML reale di ciascuno confrontata con `siracusa.py`.
+**Esito:** ✅ **Gela e Monreale usano l'identica piattaforma "portalepa" di Siracusa** (stesso path `/openweb/albo/albo_pretorio.php`, stesse righe `<tr class="paginated_element">`, stesso meccanismo CSRF/paginazione): "SoluzioniPA" non è una piattaforma diversa, era un'etichetta imprecisa degli agenti di ricognizione. Generalizzato `siracusa.py` → nuovo modulo `portalepa.py` (base_url/codice_istat parametrici, `siracusa.py` lasciato intatto per non rischiare regressioni sul comune già in produzione), registrati Gela e Monreale. **Partinico** invece ha un layout colonne diverso (variante `_full`: link "Vai" invece di numero pubblicazione, una sola data invece di due) — non riusabile senza un mapping dedicato, lasciato in coda.
+
+Poi implementato **`halley.py`** generico per Vittoria, Sciacca, Adrano, Barcellona Pozzo di Gotto: paginazione stateless via querystring `?pag=N` (nessuna sessione, nessun CSRF), parsing per coppie `<strong>etichetta</strong><div>valore</div>` (ogni riga appare 2 volte nell'HTML, variante desktop/mobile — si prende la prima occorrenza di ciascun campo). Validato con run reale su tutti e 4 i comuni prima di scrivere i test. 29 nuovi test (`test_portalepa.py`, `test_halley.py`), 356 totali verdi.
+
+**Copertura**: 77 comuni attivi ≈ 2.878.107 abitanti (57,5% della popolazione, da 51,7%).
+**Appreso:** non fidarsi delle etichette di piattaforma date da agenti di ricognizione haiku senza confronto diretto col codice esistente — "sembra nuovo" può nascondere un riuso a costo quasi zero (Gela/Monreale). Verificare sempre contro gli scraper già in repo prima di progettare un modulo nuovo.
+
 ## 🔗 Dipendenze
 —
 

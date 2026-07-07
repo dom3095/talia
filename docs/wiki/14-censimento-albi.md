@@ -13,21 +13,26 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 - Comuni siciliani: **391** (5.001.690 abitanti)
 - Hit sweep jCityGov: **68** → verificati e attivi: **66** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
-- **Copertura: 71 comuni attivi ≈ 2.585.335 abitanti (51,7% della popolazione)**
+- Piattaforma **portalepa** (stessa di Siracusa, generalizzata in `portalepa.py`): Gela, Monreale
+- Piattaforma **Halley EG** (generica in `halley.py`): Vittoria, Sciacca, Adrano, Barcellona Pozzo di Gotto
+- **Copertura: 77 comuni attivi ≈ 2.878.107 abitanti (57,5% della popolazione)**
 
 ### Fix 2026-07-07 — tenant jCityGov con percorso "papca-ap" alternativo
 
 6 degli 8 comuni nella tabella "Hit jCityGov NON attivabili" sotto in realtà avevano l'albo raggiungibile, ma su un'istanza portlet diversa (`/web/trasparenza/papca-ap/-/papca/igrid/<id>` invece di `/web/trasparenza/papca-g`), scoperta dalla pagina menu `/web/trasparenza/albo-pretorio` (blocco `data-mainurl`). Questa pagina espone in realtà **due** risorse per tenant: "Albo pretorio" (corrente) e "Storico atti" (archivio), con `igrid` diversi. `jcitygov.py::scarica_atti` ora rileva "0 risultati" sul percorso standard e prova in sequenza le risorse alternative, fermandosi alla prima non vuota. Sbloccati: **Milazzo** (32.146 ab.), **Aragona**, **Gaggi**, **Letojanni**, **Noto** (23.704 ab.) via "Albo pretorio"; **Racalmuto** (8.345 ab., 3.384 atti storici 2022) via "Storico atti". Restano genuinamente a 0 atti su entrambe le risorse: **Condrò, Ribera**.
 
-### Prossime famiglie di piattaforma individuate (ricognizione 2026-07-07, non ancora implementate)
+### Implementate 2026-07-07 — portalepa generalizzato + Halley EG
 
-Ricognizione su 10 comuni non-jCityGov (Gela, Vittoria, Barcellona P.G., Sciacca, Caltagirone, Monreale, Adrano, Favara, Milazzo, Partinico) ha rivelato 2 vendor diffusi tra più comuni siciliani, oltre a Caltagirone che è jCityGov ma bloccato (WAF + cert scaduto dal 2022, come Messina):
+Ricognizione su 10 comuni non-jCityGov (Gela, Vittoria, Barcellona P.G., Sciacca, Caltagirone, Monreale, Adrano, Favara, Milazzo, Partinico) aveva segnalato "SoluzioniPA" come vendor nuovo per Gela/Monreale/Partinico. **Verifica diretta**: Gela e Monreale usano in realtà l'**identica piattaforma di Siracusa** (`portalepa`, path `/openweb/albo/albo_pretorio.php`, righe `<tr class="paginated_element">`) — il modulo `siracusa.py` è stato generalizzato in `portalepa.py` (base_url + codice_istat parametrici) e riusato senza nuovo lavoro di piattaforma. **Partinico** ha invece un layout colonne diverso (variante `_full`, no data_scadenza separata): non compatibile con `portalepa.py`, resta da fare un mapping dedicato.
 
-- **Halley EG** (HTTP puro, PHP, paginazione `?pag=N`): Vittoria (61k ab.), Sciacca (41k), Adrano (35k), Barcellona Pozzo di Gotto (42k) — candidato per uno scraper generico `halley.py`
-- **SoluzioniPA** (`<slug>.soluzionipa.it/openweb/albo/`, HTTP puro salvo verifica): Monreale (38k), Gela (76k, dominio proprio ma stesso path), Partinico (31k, possibile rendering React lato client da verificare) — candidato per `soluzionipa.py` + eventuale sweep di dominio come per jCityGov
+**Halley EG** confermato vendor genuinamente nuovo: implementato `halley.py` (generico, paginazione stateless via querystring `?pag=N`, nessuna sessione richiesta) per Vittoria, Sciacca, Adrano, Barcellona Pozzo di Gotto.
+
+Restano da implementare:
+- **Partinico** (31k ab.): portalepa variante `_full`, mapping colonne diverso da confermare
 - **URBI Cloud** (Favara, 33k): dialetto diverso da Catania, form POST tradizionale invece di stepper StwEvent
+- **Caltagirone**: jCityGov ma bloccato (WAF + cert scaduto dal 2022, come Messina)
 
-Dettagli completi in `docs/cards/TAL-49.md`, Tentativo 8.
+Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 8-10.
 
 ## Comuni jCityGov attivi (registro `_JCITYGOV_COMUNI`)
 
@@ -113,13 +118,7 @@ Da ricontrollare periodicamente: potrebbero esporre l'albo su altro portale o at
 
 | Comune | Prov | Popolazione |
 |--------|------|------------:|
-| Gela | CL | 75.668 |
-| Vittoria | RG | 61.006 |
-| Barcellona Pozzo di Gotto | ME | 41.632 |
-| Sciacca | AG | 40.899 |
 | Caltagirone | CT | 38.123 |
-| Monreale | PA | 38.018 |
-| Adrano | CT | 35.549 |
 | Favara | AG | 32.972 |
 | Partinico | PA | 31.401 |
 | Avola | SR | 31.328 |

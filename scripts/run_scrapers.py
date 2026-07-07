@@ -316,6 +316,124 @@ def _make_jcitygov_runner(entry):
     return _runner
 
 
+# portalepa PHP: stessa piattaforma di Siracusa, riusata da altri comuni
+# sotto domini diversi (TAL-49). Partinico ha un layout colonne diverso
+# ("_full"): non compatibile con questo modulo, vedi docs/wiki/14-censimento-albi.md.
+_PORTALEPA_COMUNI = [
+    # (nome_log, base_url, codice_istat, denominazione)
+    ("gela", "https://portale.comune.gela.cl.it", "085007", "Comune di Gela"),
+    ("monreale", "https://monreale.soluzionipa.it", "082049", "Comune di Monreale"),
+]
+
+
+def _run_portalepa_comune(
+    conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
+):
+    from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
+    from talia.modulo2_scraping.fonti.portalepa import scarica_atti
+
+    upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
+    stop_label = " [backfill, stop disabilitato]" if no_stop else ""
+    print(
+        f"  [{nome.capitalize()}] Scarico albo pretorio portalepa"
+        f" (max {max_pagine} pagine){stop_label}…"
+    )
+    t0 = time.monotonic()
+
+    inseriti = duplicati = consecutivi_dup = 0
+    dates: list[str] = []
+    for atto in scarica_atti(base_url, codice_istat, max_pagine=max_pagine):
+        if inserisci_atto(conn, atto) is not None:
+            inseriti += 1
+            consecutivi_dup = 0
+            if atto.data_atto:
+                dates.append(atto.data_atto)
+        else:
+            duplicati += 1
+            consecutivi_dup += 1
+        if not no_stop and consecutivi_dup >= _STOP_CONSECUTIVI:
+            break
+    conn.commit()
+
+    n_trovati = inseriti + duplicati
+    elapsed = time.monotonic() - t0
+    esito = {"inseriti": inseriti, "duplicati": duplicati}
+    print(f"  [{nome.capitalize()}] {n_trovati} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = n_trovati
+    esito["data_min"] = min(dates) if dates else None
+    esito["data_max"] = max(dates) if dates else None
+    return esito
+
+
+def _make_portalepa_runner(entry):
+    def _runner(conn, **kwargs):
+        return _run_portalepa_comune(conn, *entry, **kwargs)
+
+    return _runner
+
+
+# Halley EG (Halley Informatica): vendor diffuso tra più comuni siciliani
+# sotto domini diversi (TAL-49). Paginazione stateless via ?pag=N.
+_HALLEY_COMUNI = [
+    # (nome_log, base_url, codice_istat, denominazione)
+    ("vittoria", "https://trasparenza.comune.vittoria.rg.it", "088012", "Comune di Vittoria"),
+    ("sciacca", "https://servizi.comune.sciacca.ag.it", "084041", "Comune di Sciacca"),
+    ("adrano", "https://servizionline.comune.adrano.ct.it", "087006", "Comune di Adrano"),
+    (
+        "barcellonapg",
+        "https://servizi.comune.barcellonapozzodigotto.me.it/barcellona",
+        "083005",
+        "Comune di Barcellona Pozzo di Gotto",
+    ),
+]
+
+
+def _run_halley_comune(
+    conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
+):
+    from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
+    from talia.modulo2_scraping.fonti.halley import scarica_atti
+
+    upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
+    stop_label = " [backfill, stop disabilitato]" if no_stop else ""
+    print(
+        f"  [{nome.capitalize()}] Scarico albo pretorio Halley EG"
+        f" (max {max_pagine} pagine){stop_label}…"
+    )
+    t0 = time.monotonic()
+
+    inseriti = duplicati = consecutivi_dup = 0
+    dates: list[str] = []
+    for atto in scarica_atti(base_url, codice_istat, max_pagine=max_pagine):
+        if inserisci_atto(conn, atto) is not None:
+            inseriti += 1
+            consecutivi_dup = 0
+            if atto.data_atto:
+                dates.append(atto.data_atto)
+        else:
+            duplicati += 1
+            consecutivi_dup += 1
+        if not no_stop and consecutivi_dup >= _STOP_CONSECUTIVI:
+            break
+    conn.commit()
+
+    n_trovati = inseriti + duplicati
+    elapsed = time.monotonic() - t0
+    esito = {"inseriti": inseriti, "duplicati": duplicati}
+    print(f"  [{nome.capitalize()}] {n_trovati} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = n_trovati
+    esito["data_min"] = min(dates) if dates else None
+    esito["data_max"] = max(dates) if dates else None
+    return esito
+
+
+def _make_halley_runner(entry):
+    def _runner(conn, **kwargs):
+        return _run_halley_comune(conn, *entry, **kwargs)
+
+    return _runner
+
+
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
 
 _SCRAPERS: dict[str, callable] = {
@@ -327,11 +445,16 @@ _SCRAPERS: dict[str, callable] = {
     "agrigento": _run_agrigento,
 }
 _SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
+_SCRAPERS.update({entry[0]: _make_portalepa_runner(entry) for entry in _PORTALEPA_COMUNI})
+_SCRAPERS.update({entry[0]: _make_halley_runner(entry) for entry in _HALLEY_COMUNI})
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
-_SCRAPERS_DEFAULT = ["siracusa", "trapani", "palermo", "catania"] + [
-    entry[0] for entry in _JCITYGOV_COMUNI
-]
+_SCRAPERS_DEFAULT = (
+    ["siracusa", "trapani", "palermo", "catania"]
+    + [entry[0] for entry in _JCITYGOV_COMUNI]
+    + [entry[0] for entry in _PORTALEPA_COMUNI]
+    + [entry[0] for entry in _HALLEY_COMUNI]
+)
 
 
 # ---------------------------------------------------------------------------
