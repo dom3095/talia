@@ -141,6 +141,15 @@ Tutti e 3 validati con run reale prima dei test (18 nuovi test tra `test_urbi.py
 Tutti e 3 aggiunti ai registri esistenti (`_HALLEY_COMUNI`, `_URBI_COMUNI`), nessun nuovo modulo. 374 test invariati (nessun codice nuovo da testare).
 **Appreso:** verificare SEMPRE le conclusioni di un agente di ricognizione con una chiamata diretta prima di accettarle — "serve Playwright" era falso per Ravanusa. I sottodomini Halley/URBI variano parecchio da comune a comune (`servizi.`, `trasparenza.`, `cloud.urbi.it` vs dominio proprio): gli scraper generici già gestiscono questa variabilità senza bisogno di modifiche, basta passare il base_url giusto.
 
+### 2026-07-08 — Tentativo 15 (completamento Agrigento, gruppo 3/4)
+**Approccio:** ricognizione gruppo 3 (Naro, Santa Margherita di Belice, Sambuca di Sicilia), con istruzione esplicita agli agenti di testare il POST URBI prima di concludere "serve Playwright" (lezione del gruppo 2).
+**Esito:** ✅ **Naro** e **Santa Margherita di Belice**: entrambi URBI Cloud, confermati con `urbi.py` esistente senza modifiche (20 atti ciascuno). ✅ **Sambuca di Sicilia**: piattaforma genuinamente nuova, **Halley HSPromila** (ASP.NET, `hypersicapp.net` — diversa dalla Halley EG di `mc_p_ricerca.php`), HTTP puro (la tabella è già nell'HTML della prima GET). Nuovo scraper dedicato `sambucadisicilia.py`.
+
+**Bug trovato e corretto in fase di test**: la piattaforma non espone link di dettaglio per singolo atto nella riga, quindi la prima versione usava lo stesso `url_fonte` (la pagina lista) per tutti gli atti — dato che la dedup del DB si basa su `(ente_id, url_fonte)`, solo il **primo** atto di ogni run sarebbe stato salvato, tutti gli altri scartati silenziosamente come "duplicati". Scoperto dal test `test_salva_atti_inseriti` (si aspettava 2 inseriti, ne arrivava 1). Fix: `url_fonte` = pagina lista + frammento `#<id_riga_interno>` (dalla colonna "key" nascosta), reso univoco per atto. Verificato dal vivo: 95/95 atti con `url_fonte` univoci dopo il fix.
+
+10 nuovi test (`test_sambucadisicilia.py`), 384 totali verdi. Tutti e 3 registrati (`_URBI_COMUNI`, `sambucadisicilia` dedicato).
+**Appreso:** quando una piattaforma non espone un link di dettaglio per atto, **non riusare l'URL della pagina lista come `url_fonte` senza renderlo univoco** — la dedup silenziosa (nessun errore, nessun warning) nasconde perdita di dati. Un test che verifica il conteggio di `inseriti` su un campione con ≥2 atti distinti avrebbe dovuto essere il primo test scritto per qualsiasi nuovo scraper, non un'aggiunta a posteriori.
+
 ## 🔗 Dipendenze
 —
 

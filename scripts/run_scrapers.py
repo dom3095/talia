@@ -150,6 +150,21 @@ def _run_ribera(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
+def _run_sambucadisicilia(conn, **_kwargs) -> dict:
+    from talia.modulo2_scraping.fonti.sambucadisicilia import prepara_ente, salva_atti, scarica_atti
+
+    prepara_ente(conn)
+    print("  [Sambucadisicilia] Scarico albo pretorio Halley HSPromila…")
+    t0 = time.monotonic()
+    atti = list(scarica_atti())
+    esito = salva_atti(atti, conn)
+    elapsed = time.monotonic() - t0
+    print(f"  [Sambucadisicilia] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
+    return esito
+
+
 def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     try:
         from talia.modulo2_scraping.fonti.agrigento import prepara_ente, salva_atti, scarica_atti
@@ -823,6 +838,22 @@ _URBI_COMUNI = [
         "COMUNE DI CAMPOBELLO DI LICATA",
         "Comune di Campobello di Licata",
     ),
+    (
+        "naro",
+        "https://servizionline.comune.naro.ag.it/urbi/progs/urp/ur1ME002.sto",
+        "DB_NAME=n200490&w3cbt=S",
+        "084026",
+        "COMUNE DI NARO",
+        "Comune di Naro",
+    ),
+    (
+        "santamargheritadibelice",
+        "https://cloud.urbi.it/urbi/progs/urp/ur1ME002.sto",
+        "DB_NAME=wt00033773&w3cbt=S",
+        "084038",
+        "COMUNE DI SANTA MARGHERITA DI BELICE",
+        "Comune di Santa Margherita di Belice",
+    ),
 ]
 
 
@@ -890,6 +921,7 @@ _SCRAPERS: dict[str, callable] = {
     "palermo": _run_palermo,
     "catania": _run_catania,
     "ribera": _run_ribera,
+    "sambucadisicilia": _run_sambucadisicilia,
     "agrigento": _run_agrigento,
 }
 _SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
@@ -899,7 +931,7 @@ _SCRAPERS.update({entry[0]: _make_urbi_runner(entry) for entry in _URBI_COMUNI})
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
 _SCRAPERS_DEFAULT = (
-    ["siracusa", "trapani", "palermo", "catania", "ribera"]
+    ["siracusa", "trapani", "palermo", "catania", "ribera", "sambucadisicilia"]
     + [entry[0] for entry in _JCITYGOV_COMUNI]
     + [entry[0] for entry in _PORTALEPA_COMUNI]
     + [entry[0] for entry in _HALLEY_COMUNI]
