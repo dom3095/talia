@@ -38,11 +38,12 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 ## ✅ Task
 - [x] Lista 391 comuni per popolazione (`data/comuni_sicilia.csv`)
 - [x] Refactor registrazione dinamica runner jCityGov
-- [ ] Sweep jCityGov completo + wiki censimento
-- [ ] Verifica 2-pagine per ogni hit e aggiornamento `_JCITYGOV_COMUNI`
-- [ ] Esplorazione Palermo (agent) → verdetto HTTP vs Playwright
-- [ ] Scraper Catania (URBI) — bloccato: server giù il 2026-07-07
-- [ ] Tabella scraper in CLAUDE.md + BOARD aggiornati
+- [ ] Sweep jCityGov completo + wiki censimento (sweep in corso sui comuni piccoli)
+- [x] Verifica con 10 atti reali per ogni hit e aggiornamento `_JCITYGOV_COMUNI` (+42 comuni)
+- [x] Esplorazione Palermo → HTTP puro, `palermo.py` + 8 test, validato e2e
+- [ ] Scraper Catania (URBI) — wizard in esplorazione; server instabile
+- [x] Fix codici ISTAT errati (Caltanissetta/Siracusa/Enna/Palma) — migrazione DB da applicare
+- [x] Tabella scraper in CLAUDE.md + BOARD aggiornati
 
 ## 🧪 Criteri di accettazione
 - [ ] Ogni comune aggiunto ha un run di verifica riuscito su DB isolato (atti > 0, url_fonte validi)
@@ -67,8 +68,29 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 **Esito:** ⚠️ in corso — già >20 hit tra i comuni sopra i 18k abitanti (Marsala, Bagheria, Modica, Acireale, Mazara, Paternò, Misterbianco, Alcamo, …).
 **Appreso:** il parco jCityGov in Sicilia è molto più ampio dei 4 comuni già in registro: è il moltiplicatore principale della copertura.
 
+### 2026-07-07 — Tentativo 4
+**Approccio:** Palermo: esplorazione delegata ad agent haiku, poi validazione diretta del flusso HTTP.
+**Esito:** ✅ HTTP puro funziona — la nota storica "Playwright obbligatorio" era errata.
+**Appreso:** il menu passa da `servizi.jsp` → `scelta_tipo_documento.jsp` → URL push; i TD delle card NON coincidono con quelli reali del push (TD=20 → TD=2010): mai hardcodare, scoprirli a runtime. Il dettaglio atto (`tabella-modifica.do?row=N`) è stateful e non linkabile: come url_fonte si usa lista+`#prot-<numero>`. Il push URL contiene spazi letterali in TDDES → percent-encoding necessario.
+
+### 2026-07-07 — Tentativo 5
+**Approccio:** cross-check dei codici ISTAT del registro contro il CSV ufficiale ISTAT.
+**Esito:** ✅ trovati e corretti 4 codici errati pre-esistenti.
+**Appreso:** Caltanissetta 085003 era Butera, Siracusa 089018 era Solarino, Enna e Palma off-by-one. Il codice ISTAT è la chiave dell'ente nel DB: gli errori contaminano anche i confronti con ANAC. Mai copiare codici a mano: derivarli dal CSV ISTAT.
+
 ## 🔗 Dipendenze
 —
 
 ## 📝 Note
 Messina resta esclusa (BUG-5, FortiGate lato Comune). I run di verifica usano sempre `--db /tmp/... --no-red-flags`, mai `talia.db`.
+
+**Migrazione codici ISTAT per `talia.db` (da applicare prima del prossimo run, previa copia di backup):**
+
+```sql
+UPDATE enti SET codice_istat = '085004' WHERE codice_istat = '085003'; -- Caltanissetta
+UPDATE enti SET codice_istat = '086009' WHERE codice_istat = '086010'; -- Enna
+UPDATE enti SET codice_istat = '084027' WHERE codice_istat = '084028'; -- Palma di Montechiaro
+UPDATE enti SET codice_istat = '089017' WHERE codice_istat = '089018'; -- Siracusa
+```
+
+Comuni jCityGov con portale attivo ma albo vuoto via API (esclusi dal registro, da ricontrollare in futuro): Milazzo, Noto, Aragona, Racalmuto.

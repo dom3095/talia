@@ -45,6 +45,7 @@ batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard S
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
+| [TAL-49](TAL-49.md) | Censimento albi + rollout scraper comuni siciliani | 🕷️ SCR | branch `feat/E3-censimento-comuni-sicilia`; Palermo HTTP ✅, +42 jCityGov, fix codici ISTAT |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |

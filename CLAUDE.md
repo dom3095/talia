@@ -71,21 +71,23 @@ talia/
 
 ## Modulo 2 — Stato scraper per capoluogo
 
-Aggiornato: 2026-07-03.
+Aggiornato: 2026-07-07.
 
 | Comune | Scraper | Piattaforma | Stato | Note |
 |--------|---------|------------|-------|------|
 | Agrigento | `agrigento.py` | ASP.NET + DevExpress (Playwright) | ✅ OK | escluso dal default run; ~3 min/run completo per attese Playwright |
 | Caltanissetta | `jcitygov.py` | jCityGov/Liferay | ✅ OK | nel default run |
-| Catania | — | URBI/Maggioli (**non** HCL Domino) | ❌ mancante | HTTP puro fattibile con enumerazione ID; `DB_NAME=wt00041571`; URL: `servizionline.comune.catania.it` |
+| Catania | — | URBI/Maggioli (**non** HCL Domino) | ❌ mancante | wizard stepper `.sto` (Form0 POST, StwEvent=910001) in esplorazione; `DB_NAME=wt00041571`; server instabile (giù la mattina del 2026-07-07) |
 | Enna | `jcitygov.py` | jCityGov/Liferay | ✅ OK | bassa frequenza (~3 atti/mese) — la presunta staleness era errata |
 | Messina | — | jCityGov/Liferay | ⛔ bloccato | FortiGate 403 + cert scaduto 2023-06-27; `skip_ssl=True` non basta; accesso probabilmente solo da intranet comunale |
-| Palermo | — | SISPI JSP | ❌ mancante | Playwright obbligatorio (JS stateful); URL reale: `albopretorio.comune.palermo.it`; stessa logica di `agrigento.py` |
+| Palermo | `palermo.py` | SISPI JSP | ✅ OK | HTTP puro (la nota "Playwright obbligatorio" era errata): sessione + scoperta categorie dal menu + POST paginazione; espone solo atti in pubblicazione → scraping continuo |
 | Ragusa | `jcitygov.py` | jCityGov/Liferay | ✅ OK | nel default run |
-| Siracusa | `siracusa.py` | portalepa PHP | ✅ OK | nel default run; mancano test unitari |
+| Siracusa | `siracusa.py` | portalepa PHP | ✅ OK | nel default run |
 | Trapani | `trapani.py` | e-pal.it | ✅ OK | BUG-4 risolto 2026-07-03: era il filtro data server-side, non la regex (`al` ora = oggi+60gg). L'albo espone solo atti in pubblicazione (~15-30 gg): serve scraping continuo |
 
-Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo).
+Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **42 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con 10 atti reali ciascuno (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`).
+
+⚠️ **Codici ISTAT**: il 2026-07-07 sono stati corretti 4 codici errati (Caltanissetta era Butera, Siracusa era Solarino, Enna e Palma off-by-one). `talia.db` esistente ha gli enti con i codici vecchi: serve migrazione prima del prossimo run (SQL nella card TAL-49).
 
 ### Fragilità comuni
 
