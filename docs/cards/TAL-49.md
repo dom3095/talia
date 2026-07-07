@@ -41,7 +41,7 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 - [ ] Sweep jCityGov completo + wiki censimento (sweep in corso sui comuni piccoli)
 - [x] Verifica con 10 atti reali per ogni hit e aggiornamento `_JCITYGOV_COMUNI` (+42 comuni)
 - [x] Esplorazione Palermo → HTTP puro, `palermo.py` + 8 test, validato e2e
-- [ ] Scraper Catania (URBI) — wizard in esplorazione; server instabile
+- [x] Scraper Catania (URBI) — `catania.py` + 6 test, validato e2e
 - [x] Fix codici ISTAT errati (Caltanissetta/Siracusa/Enna/Palma) — migrazione DB da applicare
 - [x] Tabella scraper in CLAUDE.md + BOARD aggiornati
 
@@ -77,6 +77,11 @@ scripts/run_scrapers.py                # _JCITYGOV_COMUNI esteso; runner registr
 **Approccio:** cross-check dei codici ISTAT del registro contro il CSV ufficiale ISTAT.
 **Esito:** ✅ trovati e corretti 4 codici errati pre-esistenti.
 **Appreso:** Caltanissetta 085003 era Butera, Siracusa 089018 era Solarino, Enna e Palma off-by-one. Il codice ISTAT è la chiave dell'ente nel DB: gli errori contaminano anche i confronti con ANAC. Mai copiare codici a mano: derivarli dal CSV ISTAT.
+
+### 2026-07-07 — Tentativo 6
+**Approccio:** Catania: esplorazione wizard URBI delegata ad agent haiku, poi validazione diretta e implementazione.
+**Esito:** ✅ HTTP puro anche qui, nessuna "enumerazione ID" necessaria.
+**Appreso:** il wizard stepper `.sto` si riproduce con 2 POST (`StwEvent=910001` ricerca, `9100030` paginazione); il filtro data del portale è rotto (0 risultati) → enumerare senza filtri. La lista contiene già tutti i metadati; `IdMePubblica` dà un URL di dettaglio stabile (GET). L'albo ospita atti di altri enti mittenti: vanno scartati. Oltre l'ultima pagina il portale ripete l'ultima → stop su pagina identica. Al mattino il server era completamente giù: l'instabilità è del Comune, riprovare più tardi funziona.
 
 ## 🔗 Dipendenze
 —

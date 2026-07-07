@@ -77,7 +77,7 @@ Aggiornato: 2026-07-07.
 |--------|---------|------------|-------|------|
 | Agrigento | `agrigento.py` | ASP.NET + DevExpress (Playwright) | ✅ OK | escluso dal default run; ~3 min/run completo per attese Playwright |
 | Caltanissetta | `jcitygov.py` | jCityGov/Liferay | ✅ OK | nel default run |
-| Catania | — | URBI/Maggioli (**non** HCL Domino) | ❌ mancante | wizard stepper `.sto` (Form0 POST, StwEvent=910001) in esplorazione; `DB_NAME=wt00041571`; server instabile (giù la mattina del 2026-07-07) |
+| Catania | `catania.py` | URBI/Maggioli (**non** HCL Domino) | ✅ OK | HTTP puro: wizard stepper riprodotto via POST (StwEvent 910001/9100030); metadati completi nella lista; scarta atti di altri enti mittenti; espone solo atti in pubblicazione → scraping continuo; server a volte instabile |
 | Enna | `jcitygov.py` | jCityGov/Liferay | ✅ OK | bassa frequenza (~3 atti/mese) — la presunta staleness era errata |
 | Messina | — | jCityGov/Liferay | ⛔ bloccato | FortiGate 403 + cert scaduto 2023-06-27; `skip_ssl=True` non basta; accesso probabilmente solo da intranet comunale |
 | Palermo | `palermo.py` | SISPI JSP | ✅ OK | HTTP puro (la nota "Playwright obbligatorio" era errata): sessione + scoperta categorie dal menu + POST paginazione; espone solo atti in pubblicazione → scraping continuo |
