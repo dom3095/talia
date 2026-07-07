@@ -18,6 +18,10 @@ from talia.modulo2_scraping.fonti.jcitygov import (
 
 _HTML_LISTA = """
 <table>
+<thead><tr>
+  <th>Tipo Atto</th><th><span>Anno e Numero Registro</span></th>
+  <th>Oggetto</th><th>Periodo Pubblicazioneda - a</th><th>&nbsp;</th>
+</tr></thead>
 <tbody>
 <tr class="master-detail-list-line master-detail-list-line-odd" data-id="4721119">
   <td class="categoria text">
@@ -39,6 +43,29 @@ _HTML_LISTA = """
   <td class="annonumero number">2026/42</td>
   <td class="oggetto text">APPROVAZIONE PIANO OPERATIVO.</td>
   <td class="date">01/06/2026  30/06/2026</td>
+  <td class="allegati">1</td>
+</tr>
+</tbody>
+</table>
+"""
+
+# Variante reale (es. Castel di Iudica): manca la colonna "Anno e Numero
+# Registro" — le celle sono [tipo, oggetto, periodo]. Run 2026-07-07.
+_HTML_LISTA_SENZA_NUMERO = """
+<table>
+<thead><tr>
+  <th>Tipo Atto</th><th>Oggetto</th>
+  <th>Periodo Pubblicazioneda - a</th><th>&nbsp;</th>
+</tr></thead>
+<tbody>
+<tr class="master-detail-list-line master-detail-list-line-odd" data-id="5436021">
+  <td class="categoria text">
+    <span class="categoria_categoria">DETERMINE</span>
+    <span class="categoria_separatore"> /</span>
+    <span class="categoria_sottocategoria">DETERMINA CAPO SETTORE</span>
+  </td>
+  <td class="oggetto text">IRROGAZIONE SANZIONE DI PROVA ART. 7-BIS.</td>
+  <td class="date">12/06/2026  31/12/2031</td>
   <td class="allegati">1</td>
 </tr>
 </tbody>
@@ -134,3 +161,14 @@ def test_parse_pagina_secondo_atto():
 
 def test_parse_pagina_html_vuoto():
     assert _parse_pagina("", _BASE, _ISTAT) == []
+
+
+def test_parse_pagina_layout_senza_colonna_numero():
+    """Tenant senza colonna 'Anno e Numero Registro' (es. Castel di Iudica)."""
+    atti = _parse_pagina(_HTML_LISTA_SENZA_NUMERO, _BASE, _ISTAT)
+    assert len(atti) == 1
+    a = atti[0]
+    assert a.numero is None
+    assert a.oggetto == "IRROGAZIONE SANZIONE DI PROVA ART. 7-BIS."
+    assert a.data_pub == "2026-06-12"
+    assert a.data_scadenza == "2031-12-31"

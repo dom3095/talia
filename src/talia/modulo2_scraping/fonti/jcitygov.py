@@ -114,20 +114,26 @@ def _url_dettaglio(base_url: str, pub_id: str) -> str:
 
 
 def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetadato]:
+    # Alcuni tenant non hanno la colonna "Anno e Numero Registro": in quel caso
+    # le celle sono [tipo, oggetto, periodo] invece di [tipo, numero, oggetto,
+    # periodo] e senza questo controllo oggetto e date finiscono nei campi
+    # sbagliati (successo con Castel di Iudica & co., run del 2026-07-07).
+    ha_numero = "Anno e Numero" in html
+    i_oggetto = 2 if ha_numero else 1
+    i_date = 3 if ha_numero else 2
+
     atti = []
     for m in _RE_ROW.finditer(html):
         pub_id = m.group(1)
         row_html = m.group(2)
         celle = list(_RE_CELL.finditer(row_html))
-        if len(celle) < 3:
+        if len(celle) <= i_date:
             continue
 
         tipo = _parse_tipo(celle[0].group(1))
-        numero_raw = _strip(celle[1].group(1))   # "2026/1031"
-        oggetto = _strip(celle[2].group(1)) or None
-        data_pub, data_scad = _parse_date_cella(
-            _strip(celle[3].group(1)) if len(celle) > 3 else ""
-        )
+        numero_raw = _strip(celle[1].group(1)) if ha_numero else ""  # "2026/1031"
+        oggetto = _strip(celle[i_oggetto].group(1)) or None
+        data_pub, data_scad = _parse_date_cella(_strip(celle[i_date].group(1)))
 
         # Separa anno/numero dal formato "YYYY/NNNN"
         numero = None
