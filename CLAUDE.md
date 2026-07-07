@@ -89,7 +89,9 @@ Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov,
 
 Due piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): Gela, Monreale
-- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): Vittoria, Sciacca, Adrano, Barcellona Pozzo di Gotto
+- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **89 comuni** — 4 individuati per ricognizione + 85 da sweep di dominio (nessun pattern unico come jCityGov: sottodomini `trasparenza./servizi./servizionline.` su `comune.<slug>.<prov>.it`)
+
+**Copertura totale (2026-07-07): 159 comuni attivi ≈ 3.375.276 abitanti (67,5% della popolazione siciliana)**, da `docs/wiki/14-censimento-albi.md`.
 
 ⚠️ **Codici ISTAT**: il 2026-07-07 sono stati corretti 4 codici errati (Caltanissetta era Butera, Siracusa era Solarino, Enna e Palma off-by-one). `talia.db` esistente ha gli enti con i codici vecchi: serve migrazione prima del prossimo run (SQL nella card TAL-49).
 

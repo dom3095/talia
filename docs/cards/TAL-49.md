@@ -112,6 +112,11 @@ Poi implementato **`halley.py`** generico per Vittoria, Sciacca, Adrano, Barcell
 **Copertura**: 77 comuni attivi ≈ 2.878.107 abitanti (57,5% della popolazione, da 51,7%).
 **Appreso:** non fidarsi delle etichette di piattaforma date da agenti di ricognizione haiku senza confronto diretto col codice esistente — "sembra nuovo" può nascondere un riuso a costo quasi zero (Gela/Monreale). Verificare sempre contro gli scraper già in repo prima di progettare un modulo nuovo.
 
+### 2026-07-07 — Tentativo 11 (sweep di dominio Halley EG)
+**Approccio:** su richiesta di Dom di "continuare gli sviluppi con Halley", niente nuovo scraper ma uno sweep di dominio sul modello jCityGov, adattato all'assenza di un pattern unico: provati i sottodomini noti (`trasparenza.`, `servizi.`, `servizionline.`, `www.`) su `comune.<slug>.<prov>.it/mc/mc_p_ricerca.php` per i 380 comuni non ancora coperti, fingerprint `"table-albo"` + `"Halley"` nel body. Script one-off in Python (non committato, in scratchpad), 24 thread paralleli, ~380×4 richieste.
+**Esito:** ✅ **85 nuovi hit**, tutti verificati con `halley.scarica_atti()` reale (con retry su timeout transitori): 0 vuoti, 0 errori persistenti. 3 collisioni di nome con entry jCityGov già esistenti (Racalmuto, Favignana, San Giovanni la Punta — stesso comune, ISTAT identico, presente su entrambe le piattaforme): rinominate con suffisso `_halley`. Tutti aggiunti a `_HALLEY_COMUNI` (89 totali). **Copertura: 159 comuni unici, 3.375.276 abitanti (67,5% della popolazione, da 57,5%)**.
+**Appreso:** il primo tentativo di fingerprint falliva silenziosamente (falso negativo su tutti, inclusi i 4 tenant noti) perché leggevo solo i primi 20KB della risposta — l'impronta Halley è più avanti nella pagina (~57KB). Sempre validare la funzione di fingerprint contro un caso noto-positivo E noto-negativo prima di lanciare lo sweep su scala. Un comune può avere l'albo attivo su più piattaforme contemporaneamente (Racalmuto: jCityGov "Storico atti" + Halley corrente) — non escludere un comune da un nuovo sweep solo perché già "coperto" altrove, potrebbe avere dati diversi/più recenti.
+
 ## 🔗 Dipendenze
 —
 

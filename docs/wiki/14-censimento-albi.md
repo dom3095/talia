@@ -14,8 +14,16 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 - Hit sweep jCityGov: **68** → verificati e attivi: **66** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
 - Piattaforma **portalepa** (stessa di Siracusa, generalizzata in `portalepa.py`): Gela, Monreale
-- Piattaforma **Halley EG** (generica in `halley.py`): Vittoria, Sciacca, Adrano, Barcellona Pozzo di Gotto
-- **Copertura: 77 comuni attivi ≈ 2.878.107 abitanti (57,5% della popolazione)**
+- Piattaforma **Halley EG** (generica in `halley.py`): **89 comuni**, di cui 85 trovati con sweep di dominio il 2026-07-07 (vedi sotto)
+- **Copertura: 159 comuni attivi ≈ 3.375.276 abitanti (67,5% della popolazione)**
+
+### Sweep di dominio Halley EG (2026-07-07)
+
+A differenza di jCityGov, Halley non ha un pattern di dominio unico: i 4 tenant noti (Vittoria, Sciacca, Adrano, Barcellona P.G.) usavano sottodomini diversi (`trasparenza.`, `servizi.`, `servizionline.`) sullo stesso schema `comune.<slug>.<prov>.it`. Sweep programmatico su tutti i 391 comuni non ancora coperti, provando i sottodomini noti + path `/mc/mc_p_ricerca.php`, fingerprint su `"table-albo"` + `"Halley"` nel body: **85 nuovi hit**, tutti verificati con atti reali (0 vuoti, 0 errori dopo retry). Aggiunti tutti a `_HALLEY_COMUNI`.
+
+Due comuni risultati anche su Halley erano già registrati su jCityGov con lo stesso codice ISTAT (**Racalmuto**, **Favignana**) o path diverso (**San Giovanni la Punta**): rinominati con suffisso `_halley` per evitare collisioni di chiave nello scraper registry — stesso ente, due fonti indipendenti (`upsert_ente` è idempotente sullo stesso `codice_istat`).
+
+Script dello sweep non committato nel repo (one-off in scratchpad); pattern riutilizzabile in futuro per altri vendor.
 
 ### Fix 2026-07-07 — tenant jCityGov con percorso "papca-ap" alternativo
 
