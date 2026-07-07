@@ -11,13 +11,13 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 ## Sintesi
 
 - Comuni siciliani: **391** (5.001.690 abitanti)
-- Hit sweep jCityGov: **68** → verificati e attivi: **65** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto sbloccati il 2026-07-07, vedi sotto)
+- Hit sweep jCityGov: **68** → verificati e attivi: **66** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
-- **Copertura: 70 comuni attivi ≈ 2.576.990 abitanti (51,5% della popolazione)**
+- **Copertura: 71 comuni attivi ≈ 2.585.335 abitanti (51,7% della popolazione)**
 
 ### Fix 2026-07-07 — tenant jCityGov con percorso "papca-ap" alternativo
 
-5 degli 8 comuni nella tabella "Hit jCityGov NON attivabili" sotto in realtà avevano l'albo raggiungibile, ma su un'istanza portlet diversa (`/web/trasparenza/papca-ap/-/papca/igrid/<id>` invece di `/web/trasparenza/papca-g`), scoperta dalla pagina menu `/web/trasparenza/albo-pretorio` (blocco `data-mainurl`). `jcitygov.py::scarica_atti` ora rileva "0 risultati" sul percorso standard e prova automaticamente il fallback. Sbloccati: **Milazzo** (32.146 ab.), **Aragona**, **Gaggi**, **Letojanni**, **Noto** (23.704 ab.). Restano genuinamente a 0 atti: Condrò, Racalmuto, Ribera (da ricontrollare in futuro, magari con un `data-resource` diverso).
+6 degli 8 comuni nella tabella "Hit jCityGov NON attivabili" sotto in realtà avevano l'albo raggiungibile, ma su un'istanza portlet diversa (`/web/trasparenza/papca-ap/-/papca/igrid/<id>` invece di `/web/trasparenza/papca-g`), scoperta dalla pagina menu `/web/trasparenza/albo-pretorio` (blocco `data-mainurl`). Questa pagina espone in realtà **due** risorse per tenant: "Albo pretorio" (corrente) e "Storico atti" (archivio), con `igrid` diversi. `jcitygov.py::scarica_atti` ora rileva "0 risultati" sul percorso standard e prova in sequenza le risorse alternative, fermandosi alla prima non vuota. Sbloccati: **Milazzo** (32.146 ab.), **Aragona**, **Gaggi**, **Letojanni**, **Noto** (23.704 ab.) via "Albo pretorio"; **Racalmuto** (8.345 ab., 3.384 atti storici 2022) via "Storico atti". Restano genuinamente a 0 atti su entrambe le risorse: **Condrò, Ribera**.
 
 ### Prossime famiglie di piattaforma individuate (ricognizione 2026-07-07, non ancora implementate)
 

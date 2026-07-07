@@ -264,6 +264,8 @@ _JCITYGOV_COMUNI = [
     ("gaggi", _BASE.format("gaggi"), "083029", "Comune di Gaggi"),
     ("letojanni", _BASE.format("letojanni"), "083038", "Comune di Letojanni"),
     ("noto", _BASE.format("noto"), "089013", "Comune di Noto"),
+    # Racalmuto: "Albo pretorio" vuoto ma "Storico atti" popolato (3384 atti).
+    ("racalmuto", _BASE.format("racalmuto"), "084029", "Comune di Racalmuto"),
 ]
 
 

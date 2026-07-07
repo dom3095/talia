@@ -54,11 +54,14 @@ _DEFAULT_DELAY = 0.5
 # API standard, TAL-49) espongono l'albo su un'istanza "papca-ap" diversa,
 # con un id "igrid" specifico del tenant che non è prevedibile a priori.
 # Va scoperto leggendo la pagina menu /web/trasparenza/albo-pretorio, che
-# contiene un blocco data-resource="Albo pretorio" con data-mainurl
+# contiene blocchi data-resource="<label>" con data-mainurl
 # = "/web/trasparenza/papca-ap/-/papca/igrid/<id>". Scoperto 2026-07-07.
+# Alcuni tenant (es. Racalmuto) hanno "Albo pretorio" vuoto ma "Storico atti"
+# popolato: si prova nell'ordine finché una risorsa non è vuota.
 _LANDING_PATH = "/web/trasparenza/albo-pretorio"
+_RISORSE_FALLBACK = ("Albo pretorio", "Storico atti")
 _RE_MAINURL = re.compile(
-    r'data-resource="Albo pretorio"[^>]*data-mainurl="([^"]+)"',
+    r'data-resource="([^"]+)"[^>]*data-mainurl="([^"]+)"',
     re.IGNORECASE,
 )
 _RE_TOTALE = re.compile(r"Sono stati trovati.*?<strong>(\d+)</strong> risultati")
@@ -116,20 +119,20 @@ def _parse_date_cella(raw: str) -> tuple[str | None, str | None]:
     return d1, d2
 
 
-def _scopri_percorso_alternativo(opener, base: str) -> str | None:
-    """Scopre il path "papca-ap/.../igrid/<id>" per i tenant la cui API
-    standard (papca-g, categoria 0) ritorna 0 risultati.
+def _scopri_risorse_alternative(opener, base: str) -> dict[str, str]:
+    """Scopre i percorsi "papca-ap/.../igrid/<id>" alternativi per i tenant
+    la cui API standard (papca-g, categoria 0) ritorna 0 risultati.
 
-    La pagina menu /web/trasparenza/albo-pretorio contiene un blocco
-    data-resource="Albo pretorio" con data-mainurl che punta all'istanza
-    "igrid" corretta per il tenant (scoperto su Milazzo & co., TAL-49).
+    La pagina menu /web/trasparenza/albo-pretorio contiene blocchi
+    data-resource="<label>" con data-mainurl che punta all'istanza "igrid"
+    corretta per il tenant (scoperto su Milazzo & co., TAL-49). Ritorna
+    {label: path}, es. {"Albo pretorio": "...", "Storico atti": "..."}.
     """
     try:
         html = _fetch(opener, f"{base}{_LANDING_PATH}")
     except (TimeoutError, urllib.error.URLError):
-        return None
-    m = _RE_MAINURL.search(html)
-    return m.group(1) if m else None
+        return {}
+    return dict(_RE_MAINURL.findall(html))
 
 
 def _url_dettaglio(base_url: str, pub_id: str) -> str:
@@ -270,12 +273,19 @@ def scarica_atti(
     # altrove e va scoperta dalla pagina menu.
     m_totale = _RE_TOTALE.search(html)
     if m_totale and m_totale.group(1) == "0":
-        alt_path = _scopri_percorso_alternativo(opener, base)
-        if alt_path:
-            papca_path = alt_path.split("/-/papca")[0]
-            html = _fetch(opener, f"{base}{alt_path}")
+        risorse = _scopri_risorse_alternative(opener, base)
+        for label in _RISORSE_FALLBACK:
+            alt_path = risorse.get(label)
+            if not alt_path:
+                continue
+            candidato = _fetch(opener, f"{base}{alt_path}")
+            m_alt = _RE_TOTALE.search(candidato)
+            if not m_alt or m_alt.group(1) != "0":
+                papca_path = alt_path.split("/-/papca")[0]
+                html = candidato
+                break
         else:
-            logger.warning("jcitygov %s: 0 atti e nessun percorso alternativo trovato", base)
+            logger.warning("jcitygov %s: 0 atti su tutti i percorsi noti", base)
 
     raccolti = 0
     while raccolti < limit:

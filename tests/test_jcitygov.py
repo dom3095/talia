@@ -9,7 +9,7 @@ from talia.modulo2_scraping.fonti.jcitygov import (
     _parse_date_cella,
     _parse_pagina,
     _parse_tipo,
-    _scopri_percorso_alternativo,
+    _scopri_risorse_alternative,
     _url_dettaglio,
     scarica_atti,
 )
@@ -225,18 +225,18 @@ class _FakeOpener:
         raise AssertionError(f"URL non atteso nel test: {url}")
 
 
-def test_scopri_percorso_alternativo_trova_mainurl():
+def test_scopri_risorse_alternative_trova_mainurl():
     opener = _FakeOpener({"/web/trasparenza/albo-pretorio": _HTML_LANDING_CON_MAINURL})
-    path = _scopri_percorso_alternativo(
+    risorse = _scopri_risorse_alternative(
         opener, "https://milazzo.trasparenza-valutazione-merito.it"
     )
-    assert path == "/web/trasparenza/papca-ap/-/papca/igrid/269681"
+    assert risorse == {"Albo pretorio": "/web/trasparenza/papca-ap/-/papca/igrid/269681"}
 
 
-def test_scopri_percorso_alternativo_non_trovato():
+def test_scopri_risorse_alternative_non_trovate():
     opener = _FakeOpener({"/web/trasparenza/albo-pretorio": "<html>niente qui</html>"})
-    path = _scopri_percorso_alternativo(opener, "https://x.trasparenza-valutazione-merito.it")
-    assert path is None
+    risorse = _scopri_risorse_alternative(opener, "https://x.trasparenza-valutazione-merito.it")
+    assert risorse == {}
 
 
 def test_scarica_atti_usa_percorso_alternativo_se_zero_risultati():
@@ -254,3 +254,25 @@ def test_scarica_atti_usa_percorso_alternativo_se_zero_risultati():
     atti = list(scarica_atti(base, "083048", limit=10, _opener=opener, delay=0))
     assert len(atti) == 2
     assert atti[0].ente_codice_istat == "083048"
+
+
+def test_scarica_atti_prova_storico_atti_se_albo_pretorio_vuoto():
+    """Tenant tipo Racalmuto: sia papca-g che l'istanza "Albo pretorio"
+    alternativa ritornano 0 atti; i dati veri sono sotto "Storico atti"."""
+    base = "https://racalmuto.trasparenza-valutazione-merito.it"
+    html_landing = (
+        '<a data-resource="Albo pretorio" '
+        'data-mainurl="/web/trasparenza/papca-ap/-/papca/igrid/251859"></a>'
+        '<a data-resource="Storico atti" '
+        'data-mainurl="/web/trasparenza/papca-ap/-/papca/igrid/251881"></a>'
+    )
+    responses = {
+        "eseguiFiltro": _HTML_ZERO_RISULTATI,
+        "/web/trasparenza/albo-pretorio": html_landing,
+        "igrid/251859": _HTML_ZERO_RISULTATI,
+        "igrid/251881": _HTML_LISTA,
+        "papca-g/-/papca": "<html></html>",
+    }
+    opener = _FakeOpener(responses)
+    atti = list(scarica_atti(base, "084029", limit=10, _opener=opener, delay=0))
+    assert len(atti) == 2
