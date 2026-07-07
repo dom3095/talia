@@ -1,106 +1,98 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-07
+> Aggiornato: 2026-07-07 sera
 
 ---
 
 ## Branch attivo
 
-`feat/E3-censimento-comuni-sicilia` — **PR draft #8 aperta**, tutto committato e pushato.
-Sessione autonoma del 2026-07-07 (TAL-49): censimento albi + rollout scraper.
+`feat/E3-censimento-comuni-sicilia` — **PR #8 aperta, pronta per la review finale**.
+Sessione del 2026-07-07 (TAL-49): partita come sessione autonoma (censimento + rollout
+jCityGov), proseguita interattiva nel pomeriggio/sera con Dom (fix, nuove piattaforme,
+sweep di dominio). Tutto committato e pushato, working tree pulito a parte
+`data/samples/1/` (locale, mai committare).
 
 ### Cosa contiene la PR #8 (da rivedere e mergiare)
 
+Riassunto cumulativo di tutta la giornata:
+
 - `data/comuni_sicilia.csv` — 391 comuni per popolazione (codici ISTAT ufficiali)
-- **Palermo** (`palermo.py`): SISPI in HTTP puro (la nota "Playwright obbligatorio" era errata) — 8 test
+- **Palermo** (`palermo.py`): SISPI in HTTP puro — 8 test
 - **Catania** (`catania.py`): wizard URBI in HTTP puro — 6 test
-- **Rollout jCityGov**: sweep 391/391 → 68 hit → **60 comuni verificati e registrati** (runner dinamici)
-- **Fix 4 codici ISTAT errati** (Caltanissetta era Butera!, Siracusa era Solarino!, Enna e Palma off-by-one)
-- Wiki censimento: `docs/wiki/14-censimento-albi.md` (copertura ≈ **55% della popolazione siciliana**, 65 comuni attivi)
-- 322 test verdi, ruff pulito
+- **Fix 4 codici ISTAT errati** (Caltanissetta, Siracusa, Enna, Palma) — migrazione applicata a `talia.db`
+- **jCityGov**: 60 comuni rollout iniziale + fix parser (12 tenant senza colonna "Anno e Numero
+  Registro") + fallback automatico per tenant con "0 risultati" sul percorso standard
+  (scopre risorsa "Albo pretorio" o "Storico atti" alternativa) → **66 comuni totali**
+  (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati così)
+- **`portalepa.py`** (nuovo modulo, generalizzato da `siracusa.py`): **18 comuni**, di cui 16
+  trovati con sweep di dominio (`<slug>.soluzionipa.it`) — include **Caltagirone**, sbloccata
+  qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
+- **`halley.py`** (nuovo modulo, piattaforma Halley Informatica): **89 comuni**, di cui 85
+  trovati con sweep di dominio (nessun pattern unico come jCityGov, provati più sottodomini)
+- Wiki censimento aggiornata: `docs/wiki/14-censimento-albi.md`
+- **356 test verdi, ruff pulito** (erano 322 a inizio giornata)
+
+**Copertura finale: 174 comuni attivi ≈ 3.496.160 abitanti, 69,9% della popolazione
+siciliana** (era 55% a inizio giornata).
 
 ### ⚠️ Decisioni per Dom (prima/durante il merge)
 
-1. **Migrazione `talia.db`**: i 4 codici ISTAT corretti richiedono UPDATE sugli enti esistenti
-   (SQL pronto in `docs/cards/TAL-49.md`, fare backup prima). Senza migrazione il prossimo run
-   creerebbe enti duplicati.
-2. **Default run**: ora include 64 scraper HTTP (60 jCityGov + siracusa/trapani/palermo/catania).
-   Se troppo aggressivo, ridurre `_SCRAPERS_DEFAULT` a una whitelist.
-3. Gli 8 comuni jCityGov con albo vuoto (Milazzo, Noto, Aragona, Racalmuto, Ribera, Gaggi,
-   Letojanni, Condrò) sono esclusi: ricontrollare in futuro.
+1. **Migrazione `talia.db`**: ✅ già applicata (backup `talia.db.bak-20260707`, gitignored).
+2. **Default run**: ora include **161 scraper HTTP** (66 jCityGov + 18 portalepa + 89 Halley +
+   siracusa/trapani/palermo/catania). Molto più ampio di quando la PR è stata aperta stamattina
+   (erano 64): valutare se va bene o se serve una whitelist più conservativa per i run
+   automatici futuri (cron).
+3. **I nuovi 109 comuni (portalepa+Halley oltre ai 2/4 iniziali, +6 jCityGov sbloccati) non
+   sono ancora mai stati eseguiti su `talia.db`**: solo testati su DB isolati (`/tmp/test_*.db`).
+   Il primo run reale su `talia.db` con tutti i 161 scraper andrà monitorato (volume,
+   eventuali timeout SSL transitori già osservati su 1-2 comuni Halley).
+4. Restano scoperti: **Partinico** (portalepa variante `_full`, mapping colonne da fare),
+   **Favara** (URBI Cloud, dialetto diverso da Catania), **Messina** (bloccata, intervento
+   IT del Comune necessario). Elenco completo comuni ancora da censire in
+   `docs/wiki/14-censimento-albi.md`.
 
 ## DB attuale
 
-**Migrazione ISTAT applicata il 2026-07-07 sera** (backup: `talia.db.bak-20260707`,
-gitignored): i 4 enti ora hanno i codici corretti (Siracusa 089017, Caltanissetta
-085004, Enna 086009, Palma 084027).
+`talia.db`: **65 enti | 78.323 atti** (dopo backfill storico, vedi sotto). I 109 comuni
+nuovi di oggi (portalepa/Halley + jCityGov sbloccati) **non sono ancora in `talia.db`**,
+solo nel codice registrato in `scripts/run_scrapers.py`.
 
-**Test run completo eseguito (2026-07-07 sera): 64/64 scraper OK, zero errori HTTP.**
-DB: **65 enti | ~35.000 atti | 19 red flags** (era 7 enti / 4.463 atti).
-Dal test è emerso e stato corretto BUG jCityGov: 12 tenant senza colonna
-"Anno e Numero Registro" avevano campi sfalsati e date NULL → parser ora legge
-l'header; 3.915 atti corrotti ripuliti e ri-scaricati con date corrette.
+**Backfill storico completato** (2 lotti lanciati manualmente da Dom in parallelo alla
+sessione, 27 comuni jCityGov totali, `--no-stop --max-pagine 500`): entrambi terminati
+senza errori, verificato in `scraper_runs`. Alcuni comuni (Bagheria, Giarre, Gravina di
+Catania, Salemi, Sant'Agata li Battiati, Caltanissetta) hanno toccato il tetto dei 10.000
+atti: potrebbero avere ancora storico oltre il limite, da tenere a mente per un lotto 2.
 
-**Backfill lotto 1 lanciato** (in coda alla sessione del 2026-07-07): 17 comuni
-che avevano toccato il tetto dei 1000 atti, `--max-pagine 500 --no-stop
---no-red-flags`. Al prossimo run di red flags i procedimenti si ricalcolano.
-Lotto 2 (comuni restanti sotto i 1000 atti): a discrezione della prossima sessione.
+Nota dati residua: Lentini ha una `data_pub` "0202-06-16" — refuso della fonte (albo),
+non del parser. Valutare un guard "anno < 1990 → NULL" in `parse_data_iso` (non ancora fatto).
 
-Nota dati: Lentini ha una `data_pub` "0202-06-16" — refuso della fonte (albo),
-non del parser. Valutare un guard "anno < 1990 → NULL" in `parse_data_iso`.
+## 🤝 Istruzioni per la prossima sessione
 
-## 🤝 Istruzioni per la prossima sessione (test run + backfill)
-
-Contesto: Dom ha lanciato il run completo per testare tutti gli scraper nuovi.
-Il tuo compito è **sistemare gli errori che emergono**, alla bisogna.
-
-### Dove guardare
-
-1. `sqlite3 talia.db "SELECT scraper_id, esito, n_trovati, n_inseriti, errore FROM scraper_runs ORDER BY avviato_a DESC LIMIT 70;"`
-   — esiti dell'ultimo run per scraper (nota: può esserci un run 'in corso' orfano
-   delle 18:00 del 2026-07-07: è un processo interrotto e rilanciato, ignoralo).
-2. Coverage: `sqlite3 talia.db "SELECT e.denominazione, COUNT(*), MIN(a.data_pub), MAX(a.data_pub) FROM atti a JOIN enti e ON e.id=a.ente_id GROUP BY 1 ORDER BY 2 DESC;"`
-3. Comuni a 0 atti o in errore → riprodurre con:
-   `python scripts/run_scrapers.py --scrapers <nome> --max-pagine 2 --db /tmp/test_<nome>.db --no-red-flags`
-
-### Errori tipici attesi (e cosa fare)
-
-- **Timeout/5xx su singoli comuni jCityGov**: transitorio; `jcitygov.py` ha 1 retry
-  solo su TimeoutError. Se un HTTPError ricorre, valutare retry anche su 5xx (fragilità
-  nota in CLAUDE.md). Non escludere il comune al primo errore.
-- **0 atti da un comune verificato oggi**: era vivo il 2026-07-07 (10 atti reali);
-  se ora dà 0 è probabilmente struttura/manutenzione — loggare nella card TAL-49
-  (sezione Tentativi) e passare oltre.
-- **Palermo/Catania**: flussi stateful documentati nei docstring di `palermo.py` /
-  `catania.py`. Il server di Catania a volte è completamente giù (non è colpa nostra):
-  riprovare più tardi.
-- **Enti duplicati nel DB**: NON dovrebbe più succedere (migrazione fatta). Se vedi
-  un ente doppio, è un codice ISTAT sbagliato in `_JCITYGOV_COMUNI`: correggere il
-  codice e fondere gli enti a mano (UPDATE atti SET ente_id=..., DELETE ente doppio).
-
-### Backfill storico (richiesta esplicita di Dom)
-
-Come per Palma (2026-06-26): per ogni comune jCityGov nuovo, backfill senza
-stop-on-known. Palma ha mostrato che gli albi jCityGov espongono spesso TUTTO lo
-storico (2018→oggi), quindi il valore è alto. Procedura consigliata, a lotti per
-non martellare i server:
-
-```bash
-# lotto da ~10 comuni per volta, direttamente su talia.db (idempotente)
-python scripts/run_scrapers.py --scrapers marsala bagheria modica acireale mazaradelvallo \
-    paterno misterbianco alcamo licata augusta --max-pagine 50 --no-stop
-```
-
-Poi verificare coverage (query sopra) e aggiornare la sezione DB di questo file.
-NON ha senso il backfill per Palermo/Catania/Trapani: espongono solo gli atti in
-pubblicazione (~15-30 gg), lo storico non è raggiungibile.
+1. **Se Dom ha già mergiato la PR #8**: verificare che `main` sia aggiornato, poi valutare
+   se lanciare il primo run completo con tutti i 161 scraper su `talia.db` (grande, farlo
+   a lotti o monitorare attentamente le prime esecuzioni).
+2. **Se la PR #8 è ancora aperta**: continua a ricevere commit su questo branch (fix,
+   nuove piattaforme) finché non viene mergiata — non aprire branch nuovi per lo stesso
+   filone di lavoro (censimento/scraper).
+3. Prossimi comuni da censire (non ancora fatti): Favara (URBI Cloud), Partinico (portalepa
+   `_full`), e la lista media/piccola in `docs/wiki/14-censimento-albi.md` (~15 comuni,
+   piattaforma da scoprire).
+4. Vale la pena ripetere lo sweep di dominio (Halley/portalepa) periodicamente: nuovi
+   comuni potrebbero attivare l'albo o cambiare piattaforma nel tempo.
 
 ### Regole di sempre
 
 - MAI push su main, MAI merge: branch + PR, il merge lo fa Dom (PR #8 è sua da rivedere).
 - Fix agli scraper: commit sul branch `feat/E3-censimento-comuni-sicilia` finché
   la PR #8 è aperta (sono la stessa unità di lavoro), poi branch nuovi.
-- Ogni tentativo significativo va nella card `docs/cards/TAL-49.md`, sezione 🔬 Tentativi.
+- Ogni tentativo significativo va nella card `docs/cards/TAL-49.md`, sezione 🔬 Tentativi
+  (12 tentativi loggati oggi).
+- Prima di dichiarare una piattaforma "nuova", verificare contro gli scraper già esistenti
+  nel repo (portalepa era etichettato erroneamente "SoluzioniPA" da un agente di ricognizione
+  — era in realtà lo stesso codice di `siracusa.py`).
+- Validare sempre la funzione di fingerprint di uno sweep contro un caso noto-positivo E
+  noto-negativo prima di lanciarlo su scala (il primo sweep Halley falliva silenziosamente
+  per un limite di lettura troppo basso sulla risposta HTTP).
 
 ## Modifiche non committate
 
