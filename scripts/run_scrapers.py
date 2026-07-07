@@ -438,6 +438,7 @@ _HALLEY_COMUNI = [
     ("vittoria", "https://trasparenza.comune.vittoria.rg.it", "088012", "Comune di Vittoria"),
     ("sciacca", "https://servizi.comune.sciacca.ag.it", "084041", "Comune di Sciacca"),
     ("adrano", "https://servizionline.comune.adrano.ct.it", "087006", "Comune di Adrano"),
+    ("menfi", "https://servizi.comune.menfi.ag.it", "084023", "Comune di Menfi"),
     (
         "barcellonapg",
         "https://servizi.comune.barcellonapozzodigotto.me.it/barcellona",
@@ -805,6 +806,22 @@ _URBI_COMUNI = [
         "084030",
         "COMUNE DI RAFFADALI",
         "Comune di Raffadali",
+    ),
+    (
+        "ravanusa",
+        "https://servizi.comune.ravanusa.ag.it/urbi/progs/urp/ur1ME001.sto",
+        "DB_NAME=n1200698&w3cbt=S",
+        "084031",
+        "COMUNE DI RAVANUSA",
+        "Comune di Ravanusa",
+    ),
+    (
+        "campobellodilicata",
+        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
+        "DB_NAME=n200119&w3cbt=S",
+        "084010",
+        "COMUNE DI CAMPOBELLO DI LICATA",
+        "Comune di Campobello di Licata",
     ),
 ]
 

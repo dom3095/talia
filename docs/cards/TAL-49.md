@@ -131,6 +131,16 @@ Poi implementato **`halley.py`** generico per Vittoria, Sciacca, Adrano, Barcell
 Tutti e 3 validati con run reale prima dei test (18 nuovi test tra `test_urbi.py` e `test_ribera.py`, 374 totali verdi). Registrati in `run_scrapers.py` (`_URBI_COMUNI`, `ribera` dedicato).
 **Appreso:** un tenant "vuoto" su una piattaforma nota (Ribera su jCityGov) non implica che il comune non pubblichi affatto — può aver spostato l'albo su un sistema completamente diverso (qui il CMS istituzionale stesso). Il tema WordPress di Ribera potrebbe essere condiviso da altri comuni siciliani: da tenere presente per un futuro sweep.
 
+### 2026-07-08 — Tentativo 14 (completamento Agrigento, gruppo 2/4)
+**Approccio:** ricognizione gruppo 2 (Menfi, Ravanusa, Campobello di Licata), stesso schema del gruppo 1.
+**Esito:** ✅ Tutti e 3 riusano piattaforme già coperte, **zero codice nuovo**:
+- **Menfi**: Halley EG (sottodominio `servizi.comune.menfi.ag.it`, diverso da `trasparenza.` ma già gestito da `halley.py` senza modifiche) — 50 atti
+- **Ravanusa**: URBI Cloud — l'agente di ricognizione aveva erroneamente concluso "serve Playwright" (aveva visto solo la GET iniziale con "Attendere prego" senza provare il POST StwEvent); verificato direttamente con `urbi.py` esistente: 20 atti, HTTP puro, nessun Playwright
+- **Campobello di Licata**: URBI Cloud, confermato e funzionante con `urbi.py` — 20 atti
+
+Tutti e 3 aggiunti ai registri esistenti (`_HALLEY_COMUNI`, `_URBI_COMUNI`), nessun nuovo modulo. 374 test invariati (nessun codice nuovo da testare).
+**Appreso:** verificare SEMPRE le conclusioni di un agente di ricognizione con una chiamata diretta prima di accettarle — "serve Playwright" era falso per Ravanusa. I sottodomini Halley/URBI variano parecchio da comune a comune (`servizi.`, `trasparenza.`, `cloud.urbi.it` vs dominio proprio): gli scraper generici già gestiscono questa variabilità senza bisogno di modifiche, basta passare il base_url giusto.
+
 ## 🔗 Dipendenze
 —
 
