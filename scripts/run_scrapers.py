@@ -105,6 +105,21 @@ def _run_trapani(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
+def _run_palermo(conn, max_pagine: int = 50, **_kwargs) -> dict:
+    from talia.modulo2_scraping.fonti.palermo import prepara_ente, salva_atti, scarica_atti
+
+    prepara_ente(conn)
+    print(f"  [Palermo] Scarico albo pretorio SISPI (max {max_pagine} pagine)…")
+    t0 = time.monotonic()
+    atti = list(scarica_atti(max_pagine=max_pagine))
+    esito = salva_atti(atti, conn)
+    elapsed = time.monotonic() - t0
+    print(f"  [Palermo] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
+    return esito
+
+
 def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     try:
         from talia.modulo2_scraping.fonti.agrigento import prepara_ente, salva_atti, scarica_atti
@@ -196,12 +211,13 @@ _SCRAPERS: dict[str, callable] = {
     "anac": _run_anac,
     "siracusa": _run_siracusa,
     "trapani": _run_trapani,
+    "palermo": _run_palermo,
     "agrigento": _run_agrigento,
 }
 _SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
-_SCRAPERS_DEFAULT = ["siracusa", "trapani"] + [entry[0] for entry in _JCITYGOV_COMUNI]
+_SCRAPERS_DEFAULT = ["siracusa", "trapani", "palermo"] + [entry[0] for entry in _JCITYGOV_COMUNI]
 
 
 # ---------------------------------------------------------------------------
