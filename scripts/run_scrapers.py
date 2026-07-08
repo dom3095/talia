@@ -150,20 +150,6 @@ def _run_ribera(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
-def _run_sambucadisicilia(conn, **_kwargs) -> dict:
-    from talia.modulo2_scraping.fonti.sambucadisicilia import prepara_ente, salva_atti, scarica_atti
-
-    prepara_ente(conn)
-    print("  [Sambucadisicilia] Scarico albo pretorio Halley HSPromila…")
-    t0 = time.monotonic()
-    atti = list(scarica_atti())
-    esito = salva_atti(atti, conn)
-    elapsed = time.monotonic() - t0
-    print(f"  [Sambucadisicilia] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
-    esito["n_trovati"] = len(atti)
-    esito["data_min"], esito["data_max"] = _date_range(atti)
-    return esito
-
 
 def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     try:
@@ -454,6 +440,9 @@ _HALLEY_COMUNI = [
     ("sciacca", "https://servizi.comune.sciacca.ag.it", "084041", "Comune di Sciacca"),
     ("adrano", "https://servizionline.comune.adrano.ct.it", "087006", "Comune di Adrano"),
     ("menfi", "https://servizi.comune.menfi.ag.it", "084023", "Comune di Menfi"),
+    # skip_ssl: catena certificato incompleta lato server (cert valido, vedi _HALLEY_SKIP_SSL)
+    ("siculiana", "https://trasparenza.comune.siculiana.ag.it", "084042", "Comune di Siculiana"),
+    ("realmonte", "http://80.88.89.218/realmonte", "084032", "Comune di Realmonte"),
     (
         "barcellonapg",
         "https://servizi.comune.barcellonapozzodigotto.me.it/barcellona",
@@ -755,6 +744,11 @@ _HALLEY_COMUNI = [
 ]
 
 
+# Comuni Halley con catena certificato incompleta lato server (cert valido,
+# manca l'intermedio): non è un cert scaduto, richiede solo skip_ssl (TAL-49).
+_HALLEY_SKIP_SSL = {"siculiana"}
+
+
 def _run_halley_comune(
     conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
 ):
@@ -771,7 +765,8 @@ def _run_halley_comune(
 
     inseriti = duplicati = consecutivi_dup = 0
     dates: list[str] = []
-    for atto in scarica_atti(base_url, codice_istat, max_pagine=max_pagine):
+    skip_ssl = nome in _HALLEY_SKIP_SSL
+    for atto in scarica_atti(base_url, codice_istat, max_pagine=max_pagine, skip_ssl=skip_ssl):
         if inserisci_atto(conn, atto) is not None:
             inseriti += 1
             consecutivi_dup = 0
@@ -912,6 +907,57 @@ def _make_urbi_runner(entry):
     return _runner
 
 
+# Halley HSPromila (ASP.NET): variante Halley diversa da quella "EG"
+# (`halley.py`), riusata da Sambuca di Sicilia e Santo Stefano Quisquina
+# (TAL-49). Nessuna paginazione nota: un solo blocco di atti per comune.
+_HSPROMILA_COMUNI = [
+    # (nome_log, url, codice_istat, denominazione)
+    (
+        "sambucadisicilia",
+        "https://servizionline.hspromilaprod.hypersicapp.net/cmssambucadisicilia"
+        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
+        "084034",
+        "Comune di Sambuca di Sicilia",
+    ),
+    (
+        "santostefanoquisquina",
+        "https://servizionline.hspromilaprod.hypersicapp.net/cmsssquisquina"
+        "/portale/albopretorio/albopretorioconsultazione.aspx?P=600",
+        "084040",
+        "Comune di Santo Stefano Quisquina",
+    ),
+]
+
+
+def _run_hspromila_comune(conn, nome, url, codice_istat, denominazione, **_kwargs) -> dict:
+    from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
+    from talia.modulo2_scraping.fonti.hspromila import scarica_atti
+
+    upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
+    print(f"  [{nome.capitalize()}] Scarico albo pretorio Halley HSPromila…")
+    t0 = time.monotonic()
+    atti = list(scarica_atti(url, codice_istat))
+    esito = {"inseriti": 0, "duplicati": 0}
+    for atto in atti:
+        if inserisci_atto(conn, atto) is not None:
+            esito["inseriti"] += 1
+        else:
+            esito["duplicati"] += 1
+    conn.commit()
+    elapsed = time.monotonic() - t0
+    print(f"  [{nome.capitalize()}] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
+    return esito
+
+
+def _make_hspromila_runner(entry):
+    def _runner(conn, **kwargs):
+        return _run_hspromila_comune(conn, *entry, **kwargs)
+
+    return _runner
+
+
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
 
 _SCRAPERS: dict[str, callable] = {
@@ -921,21 +967,22 @@ _SCRAPERS: dict[str, callable] = {
     "palermo": _run_palermo,
     "catania": _run_catania,
     "ribera": _run_ribera,
-    "sambucadisicilia": _run_sambucadisicilia,
     "agrigento": _run_agrigento,
 }
 _SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
 _SCRAPERS.update({entry[0]: _make_portalepa_runner(entry) for entry in _PORTALEPA_COMUNI})
 _SCRAPERS.update({entry[0]: _make_halley_runner(entry) for entry in _HALLEY_COMUNI})
 _SCRAPERS.update({entry[0]: _make_urbi_runner(entry) for entry in _URBI_COMUNI})
+_SCRAPERS.update({entry[0]: _make_hspromila_runner(entry) for entry in _HSPROMILA_COMUNI})
 
 # Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
 _SCRAPERS_DEFAULT = (
-    ["siracusa", "trapani", "palermo", "catania", "ribera", "sambucadisicilia"]
+    ["siracusa", "trapani", "palermo", "catania", "ribera"]
     + [entry[0] for entry in _JCITYGOV_COMUNI]
     + [entry[0] for entry in _PORTALEPA_COMUNI]
     + [entry[0] for entry in _HALLEY_COMUNI]
     + [entry[0] for entry in _URBI_COMUNI]
+    + [entry[0] for entry in _HSPROMILA_COMUNI]
 )
 
 

@@ -14,8 +14,22 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 - Hit sweep jCityGov: **68** → verificati e attivi: **66** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
 - Piattaforma **portalepa** (stessa di Siracusa, generalizzata in `portalepa.py`): **18 comuni**, di cui 16 trovati con sweep di dominio il 2026-07-07 (vedi sotto)
-- Piattaforma **Halley EG** (generica in `halley.py`): **89 comuni**, di cui 85 trovati con sweep di dominio il 2026-07-07 (vedi sotto)
-- **Copertura: 174 comuni attivi ≈ 3.496.160 abitanti (69,9% della popolazione)**
+- Piattaforma **Halley EG** (generica in `halley.py`): **92 comuni**, di cui 85 trovati con sweep di dominio il 2026-07-07 + Menfi/Siculiana/Realmonte (provincia di Agrigento, 2026-07-08)
+- Piattaforma **URBI Cloud** (generica in `urbi.py`, stesso motore di Catania): **6 comuni** (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di Belice — provincia di Agrigento, 2026-07-08)
+- Piattaforma **Halley HSPromila** (ASP.NET, generica in `hspromila.py`): **2 comuni** (Sambuca di Sicilia, Santo Stefano Quisquina)
+- Scraper dedicato **Ribera** (WordPress, `ribera.py`)
+- **Copertura: 186 comuni attivi ≈ 3.631.325 abitanti (72,6% della popolazione)**
+
+### Completamento provincia di Agrigento (2026-07-08)
+
+Su richiesta di Dom, censiti i 12 comuni più popolosi tra i 25 non ancora coperti della provincia di Agrigento, a gruppi di 3 (ricognizione haiku + validazione diretta). Riepilogo piattaforme: 6 **URBI Cloud** (stesso motore di Catania, generalizzato in `urbi.py`: base_url/DB_NAME/ente_mittente parametrici), 3 **Halley EG** (Menfi, Siculiana, Realmonte — già coperti da `halley.py`), 2 **Halley HSPromila** (ASP.NET, `hypersicapp.net`, piattaforma nuova generalizzata in `hspromila.py`), 1 **WordPress** (Ribera, `ribera.py`).
+
+Note tecniche rilevanti:
+- **Siculiana**: certificato TLS valido ma con catena incompleta lato server (non un cert scaduto) → aggiunto `skip_ssl` opzionale a `halley.py`, stesso pattern già usato in `jcitygov.py` per Messina.
+- **Bug scoperto e corretto**: la prima versione di `hspromila.py`/`ribera.py`-style per piattaforme senza link di dettaglio per atto rischia di riusare lo stesso `url_fonte` per tutti gli atti — la dedup DB `(ente_id, url_fonte)` scarterebbe silenziosamente tutti tranne il primo. Fix: frammento `#<id_riga>` per renderlo univoco.
+- **Falsi allarmi "serve Playwright"**: 2 comuni su 12 (Ravanusa, Santo Stefano Quisquina) sono stati erroneamente segnalati come richiedenti Playwright dagli agenti di ricognizione; verificati a mano, funzionano entrambi in HTTP puro.
+
+Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 13-16.
 
 ### Sweep di dominio Halley EG (2026-07-07)
 

@@ -150,6 +150,21 @@ Tutti e 3 aggiunti ai registri esistenti (`_HALLEY_COMUNI`, `_URBI_COMUNI`), nes
 10 nuovi test (`test_sambucadisicilia.py`), 384 totali verdi. Tutti e 3 registrati (`_URBI_COMUNI`, `sambucadisicilia` dedicato).
 **Appreso:** quando una piattaforma non espone un link di dettaglio per atto, **non riusare l'URL della pagina lista come `url_fonte` senza renderlo univoco** — la dedup silenziosa (nessun errore, nessun warning) nasconde perdita di dati. Un test che verifica il conteggio di `inseriti` su un campione con ≥2 atti distinti avrebbe dovuto essere il primo test scritto per qualsiasi nuovo scraper, non un'aggiunta a posteriori.
 
+### 2026-07-08 — Tentativo 16 (completamento Agrigento, gruppo 4/4 — ultimo)
+**Approccio:** ricognizione gruppo 4 (Santo Stefano Quisquina, Siculiana, Realmonte), ultimo dei 12 comuni concordati.
+**Esito:**
+- **Siculiana**: Halley EG standard, ma con **catena di certificato TLS incompleta lato server** (cert valido fino al 2027, emesso da Actalis, ma manca l'intermedio — `curl`/macOS lo tollerano, Python no). Non è un cert scaduto come Messina: aggiunto parametro opzionale `skip_ssl` a `halley.py::scarica_atti` (stesso pattern già usato in `jcitygov.py`), con un set `_HALLEY_SKIP_SSL` in `run_scrapers.py` per i comuni che ne hanno bisogno.
+- **Realmonte**: Halley EG su IP diretto (`http://80.88.89.218/realmonte`, HTTP semplice, no HTTPS) — funziona senza modifiche.
+- **Santo Stefano Quisquina**: agente terminato per rate-limit di sessione prima di finire, ma aveva già annotato (erroneamente, come Ravanusa) "serve JavaScript/Playwright" per una piattaforma Halley HSPromila. Verificato a mano: stesso URL-pattern di Sambuca di Sicilia ma slug diverso (`cmsssquisquina` non `cmssantostefanoquisquina`, trovato via web search), funziona con semplice GET, 71 atti reali.
+
+Dato che ora **2 comuni condividono Halley HSPromila** (Sambuca di Sicilia + Santo Stefano Quisquina), generalizzato `sambucadisicilia.py` → nuovo modulo parametrico `hspromila.py` (url/codice_istat parametrici), cancellati `sambucadisicilia.py`/`test_sambucadisicilia.py` (sostituiti da `hspromila.py`/`test_hspromila.py` — sicuro perché mai arrivato su `main`).
+
+Tutti e 4 verificati con run reale (187 atti totali). 384 test totali verdi (invariati: `test_hspromila.py` sostituisce 1:1 `test_sambucadisicilia.py`).
+
+**🎉 Provincia di Agrigento completata**: tutti i 12 comuni concordati (i più popolosi tra i 25 mancanti) censiti e integrati, in 4 gruppi da 3. Riepilogo piattaforme: 6 URBI Cloud (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di Belice), 4 Halley EG (Menfi, Siculiana, Realmonte + i 4 iniziali della sessione precedente), 2 Halley HSPromila (Sambuca di Sicilia, Santo Stefano Quisquina), 1 WordPress (Ribera).
+
+**Appreso:** il pattern "l'agente conclude erroneamente serve Playwright" si è ripetuto 2 volte su 12 comuni (Ravanusa, Santo Stefano Quisquina) — sempre per piattaforme che mostrano un placeholder "Attendere prego" nell'HTML statico, scambiato per rendering client-side mancante. Regola pratica: qualunque conclusione "serve Playwright" da un agente di ricognizione va verificata con una richiesta HTTP diretta (GET semplice o, per URBI, il flusso POST a 2 step) prima di accettarla.
+
 ## 🔗 Dipendenze
 —
 

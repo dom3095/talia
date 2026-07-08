@@ -1,20 +1,21 @@
-"""Spider per l'albo pretorio del Comune di Sambuca di Sicilia (Halley HSPromila, ASP.NET).
-
-URL: https://servizionline.hspromilaprod.hypersicapp.net/cmssambucadisicilia/portale/
-     albopretorio/albopretorioconsultazione.aspx?P=400
+"""Spider generico per albi pretori su piattaforma Halley HSPromila (ASP.NET).
 
 Variante Halley diversa da quella "EG" (`mc_p_ricerca.php`, vedi `halley.py`):
-piattaforma ASP.NET (HSPromila), ma HTTP puro — la tabella atti è già presente
-nell'HTML della prima GET, nessun rendering client-side necessario.
+piattaforma ASP.NET ospitata su `hypersicapp.net`, un sottodominio/slug per
+tenant. HTTP puro: la tabella atti è già presente nell'HTML della prima GET,
+nessun rendering client-side necessario nonostante il messaggio "Attendere
+prego" mostri un placeholder di caricamento nel markup.
+
+Riusata da Sambuca di Sicilia e Santo Stefano Quisquina (TAL-49).
 
 Limiti noti:
-- Nessun link di dettaglio per singolo atto nella riga: si usa la pagina lista
-  come url_fonte (soddisfa comunque il requisito di tracciabilità alla fonte).
+- Nessun link di dettaglio per singolo atto nella riga: si usa la pagina
+  lista con un frammento `#<id_riga>` come url_fonte, per renderlo univoco
+  per atto (la dedup DB si basa su `(ente_id, url_fonte)` — senza il
+  frammento, tutti gli atti tranne il primo verrebbero scartati come
+  duplicati: bug scoperto e corretto nella prima versione, 2026-07-08).
 - Non è stato verificato un meccanismo di paginazione/backfill: la pagina
-  mostra un solo blocco di atti (95 alla prima verifica, 2026-07-08). Se in
-  futuro emerge un parametro di paginazione, va aggiunto qui.
-
-Codice ISTAT Sambuca di Sicilia: 084034
+  mostra un unico blocco di atti.
 
 Dati pubblici ai sensi del D.lgs. 33/2013.
 """
@@ -28,12 +29,7 @@ import urllib.request
 from collections.abc import Iterable, Iterator
 from html import unescape
 
-from talia.modulo2_scraping.db import (
-    AttoMetadato,
-    EnteMetadato,
-    inserisci_atto,
-    upsert_ente,
-)
+from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
 
 logger = logging.getLogger(__name__)
@@ -42,13 +38,7 @@ logger = logging.getLogger(__name__)
 # Costanti
 # ---------------------------------------------------------------------------
 
-FONTE_SCRAPER = "sambucadisicilia"
-CODICE_ISTAT = "084034"
-
-_URL = (
-    "https://servizionline.hspromilaprod.hypersicapp.net/cmssambucadisicilia/"
-    "portale/albopretorio/albopretorioconsultazione.aspx?P=400"
-)
+FONTE_SCRAPER = "hspromila"
 
 _HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"}
 
@@ -82,7 +72,7 @@ def _tipo_da_categoria(categoria: str) -> str:
     return "atto"
 
 
-def _parse_pagina(html: str) -> list[AttoMetadato]:
+def _parse_pagina(html: str, url: str, codice_istat: str) -> list[AttoMetadato]:
     atti = []
     for row_m in _RE_ROW.finditer(html):
         cells = [_strip(c.group(1)) for c in _RE_CELL.finditer(row_m.group(1))]
@@ -95,12 +85,9 @@ def _parse_pagina(html: str) -> list[AttoMetadato]:
         oggetto = cells[5] or None
         categoria = cells[6]
         atti.append(AttoMetadato(
-            ente_codice_istat=CODICE_ISTAT,
+            ente_codice_istat=codice_istat,
             tipo=_tipo_da_categoria(categoria),
-            # Nessun link di dettaglio per singolo atto nella riga: si usa la
-            # pagina lista con un frammento basato sulla "key" interna per
-            # rendere url_fonte univoco (la dedup DB si basa su questo campo).
-            url_fonte=f"{_URL}#{chiave_riga}",
+            url_fonte=f"{url}#{chiave_riga}",
             fonte_scraper=FONTE_SCRAPER,
             data_accesso=ora_utc(),
             numero=numero_registro or None,
@@ -117,19 +104,26 @@ def _parse_pagina(html: str) -> list[AttoMetadato]:
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(**_kwargs) -> Iterator[AttoMetadato]:
-    """Scarica gli atti attualmente elencati sull'albo pretorio di Sambuca di Sicilia.
+def scarica_atti(url: str, codice_istat: str, **_kwargs) -> Iterator[AttoMetadato]:
+    """Scarica gli atti attualmente elencati su un albo pretorio Halley HSPromila.
+
+    Args:
+        url:          URL completo della pagina di consultazione albo, es.
+                      "https://servizionline.hspromilaprod.hypersicapp.net/
+                      cmssambucadisicilia/portale/albopretorio/
+                      albopretorioconsultazione.aspx?P=400".
+        codice_istat: codice ISTAT a 6 cifre del comune.
 
     Nessuna paginazione nota: la pagina espone un unico blocco di atti.
     """
-    req = urllib.request.Request(_URL, headers=_HEADERS)
+    req = urllib.request.Request(url, headers=_HEADERS)
     with urllib.request.urlopen(req, timeout=20) as r:
         html = r.read().decode("utf-8", errors="replace")
-    atti = _parse_pagina(html)
+    atti = _parse_pagina(html, url, codice_istat)
     if not atti:
         logger.warning(
-            "Sambuca di Sicilia: 0 atti estratti — struttura HTML cambiata"
-            " o portale in manutenzione?"
+            "hspromila %s: 0 atti estratti — struttura HTML cambiata o portale in manutenzione?",
+            url,
         )
     yield from atti
 
@@ -149,12 +143,3 @@ def salva_atti(
             duplicati += 1
     conn.commit()
     return {"inseriti": inseriti, "duplicati": duplicati}
-
-
-def prepara_ente(conn: sqlite3.Connection) -> None:
-    """Upsert del Comune di Sambuca di Sicilia nel DB (prerequisito per inserisci_atto)."""
-    upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Sambuca di Sicilia",
-        codice_istat=CODICE_ISTAT,
-        provincia="AG",
-    ))

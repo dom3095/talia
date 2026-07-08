@@ -1,6 +1,7 @@
-"""Test offline per lo spider Sambuca di Sicilia (Halley HSPromila, TAL-49).
+"""Test offline per lo spider generico Halley HSPromila (TAL-49).
 
-Nessuna chiamata di rete — tutte le fixture sono inline nel file.
+Piattaforma condivisa da Sambuca di Sicilia e Santo Stefano Quisquina.
+Nessuna chiamata di rete.
 """
 
 from __future__ import annotations
@@ -12,12 +13,13 @@ from talia.modulo2_scraping.db import (
     inizializza_db,
     upsert_ente,
 )
-from talia.modulo2_scraping.fonti.sambucadisicilia import (
-    CODICE_ISTAT,
-    FONTE_SCRAPER,
-    _parse_pagina,
-    salva_atti,
+from talia.modulo2_scraping.fonti.hspromila import FONTE_SCRAPER, _parse_pagina, salva_atti
+
+_URL = (
+    "https://servizionline.hspromilaprod.hypersicapp.net/cmssambucadisicilia/"
+    "portale/albopretorio/albopretorioconsultazione.aspx?P=400"
 )
+_ISTAT = "084034"
 
 _HTML_PAGINA = """
 <table>
@@ -67,12 +69,12 @@ _HTML_SENZA_ATTI = "<table><thead><tr><th>Numero registro</th></tr></thead><tbod
 
 
 def test_parse_pagina_conta_atti():
-    assert len(_parse_pagina(_HTML_PAGINA)) == 2
+    assert len(_parse_pagina(_HTML_PAGINA, _URL, _ISTAT)) == 2
 
 
 def test_parse_pagina_primo_atto():
-    a = _parse_pagina(_HTML_PAGINA)[0]
-    assert a.ente_codice_istat == CODICE_ISTAT
+    a = _parse_pagina(_HTML_PAGINA, _URL, _ISTAT)[0]
+    assert a.ente_codice_istat == _ISTAT
     assert a.tipo == "determina"
     assert a.numero == "1134"
     assert "LIQUIDAZIONE FATTURA" in a.oggetto
@@ -81,25 +83,26 @@ def test_parse_pagina_primo_atto():
     assert a.data_scadenza == "2026-07-22"
     assert a.fonte_scraper == FONTE_SCRAPER
     assert a.url_fonte.endswith("#2951")
+    assert a.url_fonte.startswith(_URL)
 
 
 def test_parse_pagina_secondo_atto_tipo_avviso():
-    a = _parse_pagina(_HTML_PAGINA)[1]
+    a = _parse_pagina(_HTML_PAGINA, _URL, _ISTAT)[1]
     assert a.tipo == "avviso"
     assert a.cig is None
 
 
 def test_parse_pagina_url_fonte_univoco_per_riga():
-    atti = _parse_pagina(_HTML_PAGINA)
+    atti = _parse_pagina(_HTML_PAGINA, _URL, _ISTAT)
     assert atti[0].url_fonte != atti[1].url_fonte
 
 
 def test_parse_pagina_html_vuoto():
-    assert _parse_pagina(_HTML_SENZA_ATTI) == []
+    assert _parse_pagina(_HTML_SENZA_ATTI, _URL, _ISTAT) == []
 
 
 def test_parse_pagina_stringa_vuota():
-    assert _parse_pagina("") == []
+    assert _parse_pagina("", _URL, _ISTAT) == []
 
 
 # ---------------------------------------------------------------------------
@@ -112,13 +115,13 @@ def _db():
     inizializza_db(conn)
     upsert_ente(
         conn,
-        EnteMetadato(denominazione="Comune di Sambuca di Sicilia", codice_istat=CODICE_ISTAT),
+        EnteMetadato(denominazione="Comune di Sambuca di Sicilia", codice_istat=_ISTAT),
     )
     return conn
 
 
 def _atti_campione():
-    return _parse_pagina(_HTML_PAGINA)
+    return _parse_pagina(_HTML_PAGINA, _URL, _ISTAT)
 
 
 def test_salva_atti_inseriti():

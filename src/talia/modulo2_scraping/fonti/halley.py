@@ -111,6 +111,7 @@ def scarica_atti(
     codice_istat: str,
     *,
     max_pagine: int = 100,
+    skip_ssl: bool = False,
 ) -> Iterator[AttoMetadato]:
     """Scarica atti da un albo pretorio Halley EG.
 
@@ -120,12 +121,22 @@ def scarica_atti(
         base_url:     URL base del portale, es. "https://trasparenza.comune.vittoria.rg.it".
         codice_istat: codice ISTAT a 6 cifre del comune.
         max_pagine:   numero massimo di pagine da scaricare.
+        skip_ssl:     True per ignorare errori di verifica del certificato
+                      (es. Siculiana: catena incompleta lato server, cert
+                      valido ma senza intermedio — non è un cert scaduto).
     """
     base = base_url.rstrip("/")
+    ctx = None
+    if skip_ssl:
+        import ssl
+
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     for pagina in range(max_pagine):
         url = f"{base}{_RICERCA_PATH}" + (f"?pag={pagina}" if pagina else "")
         req = urllib.request.Request(url, headers=_HEADERS)
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
             html = r.read().decode("utf-8", errors="replace")
         atti = _parse_pagina(html, base, codice_istat)
         if not atti:
