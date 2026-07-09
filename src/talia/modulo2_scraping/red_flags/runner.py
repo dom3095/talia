@@ -24,6 +24,7 @@ from talia.modulo2_scraping.db import salva_red_flag
 from .catena_revoca import RevocaInCatenaRilevata, rileva_revoche_in_catena
 from .concentrazione import ConcentrazioneRilevata, rileva_concentrazione
 from .frazionamento import FrazionamentoRilevato, rileva_frazionamento
+from .riapertura_revoca import RiaperturaRivocaRilevata, rileva_riapertura_dopo_revoca
 from .tempi_anomali import TempoAnomalioRilevato, rileva_tempi_anomali
 
 # ---------------------------------------------------------------------------
@@ -113,6 +114,34 @@ def _salva_tempo_anomalo(conn: sqlite3.Connection, ta: TempoAnomalioRilevato) ->
     )
 
 
+def _salva_riapertura_dopo_revoca(conn: sqlite3.Connection, rr: RiaperturaRivocaRilevata) -> int:
+    giorni_str = f" dopo {rr.giorni_tra_revoca_e_riapertura} giorni" if rr.giorni_tra_revoca_e_riapertura else ""
+    descrizione = (
+        f"Riapertura procedimento dopo revoca/annullamento: "
+        f"bando revocato il {rr.data_revoca or 'n/d'} ({rr.oggetto_revocato or 'n/d'}) "
+        f"ripubblicato{giorni_str} con oggetto simile "
+        f"(similarità Jaccard: {rr.similarita_jaccard:.2f}). "
+        f"Catena precedente: metodo {rr.metodo_individuazione_catena or 'n/d'}."
+    )
+    return salva_red_flag(
+        conn,
+        ente_id=rr.ente_id,
+        tipo_flag="riapertura_dopo_revoca",
+        severita="media",
+        descrizione=descrizione,
+        atti_cig=[
+            {
+                "id_catena_revocata": rr.procedimento_revocato_id,
+                "atto_revocato_id": None,
+                "atto_riapertura_id": rr.atto_riapertura_id,
+                "similarita": rr.similarita_jaccard,
+            }
+        ],
+        periodo_da=rr.data_revoca,
+        periodo_a=rr.data_riapertura,
+    )
+
+
 # ---------------------------------------------------------------------------
 # API pubblica
 # ---------------------------------------------------------------------------
@@ -124,6 +153,7 @@ class RapportoRunner:
     concentrazione: dict
     tempi_anomali: dict
     revoche_catena: dict
+    riapertura_dopo_revoca: dict
 
     @property
     def totale_flag(self) -> int:
@@ -132,6 +162,7 @@ class RapportoRunner:
             + self.concentrazione["n_salvati"]
             + self.tempi_anomali["n_salvati"]
             + self.revoche_catena["n_salvati"]
+            + self.riapertura_dopo_revoca["n_salvati"]
         )
 
 
@@ -177,9 +208,14 @@ def esegui_tutti(
     revoche = rileva_revoche_in_catena(conn)
     n_revoche_salvati = sum(1 for rc in revoche if _salva_revoca_in_catena(conn, rc) > 0)
 
+    # --- Riapertura dopo revoca ---
+    riaper = rileva_riapertura_dopo_revoca(conn)
+    n_riaper_salvati = sum(1 for rr in riaper if _salva_riapertura_dopo_revoca(conn, rr) > 0)
+
     return RapportoRunner(
         frazionamento={"n_rilevati": len(frazi), "n_salvati": n_frazi_salvati},
         concentrazione={"n_rilevati": len(conc), "n_salvati": n_conc_salvati},
         tempi_anomali={"n_rilevati": len(tempi), "n_salvati": n_tempi_salvati},
         revoche_catena={"n_rilevati": len(revoche), "n_salvati": n_revoche_salvati},
+        riapertura_dopo_revoca={"n_rilevati": len(riaper), "n_salvati": n_riaper_salvati},
     )
