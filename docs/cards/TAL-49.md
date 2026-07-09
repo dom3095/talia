@@ -165,6 +165,19 @@ Tutti e 4 verificati con run reale (187 atti totali). 384 test totali verdi (inv
 
 **Appreso:** il pattern "l'agente conclude erroneamente serve Playwright" si è ripetuto 2 volte su 12 comuni (Ravanusa, Santo Stefano Quisquina) — sempre per piattaforme che mostrano un placeholder "Attendere prego" nell'HTML statico, scambiato per rendering client-side mancante. Regola pratica: qualunque conclusione "serve Playwright" da un agente di ricognizione va verificata con una richiesta HTTP diretta (GET semplice o, per URBI, il flusso POST a 2 step) prima di accettarla.
 
+### 2026-07-09 — Tentativo 17 (Agrigento, seconda tranche: 6 dei 13 comuni rimanenti)
+**Approccio:** su richiesta di Dom ("conviene fare altro?" → "non puoi fare nulla sui 13 comuni?"), ricognizione dei restanti 13 comuni non coperti della provincia (i più piccoli, esclusi dallo scope originale dei "12 più grandi"), a 5 gruppi paralleli (haiku), poi verifica diretta di ogni esito prima di scrivere codice, come da prassi.
+**Esito:**
+- ✅ **Santa Elisabetta, Montallegro, Lucca Sicula**: tutti Halley HSPromila, stesso schema URL già noto (`hypersicapp.net/cms<slug>/portale/albopretorio/albopretorioconsultazione.aspx?P=400`) — nessuna modifica a `hspromila.py`, solo registrazione.
+- ✅ **Joppolo Giancaxio**: Halley EG, stessa catena certificato incompleta di Siculiana → aggiunto a `_HALLEY_SKIP_SSL`.
+- ✅ **San Biagio Platani**: URBI Cloud standard (`cloud.urbi.it`), nessuna modifica.
+- ✅ **Villafranca Sicula**: URBI, ma su un tenant proprio (`servizionline.comune.villafrancasicula.ag.it`) anziché `cloud.urbi.it` — l'agente di ricognizione aveva trovato un URL diverso (`ur1ME002.sto`, `StwEvent=101`, pagina ad albero); verificato che il flusso standard `urbi.py` (`ur1ME001.sto`, POST `StwEvent=910001`/`9100030`) funziona comunque, stesso DB_NAME.
+- ⚠️ **7 comuni rimasti scoperti**, ciascuno su una piattaforma diversa non supportata: **Caltabellotta** e **Burgio** condividono **APKAPPA** (`albo.studiok.it`) ma la tabella HTML è vuota via GET diretto e non è stata trovata alcuna chiamata AJAX nei JS della pagina — richiede ulteriore investigazione (form POST? parametro mancante?). **Burgio** e **Calamonaci** condividono **Municipium** (API REST Spring Boot su `<slug>-api.municipiumapp.it`, risponde con JSON su path errati ma il path corretto per l'elenco atti non è stato individuato). **Bivona** (Alph@soft), **Cianciana** (ComuneWeb/Kibernetes) e **Sant'Angelo Muxaro** (piattaforma custom non identificata) sono ciascuno un caso isolato. Dato il rapporto costo/beneficio (7 comuni, ~19.500 abitanti totali, cioè lo 0,4% della popolazione siciliana, quasi tutti piattaforme a un solo comune), non si è proseguito: documentato in `docs/wiki/14-censimento-albi.md` per una ripresa futura.
+
+Verificato con run reale su DB isolato: 168 atti totali sui 6 comuni aggiunti, 0 errori. 384 test invariati (nessun modulo nuovo, solo registrazioni). Copertura: **192 comuni, 3.644.530 abitanti, 72,9%** (da 186/72,6%).
+
+**Appreso:** quando un agente di ricognizione trova un URL "alternativo" per una piattaforma già nota (es. `ur1ME002.sto` invece di `ur1ME001.sto`), non assumere che serva un parser diverso — verificare prima se il flusso standard funziona comunque con lo stesso tenant/DB_NAME. In questo caso ha funzionato, evitando di scrivere codice inutile.
+
 ## 🔗 Dipendenze
 —
 

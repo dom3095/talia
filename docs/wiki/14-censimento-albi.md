@@ -1,6 +1,6 @@
 # 14 — Censimento albi pretori dei comuni siciliani (TAL-49)
 
-Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+Aggiornato: 2026-07-09. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
 
 ## Metodo
 
@@ -14,11 +14,22 @@ Aggiornato: 2026-07-07. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 - Hit sweep jCityGov: **68** → verificati e attivi: **66** (60 rollout + Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati il 2026-07-07, vedi sotto)
 - Scraper dedicati: Palermo, Catania, Siracusa, Trapani, Agrigento (+ Messina bloccata)
 - Piattaforma **portalepa** (stessa di Siracusa, generalizzata in `portalepa.py`): **18 comuni**, di cui 16 trovati con sweep di dominio il 2026-07-07 (vedi sotto)
-- Piattaforma **Halley EG** (generica in `halley.py`): **92 comuni**, di cui 85 trovati con sweep di dominio il 2026-07-07 + Menfi/Siculiana/Realmonte (provincia di Agrigento, 2026-07-08)
-- Piattaforma **URBI Cloud** (generica in `urbi.py`, stesso motore di Catania): **6 comuni** (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di Belice — provincia di Agrigento, 2026-07-08)
-- Piattaforma **Halley HSPromila** (ASP.NET, generica in `hspromila.py`): **2 comuni** (Sambuca di Sicilia, Santo Stefano Quisquina)
+- Piattaforma **Halley EG** (generica in `halley.py`): **93 comuni**, di cui 85 trovati con sweep di dominio il 2026-07-07 + Menfi/Siculiana/Realmonte (2026-07-08) + Joppolo Giancaxio (2026-07-09), provincia di Agrigento
+- Piattaforma **URBI Cloud** (generica in `urbi.py`, stesso motore di Catania): **8 comuni** (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di Belice, San Biagio Platani, Villafranca Sicula — tutti provincia di Agrigento)
+- Piattaforma **Halley HSPromila** (ASP.NET, generica in `hspromila.py`): **5 comuni** (Sambuca di Sicilia, Santo Stefano Quisquina, Santa Elisabetta, Montallegro, Lucca Sicula)
 - Scraper dedicato **Ribera** (WordPress, `ribera.py`)
-- **Copertura: 186 comuni attivi ≈ 3.631.325 abitanti (72,6% della popolazione)**
+- **Copertura: 192 comuni attivi ≈ 3.644.530 abitanti (72,9% della popolazione)**
+
+### Completamento provincia di Agrigento, seconda tranche (2026-07-09)
+
+Dopo i 12 comuni più popolosi (vedi sotto), censiti anche 6 dei 13 comuni rimanenti (i più piccoli, ~1.200-3.900 abitanti ciascuno), tutti riusando piattaforme già supportate — nessun modulo nuovo:
+- **Halley HSPromila**: Santa Elisabetta, Montallegro, Lucca Sicula (stesso schema URL di Sambuca/Santo Stefano Quisquina: `hypersicapp.net/cms<slug>/portale/albopretorio/albopretorioconsultazione.aspx?P=400`)
+- **Halley EG**: Joppolo Giancaxio (`skip_ssl`, stessa catena certificato incompleta di Siculiana)
+- **URBI Cloud**: San Biagio Platani, Villafranca Sicula (quest'ultimo ha un dominio/tenant proprio anziché `cloud.urbi.it`, ma stesso identico flusso POST `ur1ME001.sto`)
+
+Restano scoperti 7 comuni piccolissimi della provincia (Caltabellotta, Bivona, Cianciana, Castrofilippo, Burgio, Calamonaci, Sant'Angelo Muxaro — ~19.500 abitanti totali), ciascuno su una piattaforma diversa e non ancora supportata da TALIA (APKAPPA/studiok.it, Alph@soft, ComuneWeb, Municipium, piattaforme custom non identificate): costruire un modulo dedicato per ognuno non è giustificato dal rapporto costo/beneficio attuale (popolazione minima, spesso un solo comune per piattaforma). Note per una futura ripresa:
+- **APKAPPA** (`albo.studiok.it`, usata da Caltabellotta e Burgio — 2 comuni, quindi generalizzabile se si riprende): la tabella HTML è vuota nella risposta HTTP diretta, nessuna chiamata AJAX individuata nei JS della pagina — da capire se il rendering richiede davvero JS o se serve un parametro/POST non ancora individuato.
+- **Municipium** (`<slug>-api.municipiumapp.it`, usata da Burgio e Calamonaci — 2 comuni): è un'API REST (risponde con JSON strutturato tipo Spring Boot su path errati), ma il path corretto per l'elenco atti non è stato trovato nel tempo disponibile.
 
 ### Completamento provincia di Agrigento (2026-07-08)
 

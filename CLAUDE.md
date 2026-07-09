@@ -89,12 +89,12 @@ Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov,
 
 Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
-- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **92 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana)
-- **`urbi.py`** (stessa piattaforma di `catania.py`, parametrizzata su base_url/DB_NAME/ente_mittente): **6 comuni** (provincia di Agrigento)
-- **`hspromila.py`** (Halley variante ASP.NET, diversa da `halley.py`): **2 comuni**
+- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **93 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana, Joppolo Giancaxio)
+- **`urbi.py`** (stessa piattaforma di `catania.py`, parametrizzata su base_url/DB_NAME/ente_mittente): **8 comuni** (provincia di Agrigento)
+- **`hspromila.py`** (Halley variante ASP.NET, diversa da `halley.py`): **5 comuni**
 - **`ribera.py`** (WordPress, scraper dedicato): 1 comune
 
-**Copertura totale (2026-07-08): 186 comuni attivi ≈ 3.631.325 abitanti (72,6% della popolazione siciliana)**, da `docs/wiki/14-censimento-albi.md`.
+**Copertura totale (2026-07-09): 192 comuni attivi ≈ 3.644.530 abitanti (72,9% della popolazione siciliana)**, da `docs/wiki/14-censimento-albi.md`.
 
 ⚠️ **Codici ISTAT**: il 2026-07-07 sono stati corretti 4 codici errati (Caltanissetta era Butera, Siracusa era Solarino, Enna e Palma off-by-one). `talia.db` esistente ha gli enti con i codici vecchi: serve migrazione prima del prossimo run (SQL nella card TAL-49).
 

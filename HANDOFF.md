@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-08 sera
+> Aggiornato: 2026-07-09
 
 ---
 
@@ -9,11 +9,13 @@
 `feat/E3-censimento-comuni-sicilia` — **PR #8 aperta, pronta per la review finale**.
 Sessione del 2026-07-07 (TAL-49): partita come sessione autonoma (censimento + rollout
 jCityGov), proseguita interattiva nel pomeriggio/sera con Dom (fix, nuove piattaforme,
-sweep di dominio). Proseguita il 2026-07-08 con il completamento della provincia di
-Agrigento (12 comuni più popolosi tra i mancanti, 4 gruppi da 3). Tutto committato e
-pushato, working tree pulito a parte `data/samples/1/` (locale, mai committare) e
-`notebooks/`/`data/comuni_sicilia_confini.geojson` (mappa di copertura, non ancora
-committati — decisione pendente di Dom).
+sweep di dominio). Proseguita il 2026-07-08 con il completamento dei 12 comuni più
+popolosi mancanti della provincia di Agrigento (4 gruppi da 3), e il 2026-07-09 con
+altri 6 dei 13 comuni ancora scoperti della stessa provincia (i più piccoli, tutti su
+piattaforme già supportate). Tutto committato e pushato, working tree pulito a parte
+`data/samples/1/` (locale, mai committare) e `notebooks/`/
+`data/comuni_sicilia_confini.geojson` (mappa di copertura, non ancora committati —
+decisione pendente di Dom).
 
 ### Cosa contiene la PR #8 (da rivedere e mergiare)
 
@@ -30,33 +32,36 @@ Riassunto cumulativo:
 - **`portalepa.py`** (nuovo modulo, generalizzato da `siracusa.py`): **18 comuni**, di cui 16
   trovati con sweep di dominio (`<slug>.soluzionipa.it`) — include **Caltagirone**, sbloccata
   qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
-- **`halley.py`** (nuovo modulo, piattaforma Halley Informatica): **92 comuni**, di cui 85
-  trovati con sweep di dominio + 3 aggiunti col completamento Agrigento (Menfi, Siculiana,
-  Realmonte) — `skip_ssl` opzionale per catene certificato incomplete (Siculiana)
-- **`urbi.py`** (nuovo modulo, generalizzato da `catania.py`): **6 comuni** provincia di
-  Agrigento (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di Belice)
-- **`hspromila.py`** (nuovo modulo, variante Halley ASP.NET): **2 comuni** (Sambuca di Sicilia,
-  Santo Stefano Quisquina) — bug di dedup url_fonte scoperto e corretto in fase di test
+- **`halley.py`** (nuovo modulo, piattaforma Halley Informatica): **93 comuni**, di cui 85
+  trovati con sweep di dominio + Menfi/Siculiana/Realmonte/Joppolo Giancaxio (Agrigento) —
+  `skip_ssl` opzionale per catene certificato incomplete (Siculiana, Joppolo Giancaxio)
+- **`urbi.py`** (nuovo modulo, generalizzato da `catania.py`): **8 comuni** provincia di
+  Agrigento (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di
+  Belice, San Biagio Platani, Villafranca Sicula)
+- **`hspromila.py`** (nuovo modulo, variante Halley ASP.NET): **5 comuni** (Sambuca di Sicilia,
+  Santo Stefano Quisquina, Santa Elisabetta, Montallegro, Lucca Sicula) — bug di dedup
+  url_fonte scoperto e corretto in fase di test
 - **`ribera.py`** (nuovo modulo dedicato, WordPress): 1 comune
 - Wiki censimento aggiornata: `docs/wiki/14-censimento-albi.md`
 - **384 test verdi, ruff pulito** (erano 322 a inizio PR)
 
-**Copertura finale: 186 comuni attivi ≈ 3.631.325 abitanti, 72,6% della popolazione
+**Copertura finale: 192 comuni attivi ≈ 3.644.530 abitanti, 72,9% della popolazione
 siciliana** (era 55% a inizio PR).
 
 ### ⚠️ Decisioni per Dom (prima/durante il merge)
 
 1. **Migrazione `talia.db`**: ✅ già applicata (backup `talia.db.bak-20260707`, gitignored).
-2. **Default run**: ora include **186 scraper HTTP**. Molto più ampio di quando la PR è stata
+2. **Default run**: ora include **192 scraper HTTP**. Molto più ampio di quando la PR è stata
    aperta (erano 64): valutare se va bene o se serve una whitelist più conservativa per i run
    automatici futuri (cron) — vedi anche [[pre-cron-checklist]] in memoria.
 3. **La maggior parte dei comuni non è ancora mai stata eseguita su `talia.db`**: solo testati
    su DB isolati (`/tmp/test_*.db`). Il primo run reale su `talia.db` con tutti gli scraper
    andrà monitorato (volume, eventuali timeout SSL transitori già osservati su 1-2 comuni Halley).
 4. Restano scoperti: **Partinico** (portalepa variante `_full`, mapping colonne da fare),
-   **Messina** (bloccata, intervento IT del Comune necessario), 13 dei 25 comuni mancanti
-   della provincia di Agrigento (i più piccoli, fuori scope dei "12 più grandi"). Elenco
-   completo comuni ancora da censire in `docs/wiki/14-censimento-albi.md`.
+   **Messina** (bloccata, intervento IT del Comune necessario), 7 comuni piccolissimi della
+   provincia di Agrigento (~19.500 abitanti totali, ciascuno su una piattaforma diversa non
+   supportata: APKAPPA, Alph@soft, ComuneWeb, Municipium, custom — vedi dettagli e note
+   tecniche in `docs/wiki/14-censimento-albi.md` e `docs/cards/TAL-49.md` Tentativo 17).
 5. **`notebooks/copertura_scraper_sicilia.ipynb` + `data/comuni_sicilia_confini.geojson`**:
    creati su richiesta (mappa colorata di copertura), ancora non committati — decidere se
    includerli in questa PR o in una successiva.

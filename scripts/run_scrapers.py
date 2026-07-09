@@ -741,12 +741,18 @@ _HALLEY_COMUNI = [
         "Comune di Bompensiere",
     ),
     ("condro", "https://servizi.comune.condro.me.it", "083018", "Comune di Condrò"),
+    (
+        "joppologiancaxio",
+        "https://trasparenza.comune.joppologiancaxio.ag.it",
+        "084019",
+        "Comune di Joppolo Giancaxio",
+    ),
 ]
 
 
 # Comuni Halley con catena certificato incompleta lato server (cert valido,
 # manca l'intermedio): non è un cert scaduto, richiede solo skip_ssl (TAL-49).
-_HALLEY_SKIP_SSL = {"siculiana"}
+_HALLEY_SKIP_SSL = {"siculiana", "joppologiancaxio"}
 
 
 def _run_halley_comune(
@@ -849,6 +855,22 @@ _URBI_COMUNI = [
         "COMUNE DI SANTA MARGHERITA DI BELICE",
         "Comune di Santa Margherita di Belice",
     ),
+    (
+        "sanbiagioplatani",
+        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
+        "DB_NAME=wt00035339&w3cbt=S",
+        "084035",
+        "COMUNE DI SAN BIAGIO PLATANI",
+        "Comune di San Biagio Platani",
+    ),
+    (
+        "villafrancasicula",
+        "https://servizionline.comune.villafrancasicula.ag.it/urbi/progs/urp/ur1ME001.sto",
+        "DB_NAME=wt00033035&w3cbt=S",
+        "084043",
+        "COMUNE DI VILLAFRANCA SICULA",
+        "Comune di Villafranca Sicula",
+    ),
 ]
 
 
@@ -925,6 +947,27 @@ _HSPROMILA_COMUNI = [
         "/portale/albopretorio/albopretorioconsultazione.aspx?P=600",
         "084040",
         "Comune di Santo Stefano Quisquina",
+    ),
+    (
+        "santaelisabetta",
+        "https://servizionline.hspromilaprod.hypersicapp.net/cmsselisabetta"
+        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
+        "084037",
+        "Comune di Santa Elisabetta",
+    ),
+    (
+        "montallegro",
+        "https://servizionline.hspromilaprod.hypersicapp.net/cmsmontallegro"
+        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
+        "084024",
+        "Comune di Montallegro",
+    ),
+    (
+        "luccasicula",
+        "https://servizionline.hspromilaprod.hypersicapp.net/cmsluccasicula"
+        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
+        "084022",
+        "Comune di Lucca Sicula",
     ),
 ]
 
