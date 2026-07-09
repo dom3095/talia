@@ -282,6 +282,14 @@ _JCITYGOV_COMUNI = [
     ("noto", _BASE.format("noto"), "089013", "Comune di Noto"),
     # Racalmuto: "Albo pretorio" vuoto ma "Storico atti" popolato (3384 atti).
     ("racalmuto", _BASE.format("racalmuto"), "084029", "Comune di Racalmuto"),
+    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani ---
+    ("terminiimerese", _BASE.format("termini-imerese"), "082070", "Comune di Termini Imerese"),
+    (
+        "campofeligerocchella",
+        _BASE.format("roccella"),
+        "082017",
+        "Comune di Campofelice di Roccella",
+    ),
 ]
 
 
@@ -383,6 +391,23 @@ _PORTALEPA_COMUNI = [
     ("vicari", "https://vicari.soluzionipa.it", "082078", "Comune di Vicari"),
     ("aliminusa", "https://aliminusa.soluzionipa.it", "082003", "Comune di Aliminusa"),
     ("roccavaldina", "https://roccavaldina.soluzionipa.it", "083073", "Comune di Roccavaldina"),
+    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani portalepa ---
+    ("partinico", "https://partinico.soluzionipa.it", "082054", "Comune di Partinico"),
+    ("cefalù", "https://comune.cefalu.pa.it", "082027", "Comune di Cefalù"),
+    (
+        "castellammare_golfo",
+        "https://www.comune.castellammare.tp.it/sito_tematico/albo-pretorio/",
+        "081005",
+        "Comune di Castellammare del Golfo",
+    ),
+    ("corleone", "https://comune.corleone.pa.it/albo-pretorio-on-line/", "082034", "Comune di Corleone"),
+    ("capaci", "https://servizi.comune.capaci.pa.it", "082020", "Comune di Capaci"),
+    (
+        "partanna_tp",
+        "https://www.comune.partanna.tp.it/amministrazione/uffici/ufficio_10.html",
+        "081015",
+        "Comune di Partanna",
+    ),
 ]
 
 
@@ -870,6 +895,15 @@ _URBI_COMUNI = [
         "084043",
         "COMUNE DI VILLAFRANCA SICULA",
         "Comune di Villafranca Sicula",
+    ),
+    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani URBI ---
+    (
+        "caccamo",
+        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
+        "DB_NAME=n201838&w3cbt=S",
+        "082014",
+        "COMUNE DI CACCAMO",
+        "Comune di Caccamo",
     ),
 ]
 
