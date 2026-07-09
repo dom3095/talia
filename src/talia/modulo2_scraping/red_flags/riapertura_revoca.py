@@ -1,7 +1,9 @@
 """Red flag: riapertura di procedimento dopo revoca/annullamento — TAL-48.
 
 Rileva quando un ente pubblica un atto con oggetto simile dopo aver revocato/annullato
-un procedimento precedente (pattern di bando "su misura" ripubblicato con criteriaggustati).
+un procedimento precedente (pattern di bando "su misura" ripubblicato con criteri aggiustati).
+
+Prerequisito: connessione SQLite con row_factory = sqlite3.Row (per accesso dict-like).
 
 Disclaimer: segnalazione da verificare, non accertamento.
 """
@@ -135,11 +137,14 @@ def rileva_riapertura_dopo_revoca(
 
     Args:
         conn: connessione SQLite
-        soglia_similarita: soglia Jaccard per considerare due oggetti "simili" (default 0.5)
+        soglia_similarita: soglia Jaccard (0.0-1.0, default 0.5)
 
     Returns:
         lista di RiaperturaRivocaRilevata (ordinate per proc_id)
     """
+    if not 0.0 <= soglia_similarita <= 1.0:
+        raise ValueError(f"soglia_similarita must be between 0.0 and 1.0, got {soglia_similarita}")
+
     try:
         catene_revocate = conn.execute(
             """

@@ -21,7 +21,7 @@ class RevocaInCatenaRilevata:
     ente_id: int
     cig: str | None
     oggetto: str | None
-    stato_finale: str        # 'revocato' | 'annullato'
+    stato_finale: str  # 'revocato' | 'annullato'
     data_avvio: str | None
     data_revoca: str | None
     giorni_elapsed: int | None
@@ -80,26 +80,28 @@ def rileva_revoche_in_catena(conn: sqlite3.Connection) -> list[RevocaInCatenaRil
             except ValueError:
                 pass
 
-        risultati.append(RevocaInCatenaRilevata(
-            procedimento_id=p["id"],
-            ente_id=p["ente_id"],
-            cig=p["cig"],
-            oggetto=p["oggetto"],
-            stato_finale=p["stato_finale"],
-            data_avvio=p["data_avvio"],
-            data_revoca=data_revoca,
-            giorni_elapsed=giorni_elapsed,
-            metodo_individuazione=p["metodo_individuazione"],
-            atti=[
-                {
-                    "id": a["id"],
-                    "url": a["url_fonte"],
-                    "ruolo": a["ruolo_in_catena"],
-                    "data": a["data_atto"],
-                }
-                for a in atti
-            ],
-        ))
+        risultati.append(
+            RevocaInCatenaRilevata(
+                procedimento_id=p["id"],
+                ente_id=p["ente_id"],
+                cig=p["cig"],
+                oggetto=p["oggetto"],
+                stato_finale=p["stato_finale"],
+                data_avvio=p["data_avvio"],
+                data_revoca=data_revoca,
+                giorni_elapsed=giorni_elapsed,
+                metodo_individuazione=p["metodo_individuazione"],
+                atti=[
+                    {
+                        "id": a["id"],
+                        "url": a["url_fonte"],
+                        "ruolo": a["ruolo_in_catena"],
+                        "data": a["data_atto"],
+                    }
+                    for a in atti
+                ],
+            )
+        )
 
     return risultati
 

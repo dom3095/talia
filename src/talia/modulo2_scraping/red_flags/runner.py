@@ -115,7 +115,11 @@ def _salva_tempo_anomalo(conn: sqlite3.Connection, ta: TempoAnomalioRilevato) ->
 
 
 def _salva_riapertura_dopo_revoca(conn: sqlite3.Connection, rr: RiaperturaRivocaRilevata) -> int:
-    giorni_str = f" dopo {rr.giorni_tra_revoca_e_riapertura} giorni" if rr.giorni_tra_revoca_e_riapertura else ""
+    giorni_str = (
+        f" dopo {rr.giorni_tra_revoca_e_riapertura} giorni"
+        if rr.giorni_tra_revoca_e_riapertura is not None
+        else ""
+    )
     descrizione = (
         f"Riapertura procedimento dopo revoca/annullamento: "
         f"bando revocato il {rr.data_revoca or 'n/d'} ({rr.oggetto_revocato or 'n/d'}) "
