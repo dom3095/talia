@@ -1,15 +1,18 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-06
+> Aggiornato: 2026-07-10
 
 ---
 
 ## Branch attivo
 
-`feat/TAL-47-pdf-on-demand` — download PDF on-demand da catene ricostruite (Fase 2, MVP).
-Da committare e aprire PR. Il fix BUG-4 Trapani è stato mergiato su `main` (`097c203`).
-Il vecchio branch locale `fix/BUG-4-trapani-regex` è superato (conteneva solo un
-commit docs, nessun fix): può essere cancellato.
+`feat/TAL-48-riapertura-dopo-revoca` — red flag per rilevare riaperture di procedimenti
+dopo revoca/annullamento (Fase 2 pipeline, TAL-48 MVP).
+
+**Stato:**
+- TAL-47 (PDF download): PR #7 mergiata su `main` (2026-07-07, commit 75542bc)
+- TAL-49 (censimento 192 comuni): PR #8 aperta in review, pronta per merge
+- TAL-48 (riapertura revoca): branch nuovo, MVP implementato, **2 commit committati**
 
 ## Sessione 2026-07-05/06 — TAL-47: download PDF on-demand (Fase 2, MVP)
 
@@ -218,6 +221,30 @@ Alternativa: Playwright headless.
 
 FortiGate HTTP 403 + certificato scaduto 2023-06-27. `skip_ssl=True` non aggira il 403.
 Richiede intervento IT del Comune. Vedi BUG-5 in `docs/bugs.md`.
+
+## Sessione 2026-07-10 — TAL-48: red flag riapertura dopo revoca/annullamento (MVP)
+
+**Fatto:**
+- Nuovo modulo `src/talia/modulo2_scraping/red_flags/riapertura_revoca.py`:
+  - `rileva_riapertura_dopo_revoca(conn, soglia_similarita=0.5)`: query procedimenti
+    revocati/annullati, ricerca atti stesso ente con oggetto simile
+  - Tokenizzazione normalizzata: stopword dominio, regex `\b\w+\b`, ≥3 char
+  - Similarità Jaccard su token
+  - Guardia anti-periodicità: ≥3 atti simili nel tempo → skip (routine admin)
+- Integrazione runner: `_salva_riapertura_dopo_revoca()`, nuovo campo RapportoRunner
+- Test: 12 nuovi (tokenizzazione, Jaccard, 4 casi reali: Palma 656, Ragusa 1079, Enna 924 periodico, edge case)
+- **320 test verdi totali** (312 base + 8 suite nuove)
+- 2 commit: feat TAL-48 MVP + doc update (BOARD, card)
+- Spec: due domande aperte rimangono aperte per dom (conferma soglia, scopo PDF confronto)
+
+**Branch:** `feat/TAL-48-riapertura-dopo-revoca` — non ancora pushato (locale)
+
+**Prossimi passi:**
+1. Push branch e apertura PR (opzionale, dipende da necessità dom)
+2. Integrazione con pdf_download: scaricare PDF di entrambi i bandi (rivocato + riapertura)
+3. Confronto testuale bando originale vs rilanciato (richiede estrazione testo dai PDF, card futura)
+4. Test su fascicolo Palma reale con DB completo (dopo merge PR #8)
+5. Calibrazione soglia Jaccard dopo run completo (domanda aperta 1)
 
 ---
 
