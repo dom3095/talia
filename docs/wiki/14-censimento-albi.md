@@ -1,6 +1,7 @@
-# 14 — Censimento albi pretori dei comuni siciliani (TAL-49)
+# 14 — Censimento albi pretori dei comuni siciliani (TAL-49 + TAL-50)
 
-Aggiornato: 2026-07-09. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+Aggiornato: 2026-07-10 (TAL-50 Palermo/Trapani aggiunto).
+Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
 
 ## Metodo
 
@@ -18,7 +19,20 @@ Aggiornato: 2026-07-09. Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × 
 - Piattaforma **URBI Cloud** (generica in `urbi.py`, stesso motore di Catania): **8 comuni** (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di Belice, San Biagio Platani, Villafranca Sicula — tutti provincia di Agrigento)
 - Piattaforma **Halley HSPromila** (ASP.NET, generica in `hspromila.py`): **5 comuni** (Sambuca di Sicilia, Santo Stefano Quisquina, Santa Elisabetta, Montallegro, Lucca Sicula)
 - Scraper dedicato **Ribera** (WordPress, `ribera.py`)
-- **Copertura: 192 comuni attivi ≈ 3.644.530 abitanti (72,9% della popolazione)**
+- **Copertura E3 (TAL-49): 192 comuni attivi ≈ 3.644.530 abitanti (72,9% della popolazione)**
+
+### Estensione Palermo + Trapani (TAL-50, 2026-07-10)
+
+Censimento sistematico completato su 61 comuni mancanti PA/TP (52 PA + 9 TP):
+- **100% con albo online raggiungibile** — nessun gap di copertura
+- Aggiunta TIER 0 al registry: **8 comuni** (2 jCityGov, 6 portalepa, 1 URBI)
+  - jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k)
+  - portalepa: Partinico (31k), Cefalù (14k), Castellammare del Golfo (14.6k), Corleone (11k), Capaci (11k), Partanna (10.8k)
+  - URBI: Caccamo (8.3k)
+- Documentazione: `data/censimento_albi_pa_tp.csv` (77 comuni, ordinato per popolazione)
+- Potenziale aggiunta TIER 1: 18 comuni su Halley/EGov/APKAPPA (se pattern compatibile, no new scraper)
+
+**Copertura post-TAL-50 TIER 0: 200 comuni ≈ 4.050k abitanti (~81% della popolazione)**
 
 ### Completamento provincia di Agrigento, seconda tranche (2026-07-09)
 

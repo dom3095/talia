@@ -5,7 +5,8 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 
 **Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags
 batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard Streamlit) —
-303 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review), validazione fascicoli reali (TAL-12).
+384 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review), validazione fascicoli reali (TAL-12),
+censimento Palermo/Trapani (TAL-50 in Progress).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -45,6 +46,11 @@ batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard S
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
+
+### 🔧 In Progress (2)
+| ID | Titolo | Ruolo | Note |
+|----|--------|-------|------|
+| [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | branch `feat/E3-province-palermo-trapani`, Fase 1 completato (77 comuni censiti), Fase 2 completato (8 comuni TIER 0 aggiunti al registry) |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |

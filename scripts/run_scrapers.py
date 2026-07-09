@@ -391,7 +391,7 @@ _PORTALEPA_COMUNI = [
     ("vicari", "https://vicari.soluzionipa.it", "082078", "Comune di Vicari"),
     ("aliminusa", "https://aliminusa.soluzionipa.it", "082003", "Comune di Aliminusa"),
     ("roccavaldina", "https://roccavaldina.soluzionipa.it", "083073", "Comune di Roccavaldina"),
-    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani portalepa ---
+    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani ---
     ("partinico", "https://partinico.soluzionipa.it", "082054", "Comune di Partinico"),
     ("cefalù", "https://comune.cefalu.pa.it", "082027", "Comune di Cefalù"),
     (
@@ -400,7 +400,12 @@ _PORTALEPA_COMUNI = [
         "081005",
         "Comune di Castellammare del Golfo",
     ),
-    ("corleone", "https://comune.corleone.pa.it/albo-pretorio-on-line/", "082034", "Comune di Corleone"),
+    (
+        "corleone",
+        "https://comune.corleone.pa.it/albo-pretorio-on-line/",
+        "082034",
+        "Comune di Corleone",
+    ),
     ("capaci", "https://servizi.comune.capaci.pa.it", "082020", "Comune di Capaci"),
     (
         "partanna_tp",
