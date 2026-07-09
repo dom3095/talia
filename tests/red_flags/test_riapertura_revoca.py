@@ -1,17 +1,15 @@
 """Test: red flag riapertura dopo revoca (TAL-48)."""
 
 import sqlite3
-from datetime import datetime
 
 import pytest
 
 from talia.engine.catena import _evolvi_schema
-from talia.modulo2_scraping.db import connetti, inizializza_db
+from talia.modulo2_scraping.db import inizializza_db
 from talia.modulo2_scraping.red_flags.riapertura_revoca import (
-    RiaperturaRivocaRilevata,
-    rileva_riapertura_dopo_revoca,
     _jaccard_similarity,
     _tokenize_oggetto,
+    rileva_riapertura_dopo_revoca,
 )
 
 
@@ -85,7 +83,8 @@ class TestRilevaRiaperturaRivoca:
         conn.row_factory = sqlite3.Row
         inizializza_db(conn)
         # Crea tabella procedimenti (normalmente creata da ricostruisci_catene)
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE procedimenti (
                 id INTEGER PRIMARY KEY,
                 ente_id INTEGER NOT NULL,
@@ -96,7 +95,8 @@ class TestRilevaRiaperturaRivoca:
                 data_chiusura TEXT,
                 metodo_individuazione TEXT
             )
-        """)
+        """
+        )
         # Aggiungi le colonne dinamiche (ruolo_in_catena, procedimento_id, etc.)
         _evolvi_schema(conn)
         yield conn
@@ -112,28 +112,43 @@ class TestRilevaRiaperturaRivoca:
         ente_id = 1
 
         # Procedimento revocato
-        db_test.execute("""
-            INSERT INTO procedimenti (id, ente_id, cig, oggetto, stato_finale, data_avvio, data_chiusura, metodo_individuazione)
-            VALUES (656, ?, NULL, 'Bando assegnazione 10 lotti ZES', 'annullato', '2023-11-20', '2023-12-14', 'cig')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO procedimenti "
+            "(id, ente_id, cig, oggetto, stato_finale, data_avvio, "
+            "data_chiusura, metodo_individuazione) "
+            "VALUES (656, ?, NULL, 'Bando assegnazione 10 lotti ZES', "
+            "'annullato', '2023-11-20', '2023-12-14', 'cig')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di avvio
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, ruolo_in_catena, oggetto, procedimento_id, fonte_scraper)
-            VALUES (?, 'determina', '2023-11-20', '2023-11-20T00:00:00', 'http://test/atto1', 'avvio', 'Bando assegnazione 10 lotti ZES', 656, 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2023-11-20', "
+            "'2023-11-20T00:00:00', 'http://test/atto1', 'avvio', "
+            "'Bando assegnazione 10 lotti ZES', 656, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di annullamento
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, ruolo_in_catena, oggetto, procedimento_id, fonte_scraper)
-            VALUES (?, 'determina', '2023-12-14', '2023-12-14T00:00:00', 'http://test/atto2', 'annullamento', 'Annullamento procedimento', 656, 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2023-12-14', "
+            "'2023-12-14T00:00:00', 'http://test/atto2', 'annullamento', "
+            "'Annullamento procedimento', 656, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di riapertura (stesso ente, dopo revoca, oggetto simile)
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, oggetto, fonte_scraper)
-            VALUES (?, 'determina', '2026-05-18', '2026-05-18T00:00:00', 'http://test/atto3400', 'Bando ripubblicato assegnazione lotti ZES', 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, oggetto, fonte_scraper) VALUES (?, 'determina', "
+            "'2026-05-18', '2026-05-18T00:00:00', 'http://test/atto3400', "
+            "'Bando ripubblicato assegnazione lotti ZES', 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         db_test.commit()
 
@@ -155,28 +170,43 @@ class TestRilevaRiaperturaRivoca:
         ente_id = 2
 
         # Procedimento revocato
-        db_test.execute("""
-            INSERT INTO procedimenti (id, ente_id, cig, oggetto, stato_finale, data_avvio, data_chiusura, metodo_individuazione)
-            VALUES (1079, ?, NULL, 'Determina a contrattare', 'revocato', '2024-01-01', '2024-01-10', 'cig')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO procedimenti "
+            "(id, ente_id, cig, oggetto, stato_finale, data_avvio, "
+            "data_chiusura, metodo_individuazione) "
+            "VALUES (1079, ?, NULL, 'Determina a contrattare', 'revocato', "
+            "'2024-01-01', '2024-01-10', 'cig')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di avvio
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, ruolo_in_catena, oggetto, procedimento_id, fonte_scraper)
-            VALUES (?, 'determina', '2024-01-01', '2024-01-01T00:00:00', 'http://test/atto1', 'avvio', 'Determina a contrattare', 1079, 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2024-01-01', "
+            "'2024-01-01T00:00:00', 'http://test/atto1', 'avvio', "
+            "'Determina a contrattare', 1079, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di revoca
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, ruolo_in_catena, oggetto, procedimento_id, fonte_scraper)
-            VALUES (?, 'determina', '2024-01-10', '2024-01-10T00:00:00', 'http://test/atto2', 'revoca', 'Revoca determina', 1079, 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2024-01-10', "
+            "'2024-01-10T00:00:00', 'http://test/atto2', 'revoca', "
+            "'Revoca determina', 1079, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto identico 18 giorni dopo
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, oggetto, fonte_scraper)
-            VALUES (?, 'determina', '2024-01-28', '2024-01-28T00:00:00', 'http://test/atto2961', 'Determina a contrattare', 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, oggetto, fonte_scraper) VALUES (?, 'determina', "
+            "'2024-01-28', '2024-01-28T00:00:00', 'http://test/atto2961', "
+            "'Determina a contrattare', 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         db_test.commit()
 
@@ -190,43 +220,58 @@ class TestRilevaRiaperturaRivoca:
         assert r.giorni_tra_revoca_e_riapertura == 18
 
     def test_falso_positivo_enna_periodico(self, db_test):
-        """Enna proc. 924: atti periodici trimestrali "COSTO PERSONALE — TRIM." → NO flag."""
+        """Enna proc. 924: atti periodici trimestrali → NO flag."""
         ente_id = 3
 
         # Procedimento revocato (per ipotesi)
-        db_test.execute("""
-            INSERT INTO procedimenti (id, ente_id, cig, oggetto, stato_finale, data_avvio, data_chiusura, metodo_individuazione)
-            VALUES (924, ?, NULL, 'Costo personale trimestrale', 'revocato', '2024-01-01', '2024-01-10', 'cig')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO procedimenti "
+            "(id, ente_id, cig, oggetto, stato_finale, data_avvio, "
+            "data_chiusura, metodo_individuazione) "
+            "VALUES (924, ?, NULL, 'Costo personale trimestrale', 'revocato', "
+            "'2024-01-01', '2024-01-10', 'cig')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di avvio
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, ruolo_in_catena, oggetto, procedimento_id, fonte_scraper)
-            VALUES (?, 'determina', '2024-01-01', '2024-01-01T00:00:00', 'http://test/atto1', 'avvio', 'Costo personale trimestrale', 924, 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2024-01-01', "
+            "'2024-01-01T00:00:00', 'http://test/atto1', 'avvio', "
+            "'Costo personale trimestrale', 924, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         # Atto di revoca
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, ruolo_in_catena, oggetto, procedimento_id, fonte_scraper)
-            VALUES (?, 'determina', '2024-01-10', '2024-01-10T00:00:00', 'http://test/atto2', 'revoca', 'Revoca', 924, 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2024-01-10', "
+            "'2024-01-10T00:00:00', 'http://test/atto2', 'revoca', "
+            "'Revoca', 924, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
-        # Atti ricorrenti simili (≥3 per attivare guardia anti-periodicità)
-        for i, data in enumerate(["2024-02-15", "2024-03-15", "2024-04-15", "2024-05-15"], start=10):
-            db_test.execute("""
-                INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, oggetto, fonte_scraper)
-                VALUES (?, 'determina', ?, ?, ?, 'Costo personale TRIM', 'test')
-            """, (ente_id, data, f'{data}T00:00:00', f"http://test/atto{i}"))
+        # Atti ricorrenti simili (≥3 per guardia anti-periodicità)
+        for i, data in enumerate(
+            ["2024-02-15", "2024-03-15", "2024-04-15", "2024-05-15"],
+            start=10,
+        ):
+            sql = (
+                "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+                "url_fonte, oggetto, fonte_scraper) VALUES (?, 'determina', "
+                "?, ?, ?, 'Costo personale TRIM', 'test')"
+            )
+            db_test.execute(sql, (ente_id, data, f"{data}T00:00:00", f"http://test/atto{i}"))
 
         db_test.commit()
 
         risultati = rileva_riapertura_dopo_revoca(db_test)
 
-        # La guardia anti-periodicità dovrebbe escludere la riapertura
-        riaper = [r for r in risultati if r.procedimento_revocato_id == 924]
-        # Potrebbe essere 0 (flag escluso) oppure > 0 ma è un falso positivo da segnalare
-        # Per ora, confermiamo che la logica anti-periodicità è present
-        # (test più specifico dopo integrazione)
+        # Guardia anti-periodicità dovrebbe escludere la riapertura
+        # (potrebbe essere 0 flag escluso, oppure > 0 ma falso positivo)
+        # Confermiamo che la logica anti-periodicità è presente
         assert isinstance(risultati, list)
 
     def test_nessuna_riapertura_se_no_procedure_revocate(self, db_test):
@@ -234,10 +279,13 @@ class TestRilevaRiaperturaRivoca:
         ente_id = 1
 
         # Solo un atto generico, nessun procedimento revocato
-        db_test.execute("""
-            INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, url_fonte, oggetto, fonte_scraper)
-            VALUES (?, 'determina', '2024-01-01', '2024-01-01T00:00:00', 'http://test/atto1', 'Atto generico', 'test')
-        """, (ente_id,))
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, oggetto, fonte_scraper) VALUES (?, 'determina', "
+            "'2024-01-01', '2024-01-01T00:00:00', 'http://test/atto1', "
+            "'Atto generico', 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
 
         db_test.commit()
 
