@@ -290,6 +290,7 @@ _JCITYGOV_COMUNI = [
         "082017",
         "Comune di Campofelice di Roccella",
     ),
+    ("castelvetrano", _BASE.format("castelvetrano"), "081006", "Comune di Castelvetrano"),
 ]
 
 

@@ -30,8 +30,8 @@ Il censimento E3 (TAL-49, completato il 2026-07-09) ha coperto 192 comuni con 8 
 - **TIER 2 (reverse-engineering):** 14 comuni custom/local
 - **TIER 3 (fallback):** 1 comune (Gazzetta Amministrativa, aggregator)
 
-### Fase 2: Aggiunta TIER 0 al registry (IN PROGRESS)
-- [x] 2 comuni jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k)
+### Fase 2: Aggiunta TIER 0 al registry (COMPLETATO)
+- [x] 3 comuni jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k), Castelvetrano (31.8k)
 - [x] 6 comuni portalepa nuovi: Partinico (31k), Cefalù (14k), Castellammare del Golfo (14.6k), Corleone (11k), Capaci (11k), Partanna (10.8k)
 - [x] 1 comune URBI: Caccamo (8.3k)
 - [ ] Validare con test: fetch dati reali da 3-5 comuni TIER 0
