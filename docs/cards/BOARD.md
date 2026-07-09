@@ -32,6 +32,7 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 ### 📥 Backlog
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
+| [TAL-51](TAL-51.md) | Scraper comuni Palermo/Trapani (TIER 1 + custom) | E3 | 🕷️ SCR | P2 |
 | [TAL-41](TAL-41.md) | Modulo 0: Registro Attori (gerarchia comuni + società in house) | E2 | 🕷️ SCR + 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
 | [TAL-40](TAL-40.md) | README pubblico + contributing | E4 | 🧭 TL | P3 |

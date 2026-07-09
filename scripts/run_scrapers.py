@@ -1043,6 +1043,14 @@ def _make_hspromila_runner(entry):
 
 # Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
 
+# TAL-51 PENDING (comuni Trapani/Palermo, reverse-engineering in progress):
+# - Trapani: Petrosino (7.7k, WordPress), Pantelleria (7.5k, HyperSIC),
+#   Calatafimi-Segesta (6.7k, HyperSIC), Poggioreale (1.5k, HyperSIC)
+# - Palermo: 11 comuni >5k su ComuneWeb (6), Halley (1), HyperSIC (1), APKAPPA (1),
+#   SaturnWeb (1), custom (1) — vedi docs/cards/TAL-51.md per dettagli.
+# Questi comuni sono censiti (data/censimento_albi_pa_tp_COMPLETO.csv) ma non ancora
+# nel registry perché richiedono scraper dedicati o reverse-engineering ulteriore.
+
 _SCRAPERS: dict[str, callable] = {
     "anac": _run_anac,
     "siracusa": _run_siracusa,

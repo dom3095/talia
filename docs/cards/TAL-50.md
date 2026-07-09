@@ -44,10 +44,12 @@ Il censimento E3 (TAL-49, completato il 2026-07-09) ha coperto 192 comuni con 8 
 
 **Risultato:** Focus rimane su TIER 0 (200 comuni, ~81% popolazione). TIER 1/2 richiedono sforzi sproporzionati.
 
-### Fase 4: Future work (TAL-51)
-- [ ] TIER 1: implementare piccoli fix per EGov/APKAPPA/Halley se prioritario
-- [ ] TIER 2: aggiungere Playwright support per comuni custom se budget disponibile
-- [ ] Pantelleria (7.5k): candidato TIER 2 con priorità media se OpenPA API support sviluppata
+### Fase 4: Future work → TAL-51 (completato con documentazione)
+- [x] Identificati 15 comuni fattibili (4 TP + 11 PA >5k) per continuazione
+- [x] Creata card TAL-51 con metodologia reverse-engineering + prioritizzazione
+- [x] Documentati comuni Trapani Priority 1 (4 comuni, 23k ab, effort ~5 giorni)
+- [x] Documentati comuni Palermo Priority 1-3 (11 comuni >5k, 116k ab, effort 7-14 giorni)
+- [x] Aggiunto commento in run_scrapers.py con riferimento a TAL-51
 
 ## 📋 Spec
 
