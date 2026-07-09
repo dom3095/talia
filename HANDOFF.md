@@ -1,12 +1,21 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-09 (fine TAL-49, pronto per PAL/CT)
+> Aggiornato: 2026-07-10 (TAL-50 Palermo/Trapani, in corso)
 
 ---
 
-## Branch attivo
+## Branch attivo (priorità)
 
-`feat/E3-censimento-comuni-sicilia` — **PR #8 aperta, pronta per la review finale**.
+`feat/E3-province-palermo-trapani` — **Estensione E3: censimento Palermo/Trapani (TAL-50)**.
+Sessione del 2026-07-10: partita da E3, completato censimento web sistematico (77 comuni 
+mancanti PA/TP → 100% con albo online), aggiunta TIER 0 al registry (8 comuni: 2 jCityGov, 
+6 portalepa, 1 URBI), validazione HTTP 200 su 3 comuni campione. Tutto committato e pushato. 
+Working tree pulito (escludendo `data/samples/1/` locale e `scripts/sweep_palermo_trapani.py` 
+temporaneo).
+
+## Branch secondario (upstream)
+
+`feat/E3-censimento-comuni-sicilia` — **PR #8 aperta, pronta per il merge (TAL-49)**.
 Sessione del 2026-07-07 (TAL-49): partita come sessione autonoma (censimento + rollout
 jCityGov), proseguita interattiva nel pomeriggio/sera con Dom (fix, nuove piattaforme,
 sweep di dominio). Proseguita il 2026-07-08 con il completamento dei 12 comuni più
@@ -65,6 +74,44 @@ siciliana** (era 55% a inizio PR).
 5. **`notebooks/copertura_scraper_sicilia.ipynb` + `data/comuni_sicilia_confini.geojson`**:
    creati su richiesta (mappa colorata di copertura), ancora non committati — decidere se
    includerli in questa PR o in una successiva.
+
+## Sessione 2026-07-10 — TAL-50: Censimento Palermo + Trapani (E3 estensione)
+
+### Cosa contiene il branch `feat/E3-province-palermo-trapani`
+
+**Fase 1 (censimento) — Completato:**
+- Ricerca web sistematica: 77 comuni mancanti PA/TP
+- Risultato: **100% con albo online raggiungibile** (nessun gap)
+- Distribuzione per piattaforma:
+  - **TIER 0 (subito):** 12 comuni su piattaforme già supportate
+    - jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k)
+    - portalepa: Partinico (31k), Cefalù (14k), Castellammare (14.6k), Corleone (11k), Capaci (11k), Partanna (10.8k)
+    - URBI: Caccamo (8.3k)
+    - + 3 comuni già nel registry E3 (Gibellina, Vicari, Lercara Friddi, Campobello di Mazara)
+  - **TIER 1 (facile):** 18 comuni su Halley/EGov/APKAPPA varianti
+  - **TIER 2 (reverse-eng):** 14 comuni custom/local
+  - **TIER 3 (fallback):** 1 comune (Gazzetta Amministrativa)
+- CSV: `data/censimento_albi_pa_tp.csv` (77 righe ordinato per popolazione)
+- Card TAL-50 con dettagli implementazione futura
+
+**Fase 2 (registry update) — In Progress:**
+- [x] Aggiunta 8 comuni TIER 0 a `scripts/run_scrapers.py` (2 jCityGov + 6 portalepa + 1 URBI)
+- [x] Validazione: HTTP 200 su 3 comuni campione (Termini Imerese, Partinico, Caccamo) ✅
+- [ ] Run test su DB isolato (opzionale, aggiunge confidence)
+- [ ] Merge su E3 → PR unificata per review
+
+**Fase 3 (TIER 1) — Condizionato:**
+- Analizzare Halley/EGov/APKAPPA per verificare compatibilità con scraper esistenti
+- Potenziale aggiunta 18 comuni se pattern uguali (no new scraper)
+
+**Copertura risultante:**
+- Pre-merge E3: 192 comuni
+- Post-merge E3 + TAL-50 Fase 1: 200 comuni (~60% popolazione siciliana)
+- Post-Fase 3 (if TIER 1): 218 comuni (~68% popolazione)
+
+### Modifiche non committate
+
+Nessuna (working tree pulito).
 
 ## DB attuale
 
