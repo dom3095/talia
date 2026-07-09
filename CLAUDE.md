@@ -179,11 +179,28 @@ Seguire questo ordine. Non saltare fasi, non fonderle.
    - Wiki: se introduce un concetto nuovo
    - Tabella scraper in `CLAUDE.md` se tocca uno scraper
    - `BOARD.md`
+   - `HANDOFF.md`
 
-### A fine sessione
+### A fine sessione / attività — non negoziabile
 
-Aggiornare **`HANDOFF.md`** con branch, DB snapshot e prossimi passi.
-Se si chiude un'epica, aggiornare o creare `docs/handoff/epica_E*.md`.
+**`HANDOFF.md` e `BOARD.md` vanno aggiornati dopo OGNI sessione o attività**, non solo
+a fine giornata o a fine epica — anche dopo un singolo commit o un singolo batch di
+lavoro, se cambia lo stato del branch/card rispetto a quanto scritto. Non aspettare
+che l'utente lo chieda esplicitamente né rimandare "alla fine della sessione": se
+non si sa quando la sessione finirà (conversazioni lunghe, lavoro a gruppi/batch),
+aggiornare comunque a ogni checkpoint significativo (es. ogni commit pushato).
+
+Checklist minima ad ogni checkpoint:
+- [ ] `HANDOFF.md`: branch attivo, cosa contiene la PR, stato DB, prossimi passi — la
+      data in cima (`> Aggiornato: ...`) deve corrispondere all'ultimo commit reale.
+- [ ] `BOARD.md`: la card è nella colonna giusta (Progress/Review/Done) con una nota
+      aggiornata, non quella di 3 commit fa.
+- [ ] Wiki (`docs/wiki/`): solo se è cambiato un concetto/architettura che la wiki descrive.
+- [ ] Se si chiude un'epica: aggiornare o creare `docs/handoff/epica_E*.md`.
+
+Prima di rispondere "fatto"/"pronto per il merge" a fine lavoro, verificare che
+`HANDOFF.md` e `BOARD.md` non siano rimasti indietro rispetto ai commit reali
+(`git log --oneline main..HEAD` vs contenuto dei due file).
 
 ### Convenzione `## 🔬 Tentativi`
 
