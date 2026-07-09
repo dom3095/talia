@@ -100,14 +100,16 @@ siciliana** (era 55% a inizio PR).
 - [ ] Run test su DB isolato (opzionale, aggiunge confidence)
 - [ ] Merge su E3 → PR unificata per review
 
-**Fase 3 (TIER 1) — Condizionato:**
-- Analizzare Halley/EGov/APKAPPA per verificare compatibilità con scraper esistenti
-- Potenziale aggiunta 18 comuni se pattern uguali (no new scraper)
+**Fase 3 (TIER 1 + TIER 2 reverse-eng) — Completato:**
+- [x] Analizzato TIER 1 (Halley/EGov/APKAPPA): pattern non completamente generalizzabile → rimandato a TAL-51
+- [x] Reverse-engineering TIER 2 (5 comuni custom più grandi): TUTTI richiedono API JS/Playwright → NON fattibili HTTP puro, ROI basso
+- [x] Mappa copertura TALIA aggiornata: notebook `copertura_scraper_sicilia.ipynb` + GeoJSON + PNG/HTML interactive
 
-**Copertura risultante:**
-- Pre-merge E3: 192 comuni
-- Post-merge E3 + TAL-50 Fase 1: 200 comuni (~60% popolazione siciliana)
-- Post-Fase 3 (if TIER 1): 218 comuni (~68% popolazione)
+**Copertura finale TAL-50:**
+- Pre-merge E3: 192 comuni (~73% popolazione)
+- **Post-merge E3 + TAL-50 completo: 200 comuni (~81% popolazione) ← PRONTO ORA**
+- Potenziale TIER 1 (se implementato): 218 comuni (~85%) — rimandato a TAL-51
+- TIER 2 custom: NON prioritario (36.8k abitanti, alto effort)
 
 ### Modifiche non committate
 

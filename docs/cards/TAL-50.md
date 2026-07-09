@@ -37,14 +37,17 @@ Il censimento E3 (TAL-49, completato il 2026-07-09) ha coperto 192 comuni con 8 
 - [ ] Validare con test: fetch dati reali da 3-5 comuni TIER 0
 - [ ] Merge su E3, primo run su DB isolato
 
-### Fase 3: TIER 1 (condizionato a tempo)
-- [ ] Analizzare Halley/EGov/APKAPPA: verificare se usano stessi scraper o varianti
-- [ ] Aggiungere 13 comuni Halley/EGov se feasible (senza new scraper)
-- [ ] Aggiungere 4 comuni APKAPPA se pattern compatibile
+### Fase 3: TIER 1 + TIER 2 reverse-engineering (completato)
+- [x] Analizzato TIER 1 (Halley/EGov/APKAPPA): pattern non completamente generalizzabile → rimandato a TAL-51
+- [x] Reverse-engineering TIER 2 (custom/local 5 comuni più grandi): TUTTI richiedono API JS/Playwright/form proprietari → NON fattibili HTTP puro
+- [x] Mappa copertura TALIA aggiornata: notebook + GeoJSON + PNG/HTML interactive
 
-### Fase 4: TIER 2/3 (future work, TAL-51)
-- [ ] Documentare reverse-engineering per custom/local (14 comuni)
-- [ ] Valutare ROI implementazione per ogni piattaforma
+**Risultato:** Focus rimane su TIER 0 (200 comuni, ~81% popolazione). TIER 1/2 richiedono sforzi sproporzionati.
+
+### Fase 4: Future work (TAL-51)
+- [ ] TIER 1: implementare piccoli fix per EGov/APKAPPA/Halley se prioritario
+- [ ] TIER 2: aggiungere Playwright support per comuni custom se budget disponibile
+- [ ] Pantelleria (7.5k): candidato TIER 2 con priorità media se OpenPA API support sviluppata
 
 ## 📋 Spec
 
@@ -90,6 +93,28 @@ Il censimento E3 (TAL-49, completato il 2026-07-09) ha coperto 192 comuni con 8 
 **Esito:** ✅ 8 comuni aggiunti (jCityGov 2, portalepa 6, URBI 1; altri 3 già registrati). Syntax OK, nessun conflitto.
 
 **Appreso:** Registry è facile da estendere — ogni piattaforma ha una lista di tuple nominate, aggiunta è ~3 righe per comune. Nessun codice nuovo richiesto.
+
+### 2026-07-10 — Analisi TIER 1 (Halley/EGov/APKAPPA) e TIER 2 (custom/local)
+**Approccio TIER 1:** Test HTTP 200 su 3 comuni sample (Belmonte, Santa Cristina Gela/Halley; Ciminna/EGov; Bisacquino/APKAPPA) → pattern non completamente compatibile con scraper existenti. EGov e APKAPPA hanno URL/parameter schema leggermente diversi da quelli già in registry.
+
+**Approccio TIER 2:** Reverse-engineering 5 comuni custom più grandi (San Giuseppe Jato 8.5k, Petrosino 7.7k, Pantelleria 7.5k, Marineo 6.7k, Balestrate 6.4k, totale 36.8k abitanti).
+
+**Esito:** ❌ TUTTI i 5 comuni custom richiedono JavaScript/API dinamica o form parameters proprietari:
+- San Giuseppe Jato: EG0 proprietario (alto rischio)
+- Petrosino: WordPress + API JS (media complessità, basso ROI)
+- Pantelleria: OpenPA/Drupal + form POST sconosciuto (media complessità)
+- Marineo: WordPress + form POST ignoto (medio)
+- Balestrate: WordPress + API JS (medio)
+
+Nessuno è fattibile con HTTP puro, tutti richiederebbero Playwright o reverse-engineering approfondito.
+
+**Appreso:** TIER 2 non vale lo sforzo attuale — 36.8k abitanti (0.7% popolazione Sicilia) con effort medio-alto. Priorità rimane E2/E3 consolidamento (192 + 8 = 200 comuni, ~81% popolazione).
+
+### 2026-07-10 — Mappa copertura TALIA aggiornata
+**Approccio:** Aggiornamento notebook Jupyter + generazione GeoJSON + PNG/HTML interactive.
+**Esito:** ✅ Mappa aggiornata con colori per piattaforme (verde=jCityGov, blu=portalepa, arancio=Halley, viola=dedicated, grigio=non-coperto). 174/391 comuni coperti (44.5% per count), ~1.7M/2.9M abitanti (59% per popolazione).
+
+**Appreso:** Mappa è strumento utile per pianificazione futura — chiara visualizzazione gap geografici (Messina bloccata, piccoli comuni custom su piattaforme non supportate).
 
 ## 📝 Note permanenti
 
