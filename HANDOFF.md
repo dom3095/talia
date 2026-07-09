@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-09
+> Aggiornato: 2026-07-09 (fine TAL-49, pronto per PAL/CT)
 
 ---
 
@@ -201,16 +201,26 @@ Aggiornati `CLAUDE.md` e `docs/cards/_TEMPLATE.md` con:
 
 Rivedere la PR, decidere su migrazione ISTAT e default run (vedi sopra), mergiare.
 
-### 1 — Primo run completo post-merge
+### 1 — Approfondimento Palermo e Catania
 
-Dopo migrazione ISTAT: `python scripts/run_scrapers.py` popola i 60 comuni jCityGov
-+ Palermo + Catania. Palermo/Catania/Trapani espongono solo atti in pubblicazione
-(~15-30 gg) → questo rafforza l'urgenza dello scraping continuo (pre-cron checklist).
+**Palermo** (`palermo.py`) e **Catania** (`catania.py`) sono già implementati e HTTP puro
+(non richiedono Playwright come per Agrigento). Entrambi espongono solo atti in pubblicazione
+(~15-30 gg), quindi il primo run su `talia.db` post-merge avrà dati recenti ma no storico.
 
-### 2 — Comuni non jCityGov da censire
+Verificare da `talia.db` dopo merge:
+- Palermo: `SELECT COUNT(*) FROM atti WHERE ente_codice_istat = '082053'`
+- Catania: `SELECT COUNT(*) FROM atti WHERE ente_codice_istat = '087003'`
 
-Top 30 in `docs/wiki/14-censimento-albi.md` (Gela 75k, Vittoria 61k, Caltagirone,
-Sciacca, …): individuare piattaforma e riusare/estendere scraper per famiglia.
+Se i numeri sono bassi (< 100 atti), consider fare un backfill manuale via
+`--no-stop --max-pagine 500` su un DB separato per capire quanto storico è
+recuperabile.
+
+### 2 — Comuni restanti della provincia di Agrigento (7, molto piccoli)
+
+Caltabellotta, Bivona, Cianciana, Castrofilippo, Burgio, Sant'Angelo Muxaro, Calamonaci:
+ciascuno su una piattaforma diversa (APKAPPA, Alph@soft, ComuneWeb, custom, Municipium).
+Vedi documentazione dettagliata in `docs/wiki/14-censimento-albi.md` e `docs/cards/TAL-49.md`
+(Tentativo 17) per chi vuole riprenderli in futuro.
 
 
 ### 0 — ~~Fix Trapani~~ ✅ FATTO (2026-07-03, branch `fix/BUG-4-trapani-filtro-data`)
