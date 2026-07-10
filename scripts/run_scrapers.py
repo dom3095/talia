@@ -23,6 +23,7 @@ Il DB viene creato se non esiste. Ogni run è idempotente (UNIQUE su ente×url_f
 from __future__ import annotations
 
 import argparse
+import functools
 import sys
 import time
 import traceback
@@ -547,6 +548,14 @@ def _make_hspromila_runner(entry: EntryRegistro):
 # TAL-51 PENDING (comuni Trapani/Palermo, reverse-engineering in progress, non
 # ancora nel registro perché richiedono scraper dedicati): vedi docs/cards/TAL-51.md.
 
+
+def _make_anac_runner(entry: EntryRegistro):
+    # ANAC non ha base_url/codice_istat nello stesso senso degli altri
+    # moduli (scarica un CSV SmartCIG regionale, non un albo pretorio): il
+    # runner è fisso e non dipende dai campi dell'entry.
+    return _run_anac
+
+
 _FACTORY_PER_MODULO = {
     "jcitygov": _make_jcitygov_runner,
     "portalepa": _make_portalepa_runner,
@@ -559,6 +568,7 @@ _FACTORY_PER_MODULO = {
     "siracusa": _make_siracusa_runner,
     "ribera": _make_ribera_runner,
     "agrigento": _make_agrigento_runner,
+    "anac": _make_anac_runner,
 }
 
 
@@ -567,13 +577,13 @@ def costruisci_scrapers(
 ) -> tuple[dict[str, callable], list[str]]:
     """Costruisce il dict degli scraper eseguibili e la lista di default dal registro.
 
-    ANAC non ha un base_url nello stesso senso degli altri (scarica un CSV
-    SmartCIG, non un albo pretorio): resta un runner fisso sempre presente.
+    Ogni modulo (incluso ANAC) è dispatchato uniformemente via
+    ``_FACTORY_PER_MODULO``: nessun caso speciale hardcoded qui — l'unica
+    conoscenza di quali moduli non richiedono un ente vive in
+    ``registry.MODULI_SENZA_ENTE``, usata dalla validazione del registro.
     """
-    scrapers: dict[str, callable] = {"anac": _run_anac}
+    scrapers: dict[str, callable] = {}
     for entry in filtra_eseguibili(registro):
-        if entry.modulo == "anac":
-            continue
         if entry.modulo not in _FACTORY_PER_MODULO:
             raise RuntimeError(
                 f"Modulo sconosciuto nel registro: {entry.modulo!r} (slug {entry.slug!r})"
@@ -582,8 +592,19 @@ def costruisci_scrapers(
     return scrapers, entries_default(registro)
 
 
-_REGISTRO = carica_registro()
-_SCRAPERS, _SCRAPERS_DEFAULT = costruisci_scrapers(_REGISTRO)
+@functools.lru_cache(maxsize=1)
+def _registro_e_scrapers() -> tuple[list[EntryRegistro], dict[str, callable], list[str]]:
+    """Carica il registro e costruisce gli scraper alla prima chiamata.
+
+    Lazy (non a import time): un CSV malformato fallisce solo quando lo si
+    usa davvero — dentro `_parse_args()`/`main()`, il punto di ingresso reale
+    — non ad ogni import di questo modulo (es. da parte dei test, che prima
+    di questo fix pagavano il costo/rischio di un parse+validate CSV
+    completo solo per riusare una funzione non correlata).
+    """
+    registro = carica_registro()
+    scrapers, scrapers_default = costruisci_scrapers(registro)
+    return registro, scrapers, scrapers_default
 
 
 # ---------------------------------------------------------------------------
@@ -592,6 +613,7 @@ _SCRAPERS, _SCRAPERS_DEFAULT = costruisci_scrapers(_REGISTRO)
 
 
 def _parse_args() -> argparse.Namespace:
+    _, scrapers, scrapers_default = _registro_e_scrapers()
     p = argparse.ArgumentParser(
         description="Lancia gli scraper TALIA e calcola i red flags.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -620,10 +642,10 @@ Esempi:
     p.add_argument(
         "--scrapers",
         nargs="+",
-        choices=list(_SCRAPERS),
-        default=_SCRAPERS_DEFAULT,
+        choices=list(scrapers),
+        default=scrapers_default,
         metavar="SCRAPER",
-        help=f"Scrapers da eseguire (default: {' '.join(_SCRAPERS_DEFAULT)})",
+        help=f"Scrapers da eseguire (default: {' '.join(scrapers_default)})",
     )
     p.add_argument(
         "--max-pagine",
@@ -686,6 +708,7 @@ Esempi:
 
 def main() -> int:
     args = _parse_args()
+    registro, scrapers, _ = _registro_e_scrapers()
 
     import os
 
@@ -694,14 +717,14 @@ def main() -> int:
 
     conn = connetti(db_path)
     inizializza_db(conn)
-    n_sync = sincronizza_enti_da_registro(conn, _REGISTRO)
+    n_sync = sincronizza_enti_da_registro(conn, registro)
     print(f"Registro sincronizzato: {n_sync} enti")
 
     risultati: dict[str, dict | str] = {}
     errori = 0
 
     for nome in args.scrapers:
-        fn = _SCRAPERS[nome]
+        fn = scrapers[nome]
         print(f"\n── {nome.upper()} ──")
         run_id = inizia_run(conn, nome)
         try:

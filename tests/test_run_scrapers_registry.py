@@ -65,14 +65,23 @@ def _entry(**overrides) -> EntryRegistro:
 # ---------------------------------------------------------------------------
 
 
-def test_anac_sempre_presente(rs):
-    scrapers, _ = rs.costruisci_scrapers([])
+def test_anac_da_riga_registro_produce_scraper(rs):
+    """ANAC non ha più un seed hardcoded (fix code review 2026-07-11): è
+    dispatchato uniformemente come ogni altro modulo via _FACTORY_PER_MODULO,
+    e compare in _SCRAPERS solo se il registro ha davvero una riga anac."""
+    entries = [_entry(slug="anac", modulo="anac", stato="escluso_default")]
+    scrapers, default = rs.costruisci_scrapers(entries)
     assert "anac" in scrapers
+    assert scrapers["anac"] is rs._run_anac
+    assert "anac" not in default  # escluso_default: eseguibile ma non di default
 
 
-def test_registro_vuoto_solo_anac(rs):
+def test_registro_vuoto_nessuno_scraper(rs):
+    """Un registro vuoto non produce scrapers — nemmeno anac, che ora dipende
+    interamente dal registro come tutti gli altri moduli (nessun caso
+    speciale hardcoded)."""
     scrapers, default = rs.costruisci_scrapers([])
-    assert list(scrapers) == ["anac"]
+    assert scrapers == {}
     assert default == []
 
 
@@ -86,6 +95,7 @@ def test_ogni_modulo_produce_uno_scraper_eseguibile_e_di_default(rs):
         )
         for m in _MODULI
     ]
+    entries.append(_entry(slug="anac", modulo="anac", stato="escluso_default"))
     scrapers, default = rs.costruisci_scrapers(entries)
     for m in _MODULI:
         assert f"comune_{m}" in scrapers, f"modulo {m} non produce uno scraper"
@@ -119,9 +129,9 @@ def test_modulo_sconosciuto_solleva_runtime_error(rs):
         rs.costruisci_scrapers(entries)
 
 
-def test_riga_anac_nel_registro_non_duplica(rs):
-    """La riga modulo=anac nel registro non deve generare un secondo entry:
-    'anac' è già garantito dal runner fisso _run_anac."""
+def test_riga_anac_senza_base_url_ne_codice_istat_funziona(rs):
+    """anac non richiede base_url/codice_istat (modulo senza ente, vedi
+    registry.MODULI_SENZA_ENTE): il runner fisso _run_anac ignora l'entry."""
     entries = [_entry(slug="anac", modulo="anac", base_url=None, codice_istat="")]
     scrapers, _ = rs.costruisci_scrapers(entries)
     assert scrapers["anac"] is rs._run_anac

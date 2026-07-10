@@ -243,6 +243,25 @@ def upsert_ente(conn: sqlite3.Connection, ente: EnteMetadato) -> int:
     return row["id"]
 
 
+def azzera_info_scraper(conn: sqlite3.Connection, codice_istat: str) -> None:
+    """Azzera esplicitamente modulo/url_base/stato_scraper per un ente.
+
+    ``upsert_ente()`` protegge questi 3 campi con ``COALESCE`` apposta perché
+    non vengano azzerati per errore da un upsert "vecchio stile" — ma questo
+    significa che nessun percorso di codice può più farlo per errore, nemmeno
+    quando serve davvero (es. un comune rimosso dal registro, o uno scraper
+    disattivato in modo permanente). Questa funzione è l'unica via esplicita
+    per farlo. Non è chiamata automaticamente da ``sincronizza_enti_da_registro``
+    (non fa riconciliazione: non rileva da sola i comuni tolti dal CSV).
+    """
+    conn.execute(
+        "UPDATE enti SET modulo = NULL, url_base = NULL, stato_scraper = NULL "
+        "WHERE codice_istat = ?",
+        (codice_istat,),
+    )
+    conn.commit()
+
+
 def inserisci_atto(conn: sqlite3.Connection, atto: AttoMetadato) -> int | None:
     """Inserisce un atto nuovo; ritorna l'``id`` se inserito, ``None`` se già presente.
 

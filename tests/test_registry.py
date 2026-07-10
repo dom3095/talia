@@ -6,10 +6,12 @@ from pathlib import Path
 import pytest
 
 from talia.modulo2_scraping.registry import (
+    MODULI_SENZA_ENTE,
     EntryRegistro,
     carica_registro,
     entries_default,
     filtra_eseguibili,
+    sincronizza_enti_da_registro,
     valida_registro,
 )
 
@@ -22,43 +24,95 @@ def registro_fixture_csv(tmp_path: Path) -> Path:
         writer = csv.DictWriter(
             f,
             fieldnames=[
-                "slug", "denominazione", "codice_istat", "provincia", "modulo",
-                "piattaforma_tecnica", "base_url", "qs_base", "ente_mittente", "skip_ssl", "stato", "note"
-            ]
+                "slug",
+                "denominazione",
+                "codice_istat",
+                "provincia",
+                "modulo",
+                "piattaforma_tecnica",
+                "base_url",
+                "qs_base",
+                "ente_mittente",
+                "skip_ssl",
+                "stato",
+                "note",
+            ],
         )
         writer.writeheader()
-        writer.writerows([
-            {
-                "slug": "test_jcitygov", "denominazione": "Comune Test jCityGov",
-                "codice_istat": "123456", "provincia": "PA", "modulo": "jcitygov",
-                "piattaforma_tecnica": "jCityGov", "base_url": "https://test.trasparenza.it",
-                "qs_base": "", "ente_mittente": "", "skip_ssl": "", "stato": "attivo", "note": ""
-            },
-            {
-                "slug": "test_urbi", "denominazione": "Comune Test URBI",
-                "codice_istat": "234567", "provincia": "CT", "modulo": "urbi",
-                "piattaforma_tecnica": "URBI Cloud", "base_url": "https://cloud.urbi.it",
-                "qs_base": "DB_NAME=test", "ente_mittente": "COMUNE TEST", "skip_ssl": "", "stato": "attivo", "note": ""
-            },
-            {
-                "slug": "test_halley", "denominazione": "Comune Test Halley",
-                "codice_istat": "345678", "provincia": "AG", "modulo": "halley",
-                "piattaforma_tecnica": "Halley EG", "base_url": "https://test.halley.it",
-                "qs_base": "", "ente_mittente": "", "skip_ssl": "true", "stato": "attivo", "note": "test skip_ssl"
-            },
-            {
-                "slug": "test_escluso", "denominazione": "Comune Escluso",
-                "codice_istat": "456789", "provincia": "ME", "modulo": "agrigento",
-                "piattaforma_tecnica": "ASP.NET", "base_url": "https://test.ag.it",
-                "qs_base": "", "ente_mittente": "", "skip_ssl": "", "stato": "escluso_default", "note": ""
-            },
-            {
-                "slug": "test_bloccato", "denominazione": "Comune Bloccato",
-                "codice_istat": "567890", "provincia": "TP", "modulo": "palermo",
-                "piattaforma_tecnica": "SISPI", "base_url": "https://test.pa.it",
-                "qs_base": "", "ente_mittente": "", "skip_ssl": "", "stato": "bloccato", "note": "cert scaduto"
-            },
-        ])
+        writer.writerows(
+            [
+                {
+                    "slug": "test_jcitygov",
+                    "denominazione": "Comune Test jCityGov",
+                    "codice_istat": "123456",
+                    "provincia": "PA",
+                    "modulo": "jcitygov",
+                    "piattaforma_tecnica": "jCityGov",
+                    "base_url": "https://test.trasparenza.it",
+                    "qs_base": "",
+                    "ente_mittente": "",
+                    "skip_ssl": "",
+                    "stato": "attivo",
+                    "note": "",
+                },
+                {
+                    "slug": "test_urbi",
+                    "denominazione": "Comune Test URBI",
+                    "codice_istat": "234567",
+                    "provincia": "CT",
+                    "modulo": "urbi",
+                    "piattaforma_tecnica": "URBI Cloud",
+                    "base_url": "https://cloud.urbi.it",
+                    "qs_base": "DB_NAME=test",
+                    "ente_mittente": "COMUNE TEST",
+                    "skip_ssl": "",
+                    "stato": "attivo",
+                    "note": "",
+                },
+                {
+                    "slug": "test_halley",
+                    "denominazione": "Comune Test Halley",
+                    "codice_istat": "345678",
+                    "provincia": "AG",
+                    "modulo": "halley",
+                    "piattaforma_tecnica": "Halley EG",
+                    "base_url": "https://test.halley.it",
+                    "qs_base": "",
+                    "ente_mittente": "",
+                    "skip_ssl": "true",
+                    "stato": "attivo",
+                    "note": "test skip_ssl",
+                },
+                {
+                    "slug": "test_escluso",
+                    "denominazione": "Comune Escluso",
+                    "codice_istat": "456789",
+                    "provincia": "ME",
+                    "modulo": "agrigento",
+                    "piattaforma_tecnica": "ASP.NET",
+                    "base_url": "https://test.ag.it",
+                    "qs_base": "",
+                    "ente_mittente": "",
+                    "skip_ssl": "",
+                    "stato": "escluso_default",
+                    "note": "",
+                },
+                {
+                    "slug": "test_bloccato",
+                    "denominazione": "Comune Bloccato",
+                    "codice_istat": "567890",
+                    "provincia": "TP",
+                    "modulo": "palermo",
+                    "piattaforma_tecnica": "SISPI",
+                    "base_url": "https://test.pa.it",
+                    "qs_base": "",
+                    "ente_mittente": "",
+                    "skip_ssl": "",
+                    "stato": "bloccato",
+                    "note": "cert scaduto",
+                },
+            ]
+        )
     return csv_path
 
 
@@ -68,8 +122,12 @@ class TestEntryRegistro:
     def test_creazione_base(self):
         """Crea una entry minimale."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="jcitygov", piattaforma_tecnica="jCityGov", base_url="https://test.it"
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="jcitygov",
+            piattaforma_tecnica="jCityGov",
+            base_url="https://test.it",
         )
         assert e.slug == "test"
         assert e.skip_ssl is False
@@ -77,18 +135,26 @@ class TestEntryRegistro:
     def test_skip_ssl_coercizione_string_true(self):
         """Converti skip_ssl="true" in bool."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="halley", piattaforma_tecnica="Halley", base_url="https://test.it",
-            skip_ssl="true"
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="halley",
+            piattaforma_tecnica="Halley",
+            base_url="https://test.it",
+            skip_ssl="true",
         )
         assert e.skip_ssl is True
 
     def test_skip_ssl_coercizione_string_false(self):
         """skip_ssl="" rimane falso."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="halley", piattaforma_tecnica="Halley", base_url="https://test.it",
-            skip_ssl=""
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="halley",
+            piattaforma_tecnica="Halley",
+            base_url="https://test.it",
+            skip_ssl="",
         )
         assert e.skip_ssl is False
 
@@ -114,18 +180,54 @@ class TestCaricaRegistro:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(
                 f,
-                fieldnames=["slug", "denominazione", "codice_istat", "provincia", "modulo",
-                            "piattaforma_tecnica", "base_url", "qs_base", "ente_mittente", "skip_ssl", "stato", "note"]
+                fieldnames=[
+                    "slug",
+                    "denominazione",
+                    "codice_istat",
+                    "provincia",
+                    "modulo",
+                    "piattaforma_tecnica",
+                    "base_url",
+                    "qs_base",
+                    "ente_mittente",
+                    "skip_ssl",
+                    "stato",
+                    "note",
+                ],
             )
             writer.writeheader()
-            writer.writerows([
-                {"slug": "duplicate", "denominazione": "Test1", "codice_istat": "111111",
-                 "provincia": "PA", "modulo": "jcitygov", "piattaforma_tecnica": "jCityGov",
-                 "base_url": "https://test1.it", "qs_base": "", "ente_mittente": "", "skip_ssl": "", "stato": "attivo", "note": ""},
-                {"slug": "duplicate", "denominazione": "Test2", "codice_istat": "222222",
-                 "provincia": "CT", "modulo": "jcitygov", "piattaforma_tecnica": "jCityGov",
-                 "base_url": "https://test2.it", "qs_base": "", "ente_mittente": "", "skip_ssl": "", "stato": "attivo", "note": ""},
-            ])
+            writer.writerows(
+                [
+                    {
+                        "slug": "duplicate",
+                        "denominazione": "Test1",
+                        "codice_istat": "111111",
+                        "provincia": "PA",
+                        "modulo": "jcitygov",
+                        "piattaforma_tecnica": "jCityGov",
+                        "base_url": "https://test1.it",
+                        "qs_base": "",
+                        "ente_mittente": "",
+                        "skip_ssl": "",
+                        "stato": "attivo",
+                        "note": "",
+                    },
+                    {
+                        "slug": "duplicate",
+                        "denominazione": "Test2",
+                        "codice_istat": "222222",
+                        "provincia": "CT",
+                        "modulo": "jcitygov",
+                        "piattaforma_tecnica": "jCityGov",
+                        "base_url": "https://test2.it",
+                        "qs_base": "",
+                        "ente_mittente": "",
+                        "skip_ssl": "",
+                        "stato": "attivo",
+                        "note": "",
+                    },
+                ]
+            )
         with pytest.raises(ValueError, match="slug duplicato"):
             carica_registro(csv_path)
 
@@ -137,12 +239,69 @@ class TestCaricaRegistro:
         from talia.modulo2_scraping.registry import _row_to_entry
 
         row = {
-            "slug": "test", "denominazione": "Test", "codice_istat": "123456",
-            "modulo": "jcitygov", "piattaforma_tecnica": "jCityGov",
-            "base_url": "https://test.it", "stato": "",
+            "slug": "test",
+            "denominazione": "Test",
+            "codice_istat": "123456",
+            "modulo": "jcitygov",
+            "piattaforma_tecnica": "jCityGov",
+            "base_url": "https://test.it",
+            "stato": "",
         }
         entry = _row_to_entry(row)
         assert entry.stato == "attivo"
+
+
+class TestModuliSenzaEnte:
+    """Test della centralizzazione del caso speciale ANAC (code review 2026-07-11):
+    prima "anac" era ripetuto come stringa letterale in 6 punti sparsi tra
+    registry.py e run_scrapers.py, ora è un'unica costante nominata."""
+
+    def test_anac_in_moduli_senza_ente(self):
+        assert "anac" in MODULI_SENZA_ENTE
+
+    def test_codice_istat_non_richiesto_per_modulo_senza_ente(self):
+        e = EntryRegistro(
+            slug="anac",
+            denominazione="ANAC",
+            codice_istat="",
+            modulo="anac",
+            piattaforma_tecnica="CSV",
+            base_url=None,
+            stato="escluso_default",
+        )
+        problemi = valida_registro([e])
+        assert not any("codice_istat mancante" in p for p in problemi)
+
+    def test_base_url_non_richiesto_per_modulo_senza_ente(self):
+        e = EntryRegistro(
+            slug="anac",
+            denominazione="ANAC",
+            codice_istat="",
+            modulo="anac",
+            piattaforma_tecnica="CSV",
+            base_url=None,
+            stato="attivo",
+        )
+        problemi = valida_registro([e])
+        assert not any("base_url mancante" in p for p in problemi)
+
+    def test_sincronizza_enti_salta_moduli_senza_ente(self):
+        from talia.modulo2_scraping.db import connetti, inizializza_db
+
+        conn = connetti(":memory:")
+        inizializza_db(conn)
+        e = EntryRegistro(
+            slug="anac",
+            denominazione="ANAC",
+            codice_istat="",
+            modulo="anac",
+            piattaforma_tecnica="CSV",
+            base_url=None,
+            stato="escluso_default",
+        )
+        n = sincronizza_enti_da_registro(conn, [e])
+        assert n == 0
+        assert conn.execute("SELECT COUNT(*) AS c FROM enti").fetchone()["c"] == 0
 
 
 class TestValidaRegistro:
@@ -157,8 +316,12 @@ class TestValidaRegistro:
     def test_modulo_sconosciuto(self):
         """Modulo ignoto → errore."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="unknown_module", piattaforma_tecnica="X", base_url="https://test.it"
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="unknown_module",
+            piattaforma_tecnica="X",
+            base_url="https://test.it",
         )
         problemi = valida_registro([e])
         assert any("modulo sconosciuto" in p for p in problemi)
@@ -166,8 +329,12 @@ class TestValidaRegistro:
     def test_codice_istat_malformato(self):
         """Codice ISTAT non 6 cifre → errore."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="12345",  # solo 5
-            modulo="jcitygov", piattaforma_tecnica="jCityGov", base_url="https://test.it"
+            slug="test",
+            denominazione="Test",
+            codice_istat="12345",  # solo 5
+            modulo="jcitygov",
+            piattaforma_tecnica="jCityGov",
+            base_url="https://test.it",
         )
         problemi = valida_registro([e])
         assert any("codice_istat non 6 cifre" in p for p in problemi)
@@ -175,9 +342,13 @@ class TestValidaRegistro:
     def test_base_url_mancante_su_attivo(self):
         """base_url mancante su stato=attivo → errore."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="jcitygov", piattaforma_tecnica="jCityGov", base_url=None,
-            stato="attivo"
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="jcitygov",
+            piattaforma_tecnica="jCityGov",
+            base_url=None,
+            stato="attivo",
         )
         problemi = valida_registro([e])
         assert any("base_url mancante" in p for p in problemi)
@@ -185,9 +356,13 @@ class TestValidaRegistro:
     def test_qs_base_fuori_posto(self):
         """qs_base su modulo non-urbi/catania → warning."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="jcitygov", piattaforma_tecnica="jCityGov", base_url="https://test.it",
-            qs_base="DB_NAME=test"  # Su jCityGov è spurio
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="jcitygov",
+            piattaforma_tecnica="jCityGov",
+            base_url="https://test.it",
+            qs_base="DB_NAME=test",  # Su jCityGov è spurio
         )
         problemi = valida_registro([e])
         assert any("qs_base valorizzato" in p for p in problemi)
@@ -195,9 +370,13 @@ class TestValidaRegistro:
     def test_skip_ssl_fuori_posto(self):
         """skip_ssl=true su modulo non-halley → warning."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="jcitygov", piattaforma_tecnica="jCityGov", base_url="https://test.it",
-            skip_ssl=True  # Su jCityGov è spurio
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="jcitygov",
+            piattaforma_tecnica="jCityGov",
+            base_url="https://test.it",
+            skip_ssl=True,  # Su jCityGov è spurio
         )
         problemi = valida_registro([e])
         assert any("skip_ssl=true" in p for p in problemi)
@@ -209,9 +388,15 @@ class TestValidaRegistro:
         con qs_base vuoto passa la validazione e produce un URL con "?None" a runtime.
         """
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="catania", piattaforma_tecnica="URBI/Maggioli", base_url="https://test.it",
-            qs_base=None, ente_mittente="COMUNE DI TEST", stato="attivo",
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="catania",
+            piattaforma_tecnica="URBI/Maggioli",
+            base_url="https://test.it",
+            qs_base=None,
+            ente_mittente="COMUNE DI TEST",
+            stato="attivo",
         )
         problemi = valida_registro([e])
         assert any("qs_base mancante" in p for p in problemi)
@@ -219,9 +404,15 @@ class TestValidaRegistro:
     def test_ente_mittente_mancante_su_urbi_attivo(self):
         """ente_mittente mancante su modulo=urbi con stato=attivo → errore."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="urbi", piattaforma_tecnica="URBI Cloud", base_url="https://test.it",
-            qs_base="DB_NAME=test", ente_mittente=None, stato="attivo",
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="urbi",
+            piattaforma_tecnica="URBI Cloud",
+            base_url="https://test.it",
+            qs_base="DB_NAME=test",
+            ente_mittente=None,
+            stato="attivo",
         )
         problemi = valida_registro([e])
         assert any("ente_mittente mancante" in p for p in problemi)
@@ -230,9 +421,15 @@ class TestValidaRegistro:
         """qs_base mancante su modulo=catania con stato=pending non è un errore
         (pending non richiede nemmeno base_url, coerentemente)."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="catania", piattaforma_tecnica="URBI/Maggioli", base_url=None,
-            qs_base=None, ente_mittente=None, stato="pending",
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="catania",
+            piattaforma_tecnica="URBI/Maggioli",
+            base_url=None,
+            qs_base=None,
+            ente_mittente=None,
+            stato="pending",
         )
         problemi = valida_registro([e])
         assert not any("qs_base mancante" in p for p in problemi)
@@ -241,8 +438,12 @@ class TestValidaRegistro:
         """modulo='pending' è riconosciuto (pseudo-modulo per comuni censiti
         ma non ancora implementati)."""
         e = EntryRegistro(
-            slug="test", denominazione="Test", codice_istat="123456",
-            modulo="pending", piattaforma_tecnica="ComuneWeb", base_url=None,
+            slug="test",
+            denominazione="Test",
+            codice_istat="123456",
+            modulo="pending",
+            piattaforma_tecnica="ComuneWeb",
+            base_url=None,
             stato="pending",
         )
         problemi = valida_registro([e])

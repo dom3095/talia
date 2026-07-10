@@ -31,6 +31,15 @@ class EntryRegistro:
             object.__setattr__(self, "skip_ssl", self.skip_ssl.lower() in ("true", "1", "yes"))
 
 
+# Moduli che non rappresentano un ente/comune scrapabile (nessun base_url/
+# codice_istat nello stesso senso degli altri): oggi solo ANAC (CSV SmartCIG
+# regionale, non un albo pretorio). Unico punto di verità per questa
+# eccezione — centralizzato qui dopo che la code review del 2026-07-11 ha
+# trovato "anac" ripetuto come stringa letterale in 6 punti sparsi tra
+# registry.py e run_scrapers.py.
+MODULI_SENZA_ENTE = frozenset({"anac"})
+
+
 def _percorso_default() -> Path:
     """Risolve il path assoluto di data/registro_scraper.csv dalla repo root."""
     return Path(__file__).resolve().parents[3] / "data" / "registro_scraper.csv"
@@ -130,17 +139,18 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
         if entry.modulo not in moduli_validi:
             problemi.append(f"modulo sconosciuto per slug {entry.slug!r}: {entry.modulo!r}")
 
-        # Codice ISTAT malformato (salvo ANAC che non ha ente)
+        # Codice ISTAT malformato (salvo moduli senza ente, es. ANAC)
         if entry.codice_istat and len(entry.codice_istat) != 6:
             problemi.append(f"codice_istat non 6 cifre per {entry.slug!r}: {entry.codice_istat!r}")
-        elif not entry.codice_istat and entry.modulo != "anac":
+        elif not entry.codice_istat and entry.modulo not in MODULI_SENZA_ENTE:
             problemi.append(f"codice_istat mancante per {entry.slug!r} (modulo={entry.modulo!r})")
 
-        # base_url mancante su stato attivo/escluso_default/bloccato (salvo ANAC)
+        # base_url mancante su stato attivo/escluso_default/bloccato (salvo
+        # moduli senza ente, es. ANAC)
         if (
             entry.stato in ("attivo", "escluso_default", "bloccato")
             and not entry.base_url
-            and entry.modulo != "anac"
+            and entry.modulo not in MODULI_SENZA_ENTE
         ):
             problemi.append(f"base_url mancante per slug {entry.slug!r} con stato={entry.stato!r}")
 
@@ -200,14 +210,15 @@ def sincronizza_enti_da_registro(conn, entries: list[EntryRegistro]) -> int:
     Indipendente da quali scraper vengono eseguiti nel run corrente: tiene
     `enti` sempre allineata al registro (inclusi bloccato/pending), così è
     interrogabile senza rileggere il CSV (es. ``SELECT * FROM enti WHERE
-    stato_scraper='bloccato'``). ANAC e righe senza codice_istat sono escluse
-    (non hanno un ente associato). Ritorna il numero di enti sincronizzati.
+    stato_scraper='bloccato'``). I moduli senza ente (``MODULI_SENZA_ENTE``,
+    es. ANAC) e le righe senza codice_istat sono escluse. Ritorna il numero
+    di enti sincronizzati.
     """
     from talia.modulo2_scraping.db import EnteMetadato, upsert_ente
 
     n = 0
     for entry in entries:
-        if entry.modulo == "anac" or not entry.codice_istat:
+        if entry.modulo in MODULI_SENZA_ENTE or not entry.codice_istat:
             continue
         upsert_ente(
             conn,

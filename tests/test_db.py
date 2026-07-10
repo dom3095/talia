@@ -11,6 +11,7 @@ from talia.modulo2_scraping.db import (
     EnteMetadato,
     _estendi_enti,
     atti_per_ente,
+    azzera_info_scraper,
     connetti,
     conta_atti,
     inizializza_db,
@@ -215,6 +216,47 @@ def test_upsert_ente_vecchio_stile_non_azzera_popolazione_e_sito_web(db):
     ).fetchone()
     assert row["popolazione"] == 311584
     assert row["sito_web"] == "https://www.comune.catania.it"
+
+
+def test_azzera_info_scraper(db):
+    """La COALESCE in upsert_ente impedisce di azzerare modulo/url_base/
+    stato_scraper tramite un upsert normale (limitazione di design trovata
+    in code review) — azzera_info_scraper è la via esplicita per farlo."""
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Vittoria",
+            codice_istat="088012",
+            modulo="halley",
+            url_base="https://trasparenza.comune.vittoria.rg.it",
+            stato_scraper="attivo",
+        ),
+    )
+    azzera_info_scraper(db, "088012")
+    row = db.execute(
+        "SELECT modulo, url_base, stato_scraper FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["modulo"] is None
+    assert row["url_base"] is None
+    assert row["stato_scraper"] is None
+
+
+def test_azzera_info_scraper_non_tocca_altri_campi(db):
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Vittoria",
+            codice_istat="088012",
+            provincia="RG",
+            modulo="halley",
+        ),
+    )
+    azzera_info_scraper(db, "088012")
+    row = db.execute(
+        "SELECT denominazione, provincia FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["denominazione"] == "Comune di Vittoria"
+    assert row["provincia"] == "RG"
 
 
 # ---------------------------------------------------------------------------

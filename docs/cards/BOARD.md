@@ -57,7 +57,7 @@ registro scraper in Review (branch `feat/config-scraper-registro`).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`, 5 PR completate + code review multi-angolo eseguita (8 findings, 4 bug corretti: trapani.py url_fonte, upsert_ente COALESCE, stato default, validazione qs_base/ente_mittente) + 39 comuni censiti recuperati (persi in PR3, 1 attivato — Altavilla Milicia — 38 pending). 467 test verdi. **In attesa di review finale di Dom prima del push/PR** |
+| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`, 5 PR completate + code review multi-angolo (8/8 findings sistemati: 4 bug bloccanti + 3 design/robustezza — import lazy del registro, ANAC centralizzato in `MODULI_SENZA_ENTE`, `azzera_info_scraper` escape hatch) + 39 comuni censiti recuperati (1 attivato — Altavilla Milicia — 38 pending). 473 test verdi. **In attesa di review finale di Dom prima del push/PR** |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |

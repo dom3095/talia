@@ -67,11 +67,26 @@ sotto). Bug corretti in un commit successivo alle 5 PR:
    `modulo="pending"` come pseudo-modulo valido (serviva per il recupero dei 39 comuni,
    vedi sotto). 4 nuovi test.
 
-Non corretti (bassa severità/plausibili, non bloccanti): import-time loading del registro
-in `run_scrapers.py` (nuova classe di errore ma comportamento consapevole), ANAC
-special-casato in 6 punti (smell di manutenibilità, non un bug), `COALESCE` che impedisce
-di azzerare `modulo`/`url_base`/`stato_scraper` a NULL (limitazione di design accettabile
-per ora). Vedi il report completo della review per dettagli.
+**Sistemati anche i 3 findings non bloccanti** (su richiesta esplicita di Dom):
+
+5. **`run_scrapers.py`**: `_REGISTRO`/`_SCRAPERS` non si costruiscono più a import
+   time — nuova funzione `_registro_e_scrapers()` (`functools.lru_cache`) chiamata
+   lazy da `_parse_args()`/`main()`. Un CSV malformato fallisce solo all'uso reale
+   della CLI, non ad ogni import del modulo (es. dai test). Import verificato
+   ~istantaneo (niente parsing), prima chiamata reale ~3ms.
+6. **ANAC centralizzato**: era special-casato come stringa letterale in 6 punti
+   sparsi tra `registry.py` e `run_scrapers.py`. Ora un'unica costante nominata
+   `registry.MODULI_SENZA_ENTE = frozenset({"anac"})`; in `run_scrapers.py` ANAC
+   è dispatchato uniformemente via `_FACTORY_PER_MODULO` come ogni altro modulo
+   (rimossi sia il seed hardcoded `{"anac": _run_anac}` sia lo skip esplicito nel
+   loop) — **verificato lossless** (206 scraper prima e dopo).
+7. **`db.py`**: aggiunta `azzera_info_scraper(conn, codice_istat)` — via esplicita
+   per azzerare `modulo`/`url_base`/`stato_scraper` (impossibile tramite
+   `upsert_ente` dopo il fix COALESCE del punto 2). Non chiamata automaticamente
+   (nessuna riconciliazione automatica dei comuni tolti dal registro — scelta
+   deliberata, fuori scope).
+
+6 nuovi test per questi 3 fix (473 test totali verdi, erano 467).
 
 ### Recupero 39 comuni censiti
 
