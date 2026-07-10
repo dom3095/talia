@@ -71,21 +71,32 @@ talia/
 
 ## Modulo 2 — Stato scraper per capoluogo
 
-Aggiornato: 2026-07-03.
+Aggiornato: 2026-07-07.
 
 | Comune | Scraper | Piattaforma | Stato | Note |
 |--------|---------|------------|-------|------|
 | Agrigento | `agrigento.py` | ASP.NET + DevExpress (Playwright) | ✅ OK | escluso dal default run; ~3 min/run completo per attese Playwright |
 | Caltanissetta | `jcitygov.py` | jCityGov/Liferay | ✅ OK | nel default run |
-| Catania | — | URBI/Maggioli (**non** HCL Domino) | ❌ mancante | HTTP puro fattibile con enumerazione ID; `DB_NAME=wt00041571`; URL: `servizionline.comune.catania.it` |
+| Catania | `catania.py` | URBI/Maggioli (**non** HCL Domino) | ✅ OK | HTTP puro: wizard stepper riprodotto via POST (StwEvent 910001/9100030); metadati completi nella lista; scarta atti di altri enti mittenti; espone solo atti in pubblicazione → scraping continuo; server a volte instabile |
 | Enna | `jcitygov.py` | jCityGov/Liferay | ✅ OK | bassa frequenza (~3 atti/mese) — la presunta staleness era errata |
 | Messina | — | jCityGov/Liferay | ⛔ bloccato | FortiGate 403 + cert scaduto 2023-06-27; `skip_ssl=True` non basta; accesso probabilmente solo da intranet comunale |
-| Palermo | — | SISPI JSP | ❌ mancante | Playwright obbligatorio (JS stateful); URL reale: `albopretorio.comune.palermo.it`; stessa logica di `agrigento.py` |
+| Palermo | `palermo.py` | SISPI JSP | ✅ OK | HTTP puro (la nota "Playwright obbligatorio" era errata): sessione + scoperta categorie dal menu + POST paginazione; espone solo atti in pubblicazione → scraping continuo |
 | Ragusa | `jcitygov.py` | jCityGov/Liferay | ✅ OK | nel default run |
-| Siracusa | `siracusa.py` | portalepa PHP | ✅ OK | nel default run; mancano test unitari |
+| Siracusa | `siracusa.py` | portalepa PHP | ✅ OK | nel default run |
 | Trapani | `trapani.py` | e-pal.it | ✅ OK | BUG-4 risolto 2026-07-03: era il filtro data server-side, non la regex (`al` ora = oggi+60gg). L'albo espone solo atti in pubblicazione (~15-30 gg): serve scraping continuo |
 
-Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo).
+Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **66 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con atti reali (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`). 6 di questi (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto) richiedono un percorso alternativo (`papca-ap/igrid/<id>`, risorsa "Albo pretorio" o "Storico atti") invece dello standard `papca-g`: `jcitygov.py` lo scopre e usa automaticamente quando il percorso standard ritorna 0 risultati.
+
+Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
+- **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
+- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **93 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana, Joppolo Giancaxio)
+- **`urbi.py`** (stessa piattaforma di `catania.py`, parametrizzata su base_url/DB_NAME/ente_mittente): **8 comuni** (provincia di Agrigento)
+- **`hspromila.py`** (Halley variante ASP.NET, diversa da `halley.py`): **5 comuni**
+- **`ribera.py`** (WordPress, scraper dedicato): 1 comune
+
+**Copertura totale (2026-07-09): 192 comuni attivi ≈ 3.644.530 abitanti (72,9% della popolazione siciliana)**, da `docs/wiki/14-censimento-albi.md`.
+
+⚠️ **Codici ISTAT**: il 2026-07-07 sono stati corretti 4 codici errati (Caltanissetta era Butera, Siracusa era Solarino, Enna e Palma off-by-one). `talia.db` esistente ha gli enti con i codici vecchi: serve migrazione prima del prossimo run (SQL nella card TAL-49).
 
 ### Fragilità comuni
 
@@ -168,11 +179,28 @@ Seguire questo ordine. Non saltare fasi, non fonderle.
    - Wiki: se introduce un concetto nuovo
    - Tabella scraper in `CLAUDE.md` se tocca uno scraper
    - `BOARD.md`
+   - `HANDOFF.md`
 
-### A fine sessione
+### A fine sessione / attività — non negoziabile
 
-Aggiornare **`HANDOFF.md`** con branch, DB snapshot e prossimi passi.
-Se si chiude un'epica, aggiornare o creare `docs/handoff/epica_E*.md`.
+**`HANDOFF.md` e `BOARD.md` vanno aggiornati dopo OGNI sessione o attività**, non solo
+a fine giornata o a fine epica — anche dopo un singolo commit o un singolo batch di
+lavoro, se cambia lo stato del branch/card rispetto a quanto scritto. Non aspettare
+che l'utente lo chieda esplicitamente né rimandare "alla fine della sessione": se
+non si sa quando la sessione finirà (conversazioni lunghe, lavoro a gruppi/batch),
+aggiornare comunque a ogni checkpoint significativo (es. ogni commit pushato).
+
+Checklist minima ad ogni checkpoint:
+- [ ] `HANDOFF.md`: branch attivo, cosa contiene la PR, stato DB, prossimi passi — la
+      data in cima (`> Aggiornato: ...`) deve corrispondere all'ultimo commit reale.
+- [ ] `BOARD.md`: la card è nella colonna giusta (Progress/Review/Done) con una nota
+      aggiornata, non quella di 3 commit fa.
+- [ ] Wiki (`docs/wiki/`): solo se è cambiato un concetto/architettura che la wiki descrive.
+- [ ] Se si chiude un'epica: aggiornare o creare `docs/handoff/epica_E*.md`.
+
+Prima di rispondere "fatto"/"pronto per il merge" a fine lavoro, verificare che
+`HANDOFF.md` e `BOARD.md` non siano rimasti indietro rispetto ai commit reali
+(`git log --oneline main..HEAD` vs contenuto dei due file).
 
 ### Convenzione `## 🔬 Tentativi`
 
