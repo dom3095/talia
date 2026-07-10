@@ -94,11 +94,13 @@ siciliana** (era 55% a inizio PR).
 - CSV: `data/censimento_albi_pa_tp.csv` (77 righe ordinato per popolazione)
 - Card TAL-50 con dettagli implementazione futura
 
-**Fase 2 (registry update) — In Progress:**
-- [x] Aggiunta 8 comuni TIER 0 a `scripts/run_scrapers.py` (2 jCityGov + 6 portalepa + 1 URBI)
+**Fase 2 (registry update) — Completato:**
+- [x] Aggiunta 9 comuni TIER 0 a `scripts/run_scrapers.py` (2 jCityGov + 6 portalepa + 1 URBI)
+  - jCityGov: Termini Imerese, Campofelice Roccella
+  - portalepa: Partinico, Cefalù, Castellammare del Golfo, Corleone, Capaci, Partanna
+  - URBI: Caccamo
 - [x] Validazione: HTTP 200 su 3 comuni campione (Termini Imerese, Partinico, Caccamo) ✅
-- [ ] Run test su DB isolato (opzionale, aggiunge confidence)
-- [ ] Merge su E3 → PR unificata per review
+- [x] Deduplicazione: rimosso Castelvetrano jCityGov (già in E3), rinominato Capaci portalepa a `capaci_pa` per evitare collisione con E3
 
 **Fase 3 (TIER 1 + TIER 2 reverse-eng) — Completato:**
 - [x] Analizzato TIER 1 (Halley/EGov/APKAPPA): pattern non completamente generalizzabile → rimandato a TAL-51

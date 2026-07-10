@@ -285,12 +285,11 @@ _JCITYGOV_COMUNI = [
     # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani ---
     ("terminiimerese", _BASE.format("termini-imerese"), "082070", "Comune di Termini Imerese"),
     (
-        "campofeligerocchella",
+        "campofelicediroccella",
         _BASE.format("roccella"),
         "082017",
         "Comune di Campofelice di Roccella",
     ),
-    ("castelvetrano", _BASE.format("castelvetrano"), "081006", "Comune di Castelvetrano"),
 ]
 
 
@@ -407,9 +406,14 @@ _PORTALEPA_COMUNI = [
         "082034",
         "Comune di Corleone",
     ),
-    ("capaci", "https://servizi.comune.capaci.pa.it", "082020", "Comune di Capaci"),
     (
-        "partanna_tp",
+        "capaci_pa",
+        "https://servizi.comune.capaci.pa.it",
+        "082020",
+        "Comune di Capaci",
+    ),
+    (
+        "partanna",
         "https://www.comune.partanna.tp.it/amministrazione/uffici/ufficio_10.html",
         "081015",
         "Comune di Partanna",
