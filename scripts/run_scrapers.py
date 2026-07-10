@@ -47,6 +47,7 @@ from talia.modulo2_scraping.registry import (  # noqa: E402
     carica_registro,
     entries_default,
     filtra_eseguibili,
+    sincronizza_enti_da_registro,
 )
 
 # Quanti duplicati consecutivi senza un inserimento prima di fermare la paginazione.
@@ -581,7 +582,8 @@ def costruisci_scrapers(
     return scrapers, entries_default(registro)
 
 
-_SCRAPERS, _SCRAPERS_DEFAULT = costruisci_scrapers(carica_registro())
+_REGISTRO = carica_registro()
+_SCRAPERS, _SCRAPERS_DEFAULT = costruisci_scrapers(_REGISTRO)
 
 
 # ---------------------------------------------------------------------------
@@ -692,6 +694,8 @@ def main() -> int:
 
     conn = connetti(db_path)
     inizializza_db(conn)
+    n_sync = sincronizza_enti_da_registro(conn, _REGISTRO)
+    print(f"Registro sincronizzato: {n_sync} enti")
 
     risultati: dict[str, dict | str] = {}
     errori = 0

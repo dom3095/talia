@@ -28,7 +28,7 @@ class EntryRegistro:
         """Valida i campi al momento della costruzione."""
         # Converti skip_ssl se arriva come stringa
         if isinstance(self.skip_ssl, str):
-            object.__setattr__(self, 'skip_ssl', self.skip_ssl.lower() in ('true', '1', 'yes'))
+            object.__setattr__(self, "skip_ssl", self.skip_ssl.lower() in ("true", "1", "yes"))
 
 
 def _percorso_default() -> Path:
@@ -98,8 +98,18 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
     problemi = []
     slug_visti = set()
     moduli_validi = {
-        "jcitygov", "portalepa", "halley", "urbi", "hspromila",
-        "palermo", "catania", "trapani", "siracusa", "ribera", "agrigento", "anac"
+        "jcitygov",
+        "portalepa",
+        "halley",
+        "urbi",
+        "hspromila",
+        "palermo",
+        "catania",
+        "trapani",
+        "siracusa",
+        "ribera",
+        "agrigento",
+        "anac",
     }
 
     for entry in entries:
@@ -124,9 +134,7 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
             and not entry.base_url
             and entry.modulo != "anac"
         ):
-            problemi.append(
-                f"base_url mancante per slug {entry.slug!r} con stato={entry.stato!r}"
-            )
+            problemi.append(f"base_url mancante per slug {entry.slug!r} con stato={entry.stato!r}")
 
         # qs_base/ente_mittente fuori posto
         if entry.qs_base and entry.modulo not in ("urbi", "catania"):
@@ -157,3 +165,33 @@ def filtra_eseguibili(entries: list[EntryRegistro]) -> list[EntryRegistro]:
 def entries_default(entries: list[EntryRegistro]) -> list[str]:
     """Ritorna la lista di slug da eseguire per default (stato == attivo)."""
     return [e.slug for e in entries if e.stato == "attivo"]
+
+
+def sincronizza_enti_da_registro(conn, entries: list[EntryRegistro]) -> int:
+    """Upsert in blocco di tutti gli enti del registro in `enti`.
+
+    Indipendente da quali scraper vengono eseguiti nel run corrente: tiene
+    `enti` sempre allineata al registro (inclusi bloccato/pending), così è
+    interrogabile senza rileggere il CSV (es. ``SELECT * FROM enti WHERE
+    stato_scraper='bloccato'``). ANAC e righe senza codice_istat sono escluse
+    (non hanno un ente associato). Ritorna il numero di enti sincronizzati.
+    """
+    from talia.modulo2_scraping.db import EnteMetadato, upsert_ente
+
+    n = 0
+    for entry in entries:
+        if entry.modulo == "anac" or not entry.codice_istat:
+            continue
+        upsert_ente(
+            conn,
+            EnteMetadato(
+                denominazione=entry.denominazione,
+                codice_istat=entry.codice_istat,
+                provincia=entry.provincia,
+                modulo=entry.modulo,
+                url_base=entry.base_url,
+                stato_scraper=entry.stato,
+            ),
+        )
+        n += 1
+    return n

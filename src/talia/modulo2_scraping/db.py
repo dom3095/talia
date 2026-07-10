@@ -33,6 +33,9 @@ class EnteMetadato:
     provincia: str | None = None
     popolazione: int | None = None
     sito_web: str | None = None
+    modulo: str | None = None  # es. 'jcitygov', 'halley' — vedi registry.EntryRegistro
+    url_base: str | None = None
+    stato_scraper: str | None = None  # 'attivo' | 'escluso_default' | 'bloccato' | 'pending'
 
 
 @dataclass
@@ -40,10 +43,10 @@ class AttoMetadato:
     """Metadati di un atto amministrativo raccolto dallo scraping."""
 
     ente_codice_istat: str
-    tipo: str           # 'determina', 'delibera', 'bando', 'decreto', …
-    url_fonte: str      # URL della pagina sorgente — obbligatorio per l'esplicabilità
+    tipo: str  # 'determina', 'delibera', 'bando', 'decreto', …
+    url_fonte: str  # URL della pagina sorgente — obbligatorio per l'esplicabilità
     fonte_scraper: str  # 'icity', 'anac', 'gurs', …
-    data_accesso: str   # ISO 8601 — quando lo abbiamo scaricato
+    data_accesso: str  # ISO 8601 — quando lo abbiamo scaricato
     numero: str | None = None
     data_atto: str | None = None
     data_pub: str | None = None
@@ -170,6 +173,20 @@ def inizializza_db(conn: sqlite3.Connection) -> None:
     """Crea tabelle e indici se non esistono (idempotente)."""
     conn.executescript(_DDL)
     conn.commit()
+    _estendi_enti(conn)
+
+
+def _estendi_enti(conn: sqlite3.Connection) -> None:
+    """Aggiunge a `enti` le colonne modulo/url_base/stato_scraper se mancanti.
+
+    Migrazione lazy (stesso pattern di catena.py::_evolvi_schema): necessaria per
+    i DB `talia.db` esistenti creati prima che queste colonne esistessero.
+    """
+    colonne = {row[1] for row in conn.execute("PRAGMA table_info(enti)").fetchall()}
+    for col in ("modulo", "url_base", "stato_scraper"):
+        if col not in colonne:
+            conn.execute(f"ALTER TABLE enti ADD COLUMN {col} TEXT")
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -178,18 +195,39 @@ def inizializza_db(conn: sqlite3.Connection) -> None:
 
 
 def upsert_ente(conn: sqlite3.Connection, ente: EnteMetadato) -> int:
-    """Inserisce o aggiorna un ente; ritorna il suo ``id``."""
+    """Inserisce o aggiorna un ente; ritorna il suo ``id``.
+
+    ``modulo``/``url_base``/``stato_scraper`` usano ``COALESCE`` in update: se
+    il chiamante non li passa (default ``None``, es. i runner scraper che
+    upsertano solo denominazione/codice_istat) il valore esistente non viene
+    azzerato — solo ``sincronizza_enti_da_registro()`` li valorizza esplicitamente.
+    """
     conn.execute(
         """
-        INSERT INTO enti (denominazione, codice_istat, provincia, popolazione, sito_web)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO enti (
+            denominazione, codice_istat, provincia, popolazione, sito_web,
+            modulo, url_base, stato_scraper
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (codice_istat) DO UPDATE SET
             denominazione = excluded.denominazione,
             provincia     = excluded.provincia,
             popolazione   = excluded.popolazione,
-            sito_web      = excluded.sito_web
+            sito_web      = excluded.sito_web,
+            modulo        = COALESCE(excluded.modulo, enti.modulo),
+            url_base      = COALESCE(excluded.url_base, enti.url_base),
+            stato_scraper = COALESCE(excluded.stato_scraper, enti.stato_scraper)
         """,
-        (ente.denominazione, ente.codice_istat, ente.provincia, ente.popolazione, ente.sito_web),
+        (
+            ente.denominazione,
+            ente.codice_istat,
+            ente.provincia,
+            ente.popolazione,
+            ente.sito_web,
+            ente.modulo,
+            ente.url_base,
+            ente.stato_scraper,
+        ),
     )
     conn.commit()
     row = conn.execute(
@@ -366,8 +404,16 @@ def termina_run(
            SET completato_a=?, n_trovati=?, n_inseriti=?, n_duplicati=?,
                data_min=?, data_max=?, errore=?
            WHERE id=?""",
-        (datetime.utcnow().isoformat(), n_trovati, n_inseriti, n_duplicati,
-         data_min, data_max, errore, run_id),
+        (
+            datetime.utcnow().isoformat(),
+            n_trovati,
+            n_inseriti,
+            n_duplicati,
+            data_min,
+            data_max,
+            errore,
+            run_id,
+        ),
     )
     conn.commit()
 
