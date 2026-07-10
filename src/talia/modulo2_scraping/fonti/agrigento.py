@@ -130,7 +130,10 @@ def _ha_pagina_successiva(page) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(max_pagine: int = 20) -> Iterator[AttoMetadato]:
+def scarica_atti(
+    max_pagine: int = 20,
+    base_url: str = _BASE_URL,
+) -> Iterator[AttoMetadato]:
     """Scarica atti con Playwright (richiede: pip install playwright + playwright install chromium).
 
     Per i test usa _parse_html() con HTML fixture.
@@ -143,10 +146,11 @@ def scarica_atti(max_pagine: int = 20) -> Iterator[AttoMetadato]:
             "Esegui: pip install playwright && playwright install chromium"
         ) from exc
 
+    albo_url = f"{base_url}/ServiziOnLine/AlboPretorio/AlboPretorio"
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto(_ALBO_URL, wait_until="networkidle", timeout=30000)
+        page.goto(albo_url, wait_until="networkidle", timeout=30000)
         page.wait_for_timeout(4000)
 
         for _ in range(max_pagine):
@@ -183,10 +187,15 @@ def salva_atti(
     return {"inseriti": inseriti, "duplicati": duplicati}
 
 
-def prepara_ente(conn: sqlite3.Connection) -> None:
+def prepara_ente(
+    conn: sqlite3.Connection,
+    base_url: str = _BASE_URL,
+    codice_istat: str = CODICE_ISTAT,
+    denominazione: str = "Comune di Agrigento",
+) -> None:
     """Upsert del Comune di Agrigento nel DB (prerequisito per inserisci_atto)."""
     upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Agrigento",
-        codice_istat=CODICE_ISTAT,
+        denominazione=denominazione,
+        codice_istat=codice_istat,
         provincia="AG",
     ))

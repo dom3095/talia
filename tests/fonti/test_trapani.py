@@ -281,3 +281,35 @@ def test_scarica_atti_warning_su_zero_atti(monkeypatch, caplog):
         atti = list(scarica_atti())
     assert atti == []
     assert any("0 atti" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Test parametrizzazione base_url
+# ---------------------------------------------------------------------------
+
+
+def test_scarica_atti_base_url_parametro_usato(monkeypatch):
+    """Verifica che il parametro base_url sia effettivamente usato nelle richieste."""
+    base_url_custom = "http://test.example.com"
+    richieste_fatte = []
+
+    class _FintaRisposta(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def _finta_urlopen(req, **kwargs):
+        richieste_fatte.append(req.full_url)
+        return _FintaRisposta(_HTML_VUOTO.encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", _finta_urlopen)
+    list(scarica_atti(base_url=base_url_custom))
+
+    # Verifica che almeno una richiesta sia stata fatta col base_url custom
+    assert len(richieste_fatte) > 0
+    assert any(base_url_custom in url for url in richieste_fatte), (
+        f"Nessuna richiesta contiene {base_url_custom}. "
+        f"Richieste fatte: {richieste_fatte}"
+    )
