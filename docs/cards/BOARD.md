@@ -40,12 +40,12 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca (bando simile rilanciato) | E2 | 🔤 NLP + ⚖️ LEX | P1 |
 | [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | E1 | 🔤 NLP | P2 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | 🔤 NLP | branch `feat/TAL-48-riapertura-dopo-revoca`; MVP implementato (12 test); prossimo: integrazione pdf_download |
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
 
 ### 🔧 In Progress (2)

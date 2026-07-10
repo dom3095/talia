@@ -46,8 +46,8 @@ class ConcentrazioneRilevata:
     codice_istat: str
     anno: int
     n_totale: int
-    n_diretti: int       # tipo != 'bando'
-    n_bandi: int         # tipo == 'bando'
+    n_diretti: int  # tipo != 'bando'
+    n_bandi: int  # tipo == 'bando'
     quota_diretti: float  # n_diretti / n_totale
     atti_campione: list[dict] = field(default_factory=list)  # fino a 5 atti diretti
 

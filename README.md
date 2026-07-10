@@ -4,6 +4,8 @@
 
 > *Taliàri* (sic.): guardare, osservare. **Talia!** = «Guarda!»
 
+> 🔍 **Tracking Anomalies in Local Institutional Acts**
+
 Strumento civico open source che rileva **red flags** (anomalie da verificare,
 **mai** accuse) negli atti delle Pubbliche Amministrazioni siciliane: gare,
 concorsi, delibere, revoche, annullamenti.

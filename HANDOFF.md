@@ -324,6 +324,30 @@ Alternativa: Playwright headless.
 FortiGate HTTP 403 + certificato scaduto 2023-06-27. `skip_ssl=True` non aggira il 403.
 Richiede intervento IT del Comune. Vedi BUG-5 in `docs/bugs.md`.
 
+## Sessione 2026-07-10 — TAL-48: red flag riapertura dopo revoca/annullamento (MVP)
+
+**Fatto:**
+- Nuovo modulo `src/talia/modulo2_scraping/red_flags/riapertura_revoca.py`:
+  - `rileva_riapertura_dopo_revoca(conn, soglia_similarita=0.5)`: query procedimenti
+    revocati/annullati, ricerca atti stesso ente con oggetto simile
+  - Tokenizzazione normalizzata: stopword dominio, regex `\b\w+\b`, ≥3 char
+  - Similarità Jaccard su token
+  - Guardia anti-periodicità: ≥3 atti simili nel tempo → skip (routine admin)
+- Integrazione runner: `_salva_riapertura_dopo_revoca()`, nuovo campo RapportoRunner
+- Test: 12 nuovi (tokenizzazione, Jaccard, 4 casi reali: Palma 656, Ragusa 1079, Enna 924 periodico, edge case)
+- **320 test verdi totali** (312 base + 8 suite nuove)
+- 2 commit: feat TAL-48 MVP + doc update (BOARD, card)
+- Spec: due domande aperte rimangono aperte per dom (conferma soglia, scopo PDF confronto)
+
+**Branch:** `feat/TAL-48-riapertura-dopo-revoca` — non ancora pushato (locale)
+
+**Prossimi passi:**
+1. Push branch e apertura PR (opzionale, dipende da necessità dom)
+2. Integrazione con pdf_download: scaricare PDF di entrambi i bandi (rivocato + riapertura)
+3. Confronto testuale bando originale vs rilanciato (richiede estrazione testo dai PDF, card futura)
+4. Test su fascicolo Palma reale con DB completo (dopo merge PR #8)
+5. Calibrazione soglia Jaccard dopo run completo (domanda aperta 1)
+
 ---
 
 ## Note permanenti

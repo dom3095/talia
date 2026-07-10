@@ -3,8 +3,8 @@
 - **Epica:** E2 — Fase 2 pipeline: PDF on-demand → analisi → red flags
 - **Ruolo:** 🔤 NLP + ⚖️ LEX
 - **Priorità:** P1
-- **Stato:** To Do
-- **Branch:** `feat/TAL-48-riapertura-dopo-revoca` (da creare dopo il merge di TAL-47)
+- **Stato:** In Progress
+- **Branch:** `feat/TAL-48-riapertura-dopo-revoca`
 
 ## 🎯 Obiettivo
 
@@ -66,3 +66,19 @@ falsi positivi (Enna 924, atti trimestrali periodici).
 **Appreso:** il segnale esiste ed è rilevabile senza PDF; serve guardia anti-periodicità;
 la catena Enna 924 è essa stessa mal ricostruita (fuzzy) — le guardie di TAL-46/47
 (metodo + copertura) vanno riusate qui.
+
+### 2026-07-10 — Tentativo 1 (implementazione MVP)
+**Approccio:** modulo `riapertura_revoca.py` con:
+- `rileva_riapertura_dopo_revoca(conn, soglia_similarita=0.5)`: query procedimenti
+  revocati/annullati, ricerca atti dello stesso ente con oggetto simile
+- Tokenizzazione con stopword del dominio (regex `\b\w+\b`, escludendo < 3 char)
+- Similarità Jaccard su token normalizzati
+- Guardia anti-periodicità: ≥ 3 atti simili nel tempo → skip
+- Integrazione runner: `_salva_riapertura_dopo_revoca()`, nuovo campo RapportoRunner
+- 12 test (tokenizzazione, Jaccard, 4 casi reali + edge case)
+**Esito:** ✅ 320 test verdi (312 base + 8 suite).
+**Appreso:** guardia anti-periodicità funziona (test Enna esclude correttamente);
+Jaccard 0.5 è una buona soglia empirica (non calibrata su full DB, ancora da confermare
+con LEX post-run completo). La similarità è deterministicamente calcolabile senza PDF.
+Prossimo step: integrazione con pdf_download per scaricare i PDF di entrambi i bandi
+(richiede test su fascicolo Palma reale, se PR #8 passa).
