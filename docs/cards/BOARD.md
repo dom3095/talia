@@ -4,9 +4,10 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 **Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags
-batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard Streamlit) —
-384 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review), validazione fascicoli reali (TAL-12),
-censimento Palermo/Trapani (TAL-50 in Progress).
+batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
+Modulo 3 (Dashboard Streamlit) — 458 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review),
+validazione fascicoli reali (TAL-12), censimento Palermo/Trapani (TAL-50 in Progress), refactor
+registro scraper in Review (branch `feat/config-scraper-registro`).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -52,11 +53,11 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | branch `feat/E3-province-palermo-trapani`, Fase 1 completato (77 comuni censiti), Fase 2 completato (8 comuni TIER 0 aggiunti al registry) |
-| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`; PR1 (registro CSV + loader) e PR2 (parametrizzazione 6 moduli monocomune) completate; PR3 (`run_scrapers.py` legge dal registro per tutti gli 11 moduli, lossless verificato) completata; prossimo: PR4 (schema DB `enti` esteso) |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`, 5 commit (PR1-PR5) tutti completati: registro CSV + loader, parametrizzazione 6 moduli monocomune, `run_scrapers.py` unificato (lossless verificato), schema DB `enti` esteso + sync, health-check + workflow CI. 458 test verdi. **In attesa di review complessiva prima del push/PR** |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |

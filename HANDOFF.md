@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-10 (Refactor: Registro unificato scraper — PR3 completata)
+> Aggiornato: 2026-07-10 (Refactor: Registro unificato scraper — tutte le 5 PR completate, in attesa di review)
 
 ---
 
@@ -8,29 +8,48 @@
 
 `feat/config-scraper-registro` — **Refactor: Registro unificato scraper + health-check**,
 parte da `main` con PR #8/#9/#10 già mergiate (censimento E3, TAL-48, TAL-50 Palermo/Trapani).
+Piano: `.claude/plans/smooth-wibbling-teapot.md`.
 
-Sessione 2026-07-10:
-- **PR1 completata**: `data/registro_scraper.csv` (206 righe consolidate) + `registry.py` loader + validazione fail-fast + 15 test (100% verde).
-- **PR2 completata**: Parametrizzazione dei 6 moduli monocomune (palermo, catania, trapani, siracusa, ribera, agrigento) — `base_url` (+ `qs_base`/`ente_mittente` per catania) propagati a `scarica_atti()`, `prepara_ente()`, e tutti gli helper interni. 7 test di parametrizzazione. 418 test totali verde.
-- **PR3 completata**: `scripts/run_scrapers.py` legge ora dal registro per tutti gli 11 moduli
-  (5 famiglie parametriche + 6 monocomune). Rimosse le 5 liste hardcoded (`_JCITYGOV_COMUNI`,
-  `_PORTALEPA_COMUNI`, `_HALLEY_COMUNI`, `_URBI_COMUNI`, `_HSPROMILA_COMUNI`) e `_HALLEY_SKIP_SSL`
-  (ora `entry.skip_ssl` dal CSV). Nuova `costruisci_scrapers(registro)` uniforme via
-  `_FACTORY_PER_MODULO`. **Verificato lossless**: `sorted(_SCRAPERS)`/`_SCRAPERS_DEFAULT`
-  prima/dopo il refactor sono insiemi identici (205 scraper, 203 di default). Rimossi
-  `data/censimento_albi_pa_tp[_COMPLETO].csv` (assorbiti dal registro), wiki 14 aggiornata
-  per puntare al registro. 418 test verdi, ruff pulito.
-- **Prossimo**: PR4 (estensione schema DB `enti` + `sincronizza_enti_da_registro`).
+**Tutte e 5 le PR del piano sono completate e committate su questo branch, in attesa di
+review complessiva da Dom prima del merge** (nessun push, main resta protetto):
 
-Working tree: modifiche non ancora committate per PR3 (vedi sotto). Nessun dato nominativo
-committato.
+1. `6027328` — **PR1**: `data/registro_scraper.csv` (206 righe consolidate) + `registry.py`
+   loader + validazione fail-fast + 15 test.
+2. `94d0bb6` — **PR2**: parametrizzazione dei 6 moduli monocomune (palermo, catania, trapani,
+   siracusa, ribera, agrigento) — `base_url` (+ `qs_base`/`ente_mittente` per catania)
+   propagati a `scarica_atti()`/`prepara_ente()` e helper interni. Default = comportamento
+   invariato. 7 test di parametrizzazione.
+3. `72da866` — **PR3**: `scripts/run_scrapers.py` legge dal registro per tutti gli 11 moduli
+   (5 famiglie parametriche + 6 monocomune) via `costruisci_scrapers(registro)` uniforme
+   (`_FACTORY_PER_MODULO`). Rimosse le 5 liste hardcoded + `_HALLEY_SKIP_SSL` (ora
+   `entry.skip_ssl`). **Verificato lossless**: `_SCRAPERS`/`_SCRAPERS_DEFAULT` prima/dopo
+   sono insiemi identici (205 scraper, 203 di default). Rimossi i CSV di censimento
+   ridondanti, wiki 14 aggiornata. 12 nuovi test.
+4. `075a6f6` — **PR4**: schema DB `enti` esteso (`modulo`/`url_base`/`stato_scraper`) via
+   migrazione lazy `_estendi_enti()` (compatibile con `talia.db` locali esistenti).
+   `sincronizza_enti_da_registro()` in `registry.py`, chiamata in `main()`. `upsert_ente`
+   usa `COALESCE` sulle 3 colonne nuove per non azzerarle sui run scraper "vecchio stile".
+   Verificato su DB reale: 205 righe registro → 199 enti distinti (comuni con più endpoint
+   scraper collassano sullo stesso `codice_istat`). 9 nuovi test.
+5. `693bcbe` — **PR5**: `scripts/health_check_registro.py` (stdlib puro, HEAD+fallback GET,
+   `ThreadPoolExecutor`, exit code non-zero solo su righe attivo/escluso_default fallite) +
+   `.github/workflows/health-check.yml` (schedule lunedì 05:00 UTC + `workflow_dispatch`,
+   notifica via issue GitHub persistente label `health-check`). Verificato su rete reale
+   (7 comuni campione OK, Messina bloccata fallisce come atteso senza alzare l'exit code).
+   20 nuovi test.
 
-### Modifiche non committate (PR3, da revisionare e committare)
+**Totale sessione: 458 test verdi (erano 411 a inizio sessione), ruff pulito su tutto il
+codice nuovo/modificato** (gli 8 errori E501 residui in `tests/test_registry.py` sono
+preesistenti da PR1, non introdotti in questa sessione).
 
-- `scripts/run_scrapers.py` — refactor completo (vedi sopra)
-- `data/censimento_albi_pa_tp.csv`, `data/censimento_albi_pa_tp_COMPLETO.csv` — `git rm`
-- `docs/wiki/14-censimento-albi.md` — riferimenti aggiornati al registro
-- `HANDOFF.md` — questo file
+Working tree pulito (tutto committato). Nessun dato nominativo committato.
+
+### Prossimo passo
+
+Review complessiva delle 5 PR da parte di Dom (richiesta esplicitamente: "facciamo review
+alla fine di tutto"). Dopo l'approvazione: push del branch + apertura PR su GitHub, oppure
+squash/riorganizzazione dei commit se Dom preferisce una history diversa — da concordare
+in fase di review, non ancora deciso.
 
 ## DB attuale
 
