@@ -52,11 +52,11 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | branch `feat/E3-province-palermo-trapani`, Fase 1 completato (77 comuni censiti), Fase 2 completato (8 comuni TIER 0 aggiunti al registry) |
+| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`; PR1 (registro CSV + loader) e PR2 (parametrizzazione 6 moduli monocomune) completate; PR3 (`run_scrapers.py` legge dal registro per tutti gli 11 moduli, lossless verificato) completata; prossimo: PR4 (schema DB `enti` esteso) |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-49](TAL-49.md) | Censimento albi + rollout scraper comuni siciliani | 🕷️ SCR | branch `feat/E3-censimento-comuni-sicilia`, **PR #8 pronta per il merge**; 192 comuni (72,9% popolazione), 384 test |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
@@ -85,6 +85,7 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 | [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | integrato in runner; 6 test |
 | [TAL-45](TAL-45.md) | Dashboard M3: tab ⛓️ Procedimenti + timeline | graceful degradation se catene non costruite |
 | [TAL-46](TAL-46.md) | Engine catena v2: contenimento oggetto + guard-rail gemelli | strategia 2.5; caso Palma: mega-catena → 3 catene; migrazione DB applicata |
+| [TAL-49](TAL-49.md) | Censimento albi + rollout scraper comuni siciliani | mergiata (#8); 192 comuni (72,9% popolazione), 384 test |
 
 ## Legenda priorità
 

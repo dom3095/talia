@@ -1,12 +1,17 @@
 # 14 — Censimento albi pretori dei comuni siciliani (TAL-49 + TAL-50)
 
-Aggiornato: 2026-07-10 (TAL-50 Palermo/Trapani aggiunto).
+Aggiornato: 2026-07-10 (registro unificato `data/registro_scraper.csv`, TAL-51).
 Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+
+Configurazione scraper: **`data/registro_scraper.csv`** è l'unica fonte di verità
+(sostituisce le vecchie liste hardcoded in `run_scrapers.py` e i CSV di censimento
+`censimento_albi_pa_tp[_COMPLETO].csv`, rimossi). Vedi `registry.py` per il loader.
+Le sezioni sotto restano come narrativa storica di come ogni comune è stato scoperto.
 
 ## Metodo
 
 1. **Sweep deterministico** del pattern jCityGov `https://<slug>.trasparenza-valutazione-merito.it` su tutti i 391 comuni (GET, fingerprint Liferay nel body).
-2. **Verifica** di ogni hit scaricando 10 atti reali con `fonti/jcitygov.py`: solo chi risponde con atti validi entra in `_JCITYGOV_COMUNI`.
+2. **Verifica** di ogni hit scaricando 10 atti reali con `fonti/jcitygov.py`: solo chi risponde con atti validi entra nel registro (`modulo=jcitygov`).
 3. Capoluoghi non jCityGov: scraper dedicati (vedi tabella in `CLAUDE.md`).
 
 ## Sintesi
@@ -29,7 +34,7 @@ Censimento sistematico completato su 61 comuni mancanti PA/TP (52 PA + 9 TP):
   - jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k)
   - portalepa: Partinico (31k), Cefalù (14k), Castellammare del Golfo (14.6k), Corleone (11k), Capaci (11k), Partanna (10.8k)
   - URBI: Caccamo (8.3k)
-- Documentazione: `data/censimento_albi_pa_tp.csv` (77 comuni, ordinato per popolazione)
+- Documentazione: righe corrispondenti in `data/registro_scraper.csv` (77 comuni, ordinabili per popolazione via `data/comuni_sicilia.csv`)
 - Potenziale aggiunta TIER 1: 18 comuni su Halley/EGov/APKAPPA (se pattern compatibile, no new scraper)
 
 **Copertura post-TAL-50 TIER 0: 200 comuni ≈ 4.050k abitanti (~81% della popolazione)**
@@ -89,7 +94,7 @@ Restano da implementare:
 
 Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 8-10.
 
-## Comuni jCityGov attivi (registro `_JCITYGOV_COMUNI`)
+## Comuni jCityGov attivi (`data/registro_scraper.csv`, modulo=jcitygov)
 
 | Comune | Prov | Popolazione | URL albo |
 |--------|------|------------:|----------|

@@ -42,6 +42,12 @@ from talia.modulo2_scraping.db import (  # noqa: E402
     termina_run,
 )
 from talia.modulo2_scraping.red_flags.runner import esegui_tutti  # noqa: E402
+from talia.modulo2_scraping.registry import (  # noqa: E402
+    EntryRegistro,
+    carica_registro,
+    entries_default,
+    filtra_eseguibili,
+)
 
 # Quanti duplicati consecutivi senza un inserimento prima di fermare la paginazione.
 # 20 = una pagina jCityGov intera — se è tutta già nota, abbiamo raggiunto il confine.
@@ -75,13 +81,15 @@ def _run_anac(conn, anac_file: str | None = None, **_kwargs) -> dict:
     return esito
 
 
-def _run_siracusa(conn, max_pagine: int = 50, **_kwargs) -> dict:
+def _run_siracusa_comune(
+    conn, base_url, codice_istat, denominazione, max_pagine: int = 50, **_kwargs
+) -> dict:
     from talia.modulo2_scraping.fonti.siracusa import prepara_ente, salva_atti, scarica_atti
 
-    prepara_ente(conn)
+    prepara_ente(conn, base_url=base_url, codice_istat=codice_istat, denominazione=denominazione)
     print(f"  [Siracusa] Scarico albo pretorio (max {max_pagine} pagine)…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(max_pagine=max_pagine))
+    atti = list(scarica_atti(max_pagine=max_pagine, base_url=base_url))
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Siracusa] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
@@ -90,13 +98,24 @@ def _run_siracusa(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
-def _run_trapani(conn, max_pagine: int = 50, **_kwargs) -> dict:
+def _make_siracusa_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_siracusa_comune(
+            conn, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
+
+    return _runner
+
+
+def _run_trapani_comune(
+    conn, base_url, codice_istat, denominazione, max_pagine: int = 50, **_kwargs
+) -> dict:
     from talia.modulo2_scraping.fonti.trapani import prepara_ente, salva_atti, scarica_atti
 
-    prepara_ente(conn)
+    prepara_ente(conn, base_url=base_url, codice_istat=codice_istat, denominazione=denominazione)
     print(f"  [Trapani] Scarico albo pretorio (max {max_pagine} pagine)…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(max_pagine=max_pagine))
+    atti = list(scarica_atti(max_pagine=max_pagine, base_url=base_url))
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Trapani] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
@@ -105,13 +124,24 @@ def _run_trapani(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
-def _run_palermo(conn, max_pagine: int = 50, **_kwargs) -> dict:
+def _make_trapani_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_trapani_comune(
+            conn, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
+
+    return _runner
+
+
+def _run_palermo_comune(
+    conn, base_url, codice_istat, denominazione, max_pagine: int = 50, **_kwargs
+) -> dict:
     from talia.modulo2_scraping.fonti.palermo import prepara_ente, salva_atti, scarica_atti
 
-    prepara_ente(conn)
+    prepara_ente(conn, base_url=base_url, codice_istat=codice_istat, denominazione=denominazione)
     print(f"  [Palermo] Scarico albo pretorio SISPI (max {max_pagine} pagine)…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(max_pagine=max_pagine))
+    atti = list(scarica_atti(max_pagine=max_pagine, base_url=base_url))
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Palermo] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
@@ -120,13 +150,42 @@ def _run_palermo(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
-def _run_catania(conn, max_pagine: int = 100, **_kwargs) -> dict:
+def _make_palermo_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_palermo_comune(
+            conn, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
+
+    return _runner
+
+
+def _run_catania_comune(
+    conn,
+    base_url,
+    codice_istat,
+    denominazione,
+    qs_base,
+    ente_mittente,
+    max_pagine: int = 100,
+    **_kwargs,
+) -> dict:
     from talia.modulo2_scraping.fonti.catania import prepara_ente, salva_atti, scarica_atti
 
-    prepara_ente(conn)
+    prepara_ente(
+        conn,
+        base_url=base_url,
+        qs_base=qs_base,
+        ente_mittente=ente_mittente,
+        codice_istat=codice_istat,
+        denominazione=denominazione,
+    )
     print(f"  [Catania] Scarico albo pretorio URBI (max {max_pagine} pagine)…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(max_pagine=max_pagine))
+    atti = list(
+        scarica_atti(
+            max_pagine=max_pagine, base_url=base_url, qs_base=qs_base, ente_mittente=ente_mittente
+        )
+    )
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Catania] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
@@ -135,13 +194,30 @@ def _run_catania(conn, max_pagine: int = 100, **_kwargs) -> dict:
     return esito
 
 
-def _run_ribera(conn, max_pagine: int = 50, **_kwargs) -> dict:
+def _make_catania_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_catania_comune(
+            conn,
+            entry.base_url,
+            entry.codice_istat,
+            entry.denominazione,
+            entry.qs_base,
+            entry.ente_mittente,
+            **kwargs,
+        )
+
+    return _runner
+
+
+def _run_ribera_comune(
+    conn, base_url, codice_istat, denominazione, max_pagine: int = 50, **_kwargs
+) -> dict:
     from talia.modulo2_scraping.fonti.ribera import prepara_ente, salva_atti, scarica_atti
 
-    prepara_ente(conn)
+    prepara_ente(conn, base_url=base_url, codice_istat=codice_istat, denominazione=denominazione)
     print(f"  [Ribera] Scarico albo pretorio WordPress (max {max_pagine} pagine)…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(max_pagine=max_pagine))
+    atti = list(scarica_atti(max_pagine=max_pagine, base_url=base_url))
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Ribera] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
@@ -150,8 +226,18 @@ def _run_ribera(conn, max_pagine: int = 50, **_kwargs) -> dict:
     return esito
 
 
+def _make_ribera_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_ribera_comune(
+            conn, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
 
-def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
+    return _runner
+
+
+def _run_agrigento_comune(
+    conn, base_url, codice_istat, denominazione, max_pagine: int = 20, **_kwargs
+) -> dict:
     try:
         from talia.modulo2_scraping.fonti.agrigento import prepara_ente, salva_atti, scarica_atti
     except ImportError as exc:
@@ -159,10 +245,10 @@ def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
             "Agrigento richiede Playwright: pip install playwright && playwright install chromium"
         ) from exc
 
-    prepara_ente(conn)
+    prepara_ente(conn, base_url=base_url, codice_istat=codice_istat, denominazione=denominazione)
     print(f"  [Agrigento] Scarico albo pretorio con Playwright (max {max_pagine} pagine)…")
     t0 = time.monotonic()
-    atti = list(scarica_atti(max_pagine=max_pagine))
+    atti = list(scarica_atti(max_pagine=max_pagine, base_url=base_url))
     esito = salva_atti(atti, conn)
     elapsed = time.monotonic() - t0
     print(f"  [Agrigento] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
@@ -171,127 +257,17 @@ def _run_agrigento(conn, max_pagine: int = 20, **_kwargs) -> dict:
     return esito
 
 
+def _make_agrigento_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_agrigento_comune(
+            conn, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
+
+    return _runner
+
+
 # jCityGov (Liferay *.trasparenza-valutazione-merito.it)
 # Messina esclusa: SSL self-signed cert — da risolvere separatamente.
-
-_BASE = "https://{}.trasparenza-valutazione-merito.it"
-_JCITYGOV_COMUNI = [
-    # (nome_log, base_url, codice_istat, denominazione)
-    ("caltanissetta", _BASE.format("caltanissetta"), "085004", "Comune di Caltanissetta"),
-    ("enna", _BASE.format("enna"), "086009", "Comune di Enna"),
-    (
-        "palma",
-        "https://palmadimontechiaro.trasparenza-valutazione-merito.it",
-        "084027",
-        "Comune di Palma di Montechiaro",
-    ),
-    ("ragusa", _BASE.format("ragusa"), "088009", "Comune di Ragusa"),
-    # --- rollout E3 (TAL-49): hit sweep verificati con 10 atti reali ---
-    ("marsala", _BASE.format("marsala"), "081011", "Comune di Marsala"),
-    ("bagheria", _BASE.format("bagheria"), "082006", "Comune di Bagheria"),
-    ("modica", _BASE.format("modica"), "088006", "Comune di Modica"),
-    ("acireale", _BASE.format("acireale"), "087004", "Comune di Acireale"),
-    ("mazaradelvallo", _BASE.format("mazaradelvallo"), "081012", "Comune di Mazara del Vallo"),
-    ("paterno", _BASE.format("paterno"), "087033", "Comune di Paternò"),
-    ("misterbianco", _BASE.format("misterbianco"), "087029", "Comune di Misterbianco"),
-    ("alcamo", _BASE.format("alcamo"), "081001", "Comune di Alcamo"),
-    ("licata", _BASE.format("licata"), "084021", "Comune di Licata"),
-    ("augusta", _BASE.format("augusta"), "089001", "Comune di Augusta"),
-    ("carini", _BASE.format("carini"), "082021", "Comune di Carini"),
-    ("canicatti", _BASE.format("canicatti"), "084011", "Comune di Canicattì"),
-    ("castelvetrano", _BASE.format("castelvetrano"), "081006", "Comune di Castelvetrano"),
-    ("mascalucia", _BASE.format("mascalucia"), "087024", "Comune di Mascalucia"),
-    ("giarre", _BASE.format("giarre"), "087017", "Comune di Giarre"),
-    ("erice", _BASE.format("erice"), "081008", "Comune di Erice"),
-    (
-        "gravinadicatania",
-        _BASE.format("gravinadicatania"),
-        "087019",
-        "Comune di Gravina di Catania",
-    ),
-    ("belpasso", _BASE.format("belpasso"), "087007", "Comune di Belpasso"),
-    ("scicli", _BASE.format("scicli"), "088011", "Comune di Scicli"),
-    ("lentini", _BASE.format("lentini"), "089011", "Comune di Lentini"),
-    ("biancavilla", _BASE.format("biancavilla"), "087008", "Comune di Biancavilla"),
-    (
-        "sangiovannilapunta",
-        _BASE.format("sangiovannilapunta"),
-        "087041",
-        "Comune di San Giovanni la Punta",
-    ),
-    ("tremestierietneo", _BASE.format("tremestierietneo"), "087051", "Comune di Tremestieri Etneo"),
-    ("villabate", _BASE.format("villabate"), "082079", "Comune di Villabate"),
-    ("acicastello", _BASE.format("acicastello"), "087002", "Comune di Aci Castello"),
-    ("ispica", _BASE.format("ispica"), "088005", "Comune di Ispica"),
-    ("riposto", _BASE.format("riposto"), "087039", "Comune di Riposto"),
-    ("pedara", _BASE.format("pedara"), "087034", "Comune di Pedara"),
-    ("cinisi", _BASE.format("cinisi"), "082031", "Comune di Cinisi"),
-    ("valderice", _BASE.format("valderice"), "081022", "Comune di Valderice"),
-    (
-        "sangregoriodicatania",
-        _BASE.format("sangregoriodicatania"),
-        "087042",
-        "Comune di San Gregorio di Catania",
-    ),
-    ("paceco", _BASE.format("paceco"), "081013", "Comune di Paceco"),
-    ("taormina", _BASE.format("taormina"), "083097", "Comune di Taormina"),
-    ("salemi", _BASE.format("salemi"), "081018", "Comune di Salemi"),
-    ("ramacca", _BASE.format("ramacca"), "087037", "Comune di Ramacca"),
-    (
-        "santagatalibattiati",
-        _BASE.format("santagatalibattiati"),
-        "087045",
-        "Comune di Sant'Agata li Battiati",
-    ),
-    ("troina", _BASE.format("troina"), "086018", "Comune di Troina"),
-    ("acate", _BASE.format("acate"), "088001", "Comune di Acate"),
-    (
-        "santateresadiriva",
-        _BASE.format("santateresadiriva"),
-        "083089",
-        "Comune di Santa Teresa di Riva",
-    ),
-    ("agira", _BASE.format("agira"), "086001", "Comune di Agira"),
-    (
-        "santamariadilicodia",
-        _BASE.format("santamariadilicodia"),
-        "087047",
-        "Comune di Santa Maria di Licodia",
-    ),
-    ("nicolosi", _BASE.format("nicolosi"), "087031", "Comune di Nicolosi"),
-    ("gangi", _BASE.format("gangi"), "082036", "Comune di Gangi"),
-    ("rometta", _BASE.format("rometta"), "083076", "Comune di Rometta"),
-    ("montelepre", _BASE.format("montelepre"), "082050", "Comune di Montelepre"),
-    ("custonaci", _BASE.format("custonaci"), "081007", "Comune di Custonaci"),
-    ("casteldiiudica", _BASE.format("casteldiiudica"), "087013", "Comune di Castel di Iudica"),
-    ("sanvitolocapo", _BASE.format("sanvitolocapo"), "081020", "Comune di San Vito Lo Capo"),
-    ("favignana", _BASE.format("favignana"), "081009", "Comune di Favignana"),
-    ("busetopalizzolo", _BASE.format("busetopalizzolo"), "081002", "Comune di Buseto Palizzolo"),
-    ("nissoria", _BASE.format("nissoria"), "086013", "Comune di Nissoria"),
-    ("vita", _BASE.format("vita"), "081023", "Comune di Vita"),
-    ("bompietro", _BASE.format("bompietro"), "082012", "Comune di Bompietro"),
-    ("ustica", _BASE.format("ustica"), "082075", "Comune di Ustica"),
-    ("blufi", _BASE.format("blufi"), "082082", "Comune di Blufi"),
-    ("comitini", _BASE.format("comitini"), "084016", "Comune di Comitini"),
-    # --- sbloccati 2026-07-07 (TAL-49): fallback "papca-ap/igrid" per tenant
-    # dove il percorso standard "papca-g" ritorna 0 atti, vedi jcitygov.py ---
-    ("milazzo", _BASE.format("milazzo"), "083049", "Comune di Milazzo"),
-    ("aragona", _BASE.format("aragona"), "084003", "Comune di Aragona"),
-    ("gaggi", _BASE.format("gaggi"), "083029", "Comune di Gaggi"),
-    ("letojanni", _BASE.format("letojanni"), "083038", "Comune di Letojanni"),
-    ("noto", _BASE.format("noto"), "089013", "Comune di Noto"),
-    # Racalmuto: "Albo pretorio" vuoto ma "Storico atti" popolato (3384 atti).
-    ("racalmuto", _BASE.format("racalmuto"), "084029", "Comune di Racalmuto"),
-    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani ---
-    ("terminiimerese", _BASE.format("termini-imerese"), "082070", "Comune di Termini Imerese"),
-    (
-        "campofeligerocchella",
-        _BASE.format("roccella"),
-        "082017",
-        "Comune di Campofelice di Roccella",
-    ),
-    ("castelvetrano", _BASE.format("castelvetrano"), "081006", "Comune di Castelvetrano"),
-]
 
 
 def _run_jcitygov_comune(
@@ -334,9 +310,11 @@ def _run_jcitygov_comune(
     return esito
 
 
-def _make_jcitygov_runner(entry):
+def _make_jcitygov_runner(entry: EntryRegistro):
     def _runner(conn, **kwargs):
-        return _run_jcitygov_comune(conn, *entry, **kwargs)
+        return _run_jcitygov_comune(
+            conn, entry.slug, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
 
     return _runner
 
@@ -344,77 +322,6 @@ def _make_jcitygov_runner(entry):
 # portalepa PHP: stessa piattaforma di Siracusa, riusata da altri comuni
 # sotto domini diversi (TAL-49). Partinico ha un layout colonne diverso
 # ("_full"): non compatibile con questo modulo, vedi docs/wiki/14-censimento-albi.md.
-_PORTALEPA_COMUNI = [
-    # (nome_log, base_url, codice_istat, denominazione)
-    ("gela", "https://portale.comune.gela.cl.it", "085007", "Comune di Gela"),
-    ("monreale", "https://monreale.soluzionipa.it", "082049", "Comune di Monreale"),
-    # --- sweep di dominio 2026-07-07 (TAL-49): pattern <slug>.soluzionipa.it e
-    # portale(pa).comune.<slug>.<prov>.it, verificati con atti reali ciascuno.
-    # Caltagirone era bloccata su jCityGov (WAF): raggiungibile qui invece. ---
-    ("caltagirone", "https://caltagirone.soluzionipa.it", "087011", "Comune di Caltagirone"),
-    (
-        "villabate_portalepa",
-        "https://villabate.soluzionipa.it",
-        "082079",
-        "Comune di Villabate",
-    ),
-    ("terrasini", "https://terrasini.soluzionipa.it", "082071", "Comune di Terrasini"),
-    (
-        "campobellodimazara",
-        "https://servizi.comune.campobellodimazara.tp.it",
-        "081004",
-        "Comune di Campobello di Mazara",
-    ),
-    ("capaci", "https://capaci.soluzionipa.it", "082020", "Comune di Capaci"),
-    ("misiliscemi", "https://misiliscemi.soluzionipa.it", "081025", "Comune di Misiliscemi"),
-    (
-        "isoladellefemmine",
-        "https://servizi.comune.isoladellefemmine.pa.it",
-        "082043",
-        "Comune di Isola delle Femmine",
-    ),
-    (
-        "lercarafriddi",
-        "https://lercarafriddi.soluzionipa.it",
-        "082045",
-        "Comune di Lercara Friddi",
-    ),
-    ("grotte", "https://grotte.soluzionipa.it", "084018", "Comune di Grotte"),
-    ("gibellina", "https://gibellina.soluzionipa.it", "081010", "Comune di Gibellina"),
-    ("caronia", "https://caronia.soluzionipa.it", "083011", "Comune di Caronia"),
-    (
-        "santangelodibrolo",
-        "https://santangelodibrolo.soluzionipa.it",
-        "083088",
-        "Comune di Sant'Angelo di Brolo",
-    ),
-    ("trappeto", "https://trappeto.soluzionipa.it", "082074", "Comune di Trappeto"),
-    ("vicari", "https://vicari.soluzionipa.it", "082078", "Comune di Vicari"),
-    ("aliminusa", "https://aliminusa.soluzionipa.it", "082003", "Comune di Aliminusa"),
-    ("roccavaldina", "https://roccavaldina.soluzionipa.it", "083073", "Comune di Roccavaldina"),
-    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani ---
-    ("partinico", "https://partinico.soluzionipa.it", "082054", "Comune di Partinico"),
-    ("cefalù", "https://comune.cefalu.pa.it", "082027", "Comune di Cefalù"),
-    (
-        "castellammare_golfo",
-        "https://www.comune.castellammare.tp.it/sito_tematico/albo-pretorio/",
-        "081005",
-        "Comune di Castellammare del Golfo",
-    ),
-    (
-        "corleone",
-        "https://comune.corleone.pa.it/albo-pretorio-on-line/",
-        "082034",
-        "Comune di Corleone",
-    ),
-    ("capaci", "https://servizi.comune.capaci.pa.it", "082020", "Comune di Capaci"),
-    (
-        "partanna_tp",
-        "https://www.comune.partanna.tp.it/amministrazione/uffici/ufficio_10.html",
-        "081015",
-        "Comune di Partanna",
-    ),
-]
 
 
 def _run_portalepa_comune(
@@ -456,338 +363,29 @@ def _run_portalepa_comune(
     return esito
 
 
-def _make_portalepa_runner(entry):
+def _make_portalepa_runner(entry: EntryRegistro):
     def _runner(conn, **kwargs):
-        return _run_portalepa_comune(conn, *entry, **kwargs)
+        return _run_portalepa_comune(
+            conn, entry.slug, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
 
     return _runner
 
 
 # Halley EG (Halley Informatica): vendor diffuso tra più comuni siciliani
 # sotto domini diversi (TAL-49). Paginazione stateless via ?pag=N.
-_HALLEY_COMUNI = [
-    # (nome_log, base_url, codice_istat, denominazione)
-    ("vittoria", "https://trasparenza.comune.vittoria.rg.it", "088012", "Comune di Vittoria"),
-    ("sciacca", "https://servizi.comune.sciacca.ag.it", "084041", "Comune di Sciacca"),
-    ("adrano", "https://servizionline.comune.adrano.ct.it", "087006", "Comune di Adrano"),
-    ("menfi", "https://servizi.comune.menfi.ag.it", "084023", "Comune di Menfi"),
-    # skip_ssl: catena certificato incompleta lato server (cert valido, vedi _HALLEY_SKIP_SSL)
-    ("siculiana", "https://trasparenza.comune.siculiana.ag.it", "084042", "Comune di Siculiana"),
-    ("realmonte", "http://80.88.89.218/realmonte", "084032", "Comune di Realmonte"),
-    (
-        "barcellonapg",
-        "https://servizi.comune.barcellonapozzodigotto.me.it/barcellona",
-        "083005",
-        "Comune di Barcellona Pozzo di Gotto",
-    ),
-    # --- sweep di dominio 2026-07-07 (TAL-49): pattern <prefisso>.comune.<slug>.<prov>.it,
-    # verificati con atti reali ciascuno ---
-    ("avola", "https://servizi.comune.avola.sr.it", "089002", "Comune di Avola"),
-    ("misilmeri", "https://servizi.comune.misilmeri.pa.it", "082048", "Comune di Misilmeri"),
-    (
-        "piazzaarmerina",
-        "https://servizi.comune.piazzaarmerina.en.it",
-        "086014",
-        "Comune di Piazza Armerina",
-    ),
-    (
-        "sangiovannilapunta_halley",
-        "https://servizi.comune.sangiovannilapunta.ct.it",
-        "087041",
-        "Comune di San Giovanni la Punta",
-    ),
-    ("pozzallo", "https://comune.pozzallo.rg.it", "088008", "Comune di Pozzallo"),
-    ("scordia", "https://servizionline.comune.scordia.ct.it", "087049", "Comune di Scordia"),
-    (
-        "portoempedocle",
-        "https://servizi.comune.portoempedocle.ag.it",
-        "084028",
-        "Comune di Porto Empedocle",
-    ),
-    ("melilli", "https://servizi.comune.melilli.sr.it", "089012", "Comune di Melilli"),
-    (
-        "santagatadimilitello",
-        "https://servizi.comune.santagatadimilitello.me.it",
-        "083084",
-        "Comune di Sant'Agata di Militello",
-    ),
-    ("mazzarino", "https://servizi.comune.mazzarino.cl.it", "085009", "Comune di Mazzarino"),
-    ("lipari", "https://servizi.comune.lipari.me.it", "083041", "Comune di Lipari"),
-    ("randazzo", "https://servizionline.comune.randazzo.ct.it", "087038", "Comune di Randazzo"),
-    ("mussomeli", "https://servizi.comune.mussomeli.cl.it", "085012", "Comune di Mussomeli"),
-    ("partanna", "https://servizi.comune.partanna.tp.it", "081015", "Comune di Partanna"),
-    (
-        "trecastagni",
-        "https://trasparenza.comune.trecastagni.ct.it",
-        "087050",
-        "Comune di Trecastagni",
-    ),
-    ("castelbuono", "https://servizi.comune.castelbuono.pa.it", "082022", "Comune di Castelbuono"),
-    ("sortino", "https://servizi.comune.sortino.sr.it", "089019", "Comune di Sortino"),
-    (
-        "sangiuseppejato",
-        "https://servizi.comune.sangiuseppejato.pa.it",
-        "082064",
-        "Comune di San Giuseppe Jato",
-    ),
-    (
-        "casteltermini",
-        "https://trasparenza.comune.casteltermini.ag.it",
-        "084012",
-        "Comune di Casteltermini",
-    ),
-    (
-        "santavenerina",
-        "https://servizi.comune.santavenerina.ct.it",
-        "087048",
-        "Comune di Santa Venerina",
-    ),
-    (
-        "racalmuto_halley",
-        "https://trasparenza.comune.racalmuto.ag.it",
-        "084029",
-        "Comune di Racalmuto",
-    ),
-    ("viagrande", "https://trasparenza.comune.viagrande.ct.it", "087053", "Comune di Viagrande"),
-    (
-        "sangiovannigemini",
-        "https://trasparenza.comune.sangiovannigemini.ag.it",
-        "084036",
-        "Comune di San Giovanni Gemini",
-    ),
-    ("sommatino", "https://servizionline.comune.sommatino.cl.it", "085019", "Comune di Sommatino"),
-    (
-        "gioiosamarea",
-        "https://servizionline.comune.gioiosamarea.me.it",
-        "083033",
-        "Comune di Gioiosa Marea",
-    ),
-    (
-        "campofelicediroccella",
-        "https://servizi.comune.campofelicediroccella.pa.it",
-        "082017",
-        "Comune di Campofelice di Roccella",
-    ),
-    ("marineo", "https://servizi.comune.marineo.pa.it", "082046", "Comune di Marineo"),
-    (
-        "calatafimisegesta",
-        "https://servizi.comune.calatafimisegesta.tp.it",
-        "081003",
-        "Comune di Calatafimi-Segesta",
-    ),
-    ("tortorici", "https://servizi.comune.tortorici.me.it", "083099", "Comune di Tortorici"),
-    (
-        "pacedelmela",
-        "https://trasparenza.comune.pacedelmela.me.it",
-        "083064",
-        "Comune di Pace del Mela",
-    ),
-    ("cammarata", "https://trasparenza.comune.cammarata.ag.it", "084009", "Comune di Cammarata"),
-    (
-        "serradifalco",
-        "https://servizi.comune.serradifalco.cl.it",
-        "085018",
-        "Comune di Serradifalco",
-    ),
-    (
-        "lampedusaelinosa",
-        "https://servizi.comune.lampedusaelinosa.ag.it",
-        "084020",
-        "Comune di Lampedusa e Linosa",
-    ),
-    ("brolo", "https://servizi.comune.brolo.me.it", "083007", "Comune di Brolo"),
-    (
-        "sancipirello",
-        "https://servizi.comune.sancipirello.pa.it",
-        "082063",
-        "Comune di San Cipirello",
-    ),
-    ("cerda", "https://servizi.comune.cerda.pa.it", "082028", "Comune di Cerda"),
-    ("villarosa", "https://servizionline.comune.villarosa.en.it", "086020", "Comune di Villarosa"),
-    (
-        "santaninfa",
-        "https://servizionline.comune.santaninfa.tp.it",
-        "081019",
-        "Comune di Santa Ninfa",
-    ),
-    ("prizzi", "https://trasparenza.comune.prizzi.pa.it", "082060", "Comune di Prizzi"),
-    (
-        "santaluciadelmela",
-        "https://servizi.comune.santaluciadelmela.me.it",
-        "083086",
-        "Comune di Santa Lucia del Mela",
-    ),
-    (
-        "favignana_halley",
-        "https://trasparenza.comune.favignana.tp.it",
-        "081009",
-        "Comune di Favignana",
-    ),
-    (
-        "caltavuturo",
-        "https://trasparenza.comune.caltavuturo.pa.it",
-        "082015",
-        "Comune di Caltavuturo",
-    ),
-    ("torretta", "https://comune.torretta.pa.it", "082072", "Comune di Torretta"),
-    ("maletto", "https://servizi.comune.maletto.ct.it", "087022", "Comune di Maletto"),
-    (
-        "cattolicaeraclea",
-        "https://trasparenza.comune.cattolicaeraclea.ag.it",
-        "084014",
-        "Comune di Cattolica Eraclea",
-    ),
-    ("piraino", "https://servizi.comune.piraino.me.it", "083068", "Comune di Piraino"),
-    (
-        "francavilladisicilia",
-        "https://servizionline.comune.francavilladisicilia.me.it",
-        "083025",
-        "Comune di Francavilla di Sicilia",
-    ),
-    ("venetico", "https://trasparenza.comune.venetico.me.it", "083104", "Comune di Venetico"),
-    ("ciminna", "https://servizi.comune.ciminna.pa.it", "082030", "Comune di Ciminna"),
-    (
-        "valledolmo",
-        "https://servizi.comune.valledolmo.pa.it/valledolmo",
-        "082076",
-        "Comune di Valledolmo",
-    ),
-    ("villafrati", "https://trasparenza.comune.villafrati.pa.it", "082080", "Comune di Villafrati"),
-    (
-        "castellumberto",
-        "https://servizi.comune.castellumberto.me.it",
-        "083014",
-        "Comune di Castell'Umberto",
-    ),
-    (
-        "campofranco",
-        "https://trasparenza.comune.campofranco.cl.it",
-        "085005",
-        "Comune di Campofranco",
-    ),
-    (
-        "acibonaccorsi",
-        "https://servizi.comune.acibonaccorsi.ct.it",
-        "087001",
-        "Comune di Aci Bonaccorsi",
-    ),
-    ("milena", "https://servizionline.comune.milena.cl.it", "085010", "Comune di Milena"),
-    (
-        "alessandriadellarocca",
-        "https://trasparenza.comune.alessandriadellarocca.ag.it",
-        "084002",
-        "Comune di Alessandria della Rocca",
-    ),
-    (
-        "sanpieropatti",
-        "https://servizi.comune.sanpieropatti.me.it",
-        "083081",
-        "Comune di San Piero Patti",
-    ),
-    ("montevago", "https://servizi.comune.montevago.ag.it", "084025", "Comune di Montevago"),
-    (
-        "chiusasclafani",
-        "https://servizionline.comune.chiusasclafani.pa.it",
-        "082029",
-        "Comune di Chiusa Sclafani",
-    ),
-    (
-        "sanpierniceto",
-        "https://servizi.comune.sanpierniceto.me.it",
-        "083080",
-        "Comune di San Pier Niceto",
-    ),
-    ("sancono", "https://servizi.comune.sancono.ct.it", "087040", "Comune di San Cono"),
-    ("ferla", "https://servizi.comune.ferla.sr.it", "089008", "Comune di Ferla"),
-    ("cesaro", "https://servizionline.comune.cesaro.me.it", "083017", "Comune di Cesarò"),
-    ("camastra", "https://trasparenza.comune.camastra.ag.it", "084008", "Comune di Camastra"),
-    (
-        "ventimigliadisicilia",
-        "https://servizionline.comune.ventimigliadisicilia.pa.it",
-        "082077",
-        "Comune di Ventimiglia di Sicilia",
-    ),
-    ("giuliana", "https://servizi.comune.giuliana.pa.it", "082039", "Comune di Giuliana"),
-    ("baucina", "https://comune.baucina.pa.it", "082008", "Comune di Baucina"),
-    (
-        "marianopoli",
-        "https://servizionline.comune.marianopoli.cl.it",
-        "085008",
-        "Comune di Marianopoli",
-    ),
-    (
-        "sanmaurocastelverde",
-        "https://servizionline.comune.sanmaurocastelverde.pa.it",
-        "082065",
-        "Comune di San Mauro Castelverde",
-    ),
-    ("salaparuta", "https://servizi.comune.salaparuta.tp.it", "081017", "Comune di Salaparuta"),
-    ("montedoro", "https://servizionline.comune.montedoro.cl.it", "085011", "Comune di Montedoro"),
-    (
-        "montagnareale",
-        "https://servizionline.comune.montagnareale.me.it",
-        "083056",
-        "Comune di Montagnareale",
-    ),
-    ("santalfio", "https://servizi.comune.santalfio.ct.it", "087046", "Comune di Sant'Alfio"),
-    ("isnello", "https://servizi.comune.isnello.pa.it", "082042", "Comune di Isnello"),
-    ("roccamena", "https://servizi.comune.roccamena.pa.it", "082061", "Comune di Roccamena"),
-    (
-        "poggioreale",
-        "https://trasparenza.comune.poggioreale.tp.it",
-        "081016",
-        "Comune di Poggioreale",
-    ),
-    ("sutera", "https://servizionline.comune.sutera.cl.it", "085020", "Comune di Sutera"),
-    (
-        "santeodoro",
-        "https://servizionline.comune.santeodoro.me.it",
-        "083090",
-        "Comune di San Teodoro",
-    ),
-    ("milo", "https://servizi.comune.milo.ct.it", "087026", "Comune di Milo"),
-    (
-        "cefaladiana",
-        "https://servizionline.comune.cefaladiana.pa.it",
-        "082026",
-        "Comune di Cefalà Diana",
-    ),
-    (
-        "santacristinagela",
-        "https://servizi.comune.santacristinagela.pa.it",
-        "082066",
-        "Comune di Santa Cristina Gela",
-    ),
-    ("sperlinga", "https://servizi.comune.sperlinga.en.it", "086017", "Comune di Sperlinga"),
-    (
-        "roccellavaldemone",
-        "https://servizionline.comune.roccellavaldemone.me.it",
-        "083074",
-        "Comune di Roccella Valdemone",
-    ),
-    (
-        "bompensiere",
-        "https://servizionline.comune.bompensiere.cl.it",
-        "085002",
-        "Comune di Bompensiere",
-    ),
-    ("condro", "https://servizi.comune.condro.me.it", "083018", "Comune di Condrò"),
-    (
-        "joppologiancaxio",
-        "https://trasparenza.comune.joppologiancaxio.ag.it",
-        "084019",
-        "Comune di Joppolo Giancaxio",
-    ),
-]
-
-
-# Comuni Halley con catena certificato incompleta lato server (cert valido,
-# manca l'intermedio): non è un cert scaduto, richiede solo skip_ssl (TAL-49).
-_HALLEY_SKIP_SSL = {"siculiana", "joppologiancaxio"}
 
 
 def _run_halley_comune(
-    conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
+    conn,
+    nome,
+    base_url,
+    codice_istat,
+    denominazione,
+    max_pagine=10,
+    no_stop=False,
+    skip_ssl=False,
+    **_kwargs,
 ):
     from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
     from talia.modulo2_scraping.fonti.halley import scarica_atti
@@ -802,7 +400,6 @@ def _run_halley_comune(
 
     inseriti = duplicati = consecutivi_dup = 0
     dates: list[str] = []
-    skip_ssl = nome in _HALLEY_SKIP_SSL
     for atto in scarica_atti(base_url, codice_istat, max_pagine=max_pagine, skip_ssl=skip_ssl):
         if inserisci_atto(conn, atto) is not None:
             inseriti += 1
@@ -826,9 +423,17 @@ def _run_halley_comune(
     return esito
 
 
-def _make_halley_runner(entry):
+def _make_halley_runner(entry: EntryRegistro):
     def _runner(conn, **kwargs):
-        return _run_halley_comune(conn, *entry, **kwargs)
+        return _run_halley_comune(
+            conn,
+            entry.slug,
+            entry.base_url,
+            entry.codice_istat,
+            entry.denominazione,
+            skip_ssl=entry.skip_ssl,
+            **kwargs,
+        )
 
     return _runner
 
@@ -836,82 +441,6 @@ def _make_halley_runner(entry):
 # URBI Cloud (Maggioli): stessa piattaforma di Catania (`catania.py`), riusata
 # da comuni ospitati su cloud.urbi.it con un DB_NAME diverso per tenant
 # (Favara, Raffadali — TAL-49).
-_URBI_COMUNI = [
-    # (nome_log, base_url, qs_base, codice_istat, ente_mittente, denominazione)
-    (
-        "favara",
-        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
-        "DB_NAME=wt00037115&w3cbt=S",
-        "084017",
-        "COMUNE DI FAVARA",
-        "Comune di Favara",
-    ),
-    (
-        "raffadali",
-        "https://cloud.urbi.it/urbi/progs/urp/ur1ME002.sto",
-        "DB_NAME=n1201794&w3cbt=S",
-        "084030",
-        "COMUNE DI RAFFADALI",
-        "Comune di Raffadali",
-    ),
-    (
-        "ravanusa",
-        "https://servizi.comune.ravanusa.ag.it/urbi/progs/urp/ur1ME001.sto",
-        "DB_NAME=n1200698&w3cbt=S",
-        "084031",
-        "COMUNE DI RAVANUSA",
-        "Comune di Ravanusa",
-    ),
-    (
-        "campobellodilicata",
-        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
-        "DB_NAME=n200119&w3cbt=S",
-        "084010",
-        "COMUNE DI CAMPOBELLO DI LICATA",
-        "Comune di Campobello di Licata",
-    ),
-    (
-        "naro",
-        "https://servizionline.comune.naro.ag.it/urbi/progs/urp/ur1ME002.sto",
-        "DB_NAME=n200490&w3cbt=S",
-        "084026",
-        "COMUNE DI NARO",
-        "Comune di Naro",
-    ),
-    (
-        "santamargheritadibelice",
-        "https://cloud.urbi.it/urbi/progs/urp/ur1ME002.sto",
-        "DB_NAME=wt00033773&w3cbt=S",
-        "084038",
-        "COMUNE DI SANTA MARGHERITA DI BELICE",
-        "Comune di Santa Margherita di Belice",
-    ),
-    (
-        "sanbiagioplatani",
-        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
-        "DB_NAME=wt00035339&w3cbt=S",
-        "084035",
-        "COMUNE DI SAN BIAGIO PLATANI",
-        "Comune di San Biagio Platani",
-    ),
-    (
-        "villafrancasicula",
-        "https://servizionline.comune.villafrancasicula.ag.it/urbi/progs/urp/ur1ME001.sto",
-        "DB_NAME=wt00033035&w3cbt=S",
-        "084043",
-        "COMUNE DI VILLAFRANCA SICULA",
-        "Comune di Villafranca Sicula",
-    ),
-    # --- censimento E3 estensione PA/TP (2026-07-10, TAL-50): nuovi comuni Palermo/Trapani URBI ---
-    (
-        "caccamo",
-        "https://cloud.urbi.it/urbi/progs/urp/ur1ME001.sto",
-        "DB_NAME=n201838&w3cbt=S",
-        "082014",
-        "COMUNE DI CACCAMO",
-        "Comune di Caccamo",
-    ),
-]
 
 
 def _run_urbi_comune(
@@ -962,9 +491,18 @@ def _run_urbi_comune(
     return esito
 
 
-def _make_urbi_runner(entry):
+def _make_urbi_runner(entry: EntryRegistro):
     def _runner(conn, **kwargs):
-        return _run_urbi_comune(conn, *entry, **kwargs)
+        return _run_urbi_comune(
+            conn,
+            entry.slug,
+            entry.base_url,
+            entry.qs_base,
+            entry.codice_istat,
+            entry.ente_mittente,
+            entry.denominazione,
+            **kwargs,
+        )
 
     return _runner
 
@@ -972,44 +510,6 @@ def _make_urbi_runner(entry):
 # Halley HSPromila (ASP.NET): variante Halley diversa da quella "EG"
 # (`halley.py`), riusata da Sambuca di Sicilia e Santo Stefano Quisquina
 # (TAL-49). Nessuna paginazione nota: un solo blocco di atti per comune.
-_HSPROMILA_COMUNI = [
-    # (nome_log, url, codice_istat, denominazione)
-    (
-        "sambucadisicilia",
-        "https://servizionline.hspromilaprod.hypersicapp.net/cmssambucadisicilia"
-        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
-        "084034",
-        "Comune di Sambuca di Sicilia",
-    ),
-    (
-        "santostefanoquisquina",
-        "https://servizionline.hspromilaprod.hypersicapp.net/cmsssquisquina"
-        "/portale/albopretorio/albopretorioconsultazione.aspx?P=600",
-        "084040",
-        "Comune di Santo Stefano Quisquina",
-    ),
-    (
-        "santaelisabetta",
-        "https://servizionline.hspromilaprod.hypersicapp.net/cmsselisabetta"
-        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
-        "084037",
-        "Comune di Santa Elisabetta",
-    ),
-    (
-        "montallegro",
-        "https://servizionline.hspromilaprod.hypersicapp.net/cmsmontallegro"
-        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
-        "084024",
-        "Comune di Montallegro",
-    ),
-    (
-        "luccasicula",
-        "https://servizionline.hspromilaprod.hypersicapp.net/cmsluccasicula"
-        "/portale/albopretorio/albopretorioconsultazione.aspx?P=400",
-        "084022",
-        "Comune di Lucca Sicula",
-    ),
-]
 
 
 def _run_hspromila_comune(conn, nome, url, codice_istat, denominazione, **_kwargs) -> dict:
@@ -1034,47 +534,54 @@ def _run_hspromila_comune(conn, nome, url, codice_istat, denominazione, **_kwarg
     return esito
 
 
-def _make_hspromila_runner(entry):
+def _make_hspromila_runner(entry: EntryRegistro):
     def _runner(conn, **kwargs):
-        return _run_hspromila_comune(conn, *entry, **kwargs)
+        return _run_hspromila_comune(
+            conn, entry.slug, entry.base_url, entry.codice_istat, entry.denominazione, **kwargs
+        )
 
     return _runner
 
 
-# Palermo (SISPI JSP) e Catania (HCL Domino NSF) non ancora implementati.
+# TAL-51 PENDING (comuni Trapani/Palermo, reverse-engineering in progress, non
+# ancora nel registro perché richiedono scraper dedicati): vedi docs/cards/TAL-51.md.
 
-# TAL-51 PENDING (comuni Trapani/Palermo, reverse-engineering in progress):
-# - Trapani: Petrosino (7.7k, WordPress), Pantelleria (7.5k, HyperSIC),
-#   Calatafimi-Segesta (6.7k, HyperSIC), Poggioreale (1.5k, HyperSIC)
-# - Palermo: 11 comuni >5k su ComuneWeb (6), Halley (1), HyperSIC (1), APKAPPA (1),
-#   SaturnWeb (1), custom (1) — vedi docs/cards/TAL-51.md per dettagli.
-# Questi comuni sono censiti (data/censimento_albi_pa_tp_COMPLETO.csv) ma non ancora
-# nel registry perché richiedono scraper dedicati o reverse-engineering ulteriore.
-
-_SCRAPERS: dict[str, callable] = {
-    "anac": _run_anac,
-    "siracusa": _run_siracusa,
-    "trapani": _run_trapani,
-    "palermo": _run_palermo,
-    "catania": _run_catania,
-    "ribera": _run_ribera,
-    "agrigento": _run_agrigento,
+_FACTORY_PER_MODULO = {
+    "jcitygov": _make_jcitygov_runner,
+    "portalepa": _make_portalepa_runner,
+    "halley": _make_halley_runner,
+    "urbi": _make_urbi_runner,
+    "hspromila": _make_hspromila_runner,
+    "palermo": _make_palermo_runner,
+    "catania": _make_catania_runner,
+    "trapani": _make_trapani_runner,
+    "siracusa": _make_siracusa_runner,
+    "ribera": _make_ribera_runner,
+    "agrigento": _make_agrigento_runner,
 }
-_SCRAPERS.update({entry[0]: _make_jcitygov_runner(entry) for entry in _JCITYGOV_COMUNI})
-_SCRAPERS.update({entry[0]: _make_portalepa_runner(entry) for entry in _PORTALEPA_COMUNI})
-_SCRAPERS.update({entry[0]: _make_halley_runner(entry) for entry in _HALLEY_COMUNI})
-_SCRAPERS.update({entry[0]: _make_urbi_runner(entry) for entry in _URBI_COMUNI})
-_SCRAPERS.update({entry[0]: _make_hspromila_runner(entry) for entry in _HSPROMILA_COMUNI})
 
-# Default: HTTP puro (veloci), Agrigento escluso (Playwright), ANAC escluso (400 MB)
-_SCRAPERS_DEFAULT = (
-    ["siracusa", "trapani", "palermo", "catania", "ribera"]
-    + [entry[0] for entry in _JCITYGOV_COMUNI]
-    + [entry[0] for entry in _PORTALEPA_COMUNI]
-    + [entry[0] for entry in _HALLEY_COMUNI]
-    + [entry[0] for entry in _URBI_COMUNI]
-    + [entry[0] for entry in _HSPROMILA_COMUNI]
-)
+
+def costruisci_scrapers(
+    registro: list[EntryRegistro],
+) -> tuple[dict[str, callable], list[str]]:
+    """Costruisce il dict degli scraper eseguibili e la lista di default dal registro.
+
+    ANAC non ha un base_url nello stesso senso degli altri (scarica un CSV
+    SmartCIG, non un albo pretorio): resta un runner fisso sempre presente.
+    """
+    scrapers: dict[str, callable] = {"anac": _run_anac}
+    for entry in filtra_eseguibili(registro):
+        if entry.modulo == "anac":
+            continue
+        if entry.modulo not in _FACTORY_PER_MODULO:
+            raise RuntimeError(
+                f"Modulo sconosciuto nel registro: {entry.modulo!r} (slug {entry.slug!r})"
+            )
+        scrapers[entry.slug] = _FACTORY_PER_MODULO[entry.modulo](entry)
+    return scrapers, entries_default(registro)
+
+
+_SCRAPERS, _SCRAPERS_DEFAULT = costruisci_scrapers(carica_registro())
 
 
 # ---------------------------------------------------------------------------
