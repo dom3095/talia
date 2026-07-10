@@ -183,6 +183,40 @@ def test_upsert_ente_vecchio_stile_non_azzera_modulo(db):
     assert row["stato_scraper"] == "attivo"
 
 
+def test_upsert_ente_vecchio_stile_non_azzera_provincia(db):
+    """Bug trovato in code review: provincia non era protetta da COALESCE come
+    modulo/url_base/stato_scraper — un upsert 'vecchio stile' senza provincia
+    (come sincronizza_enti_da_registro fa per ~205 righe su 206 del registro,
+    che hanno provincia vuota) azzerava silenziosamente la provincia impostata
+    in precedenza dagli scraper monocomune (es. prepara_ente di catania.py)."""
+    upsert_ente(
+        db,
+        EnteMetadato(denominazione="Comune di Catania", codice_istat="087015", provincia="CT"),
+    )
+    # Simula sincronizza_enti_da_registro con provincia vuota (caso comune nel registro)
+    upsert_ente(db, EnteMetadato(denominazione="Comune di Catania", codice_istat="087015"))
+    row = db.execute("SELECT provincia FROM enti WHERE codice_istat='087015'").fetchone()
+    assert row["provincia"] == "CT"
+
+
+def test_upsert_ente_vecchio_stile_non_azzera_popolazione_e_sito_web(db):
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Catania",
+            codice_istat="087015",
+            popolazione=311584,
+            sito_web="https://www.comune.catania.it",
+        ),
+    )
+    upsert_ente(db, EnteMetadato(denominazione="Comune di Catania", codice_istat="087015"))
+    row = db.execute(
+        "SELECT popolazione, sito_web FROM enti WHERE codice_istat='087015'"
+    ).fetchone()
+    assert row["popolazione"] == 311584
+    assert row["sito_web"] == "https://www.comune.catania.it"
+
+
 # ---------------------------------------------------------------------------
 # sincronizza_enti_da_registro
 # ---------------------------------------------------------------------------

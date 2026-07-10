@@ -197,10 +197,17 @@ def _estendi_enti(conn: sqlite3.Connection) -> None:
 def upsert_ente(conn: sqlite3.Connection, ente: EnteMetadato) -> int:
     """Inserisce o aggiorna un ente; ritorna il suo ``id``.
 
-    ``modulo``/``url_base``/``stato_scraper`` usano ``COALESCE`` in update: se
-    il chiamante non li passa (default ``None``, es. i runner scraper che
+    Tutti i campi opzionali (``provincia``/``popolazione``/``sito_web``/
+    ``modulo``/``url_base``/``stato_scraper``) usano ``COALESCE`` in update:
+    se il chiamante non li passa (default ``None``, es. i runner scraper che
     upsertano solo denominazione/codice_istat) il valore esistente non viene
-    azzerato — solo ``sincronizza_enti_da_registro()`` li valorizza esplicitamente.
+    azzerato. Solo ``denominazione``/``codice_istat`` sono obbligatori e
+    quindi sempre sovrascritti direttamente. Bug corretto in code review
+    (2026-07-11): ``provincia`` era sovrascritta incondizionatamente, così
+    ``sincronizza_enti_da_registro()`` (che gira ad ogni run indipendentemente
+    da ``--scrapers``, con provincia vuota per la quasi totalità delle righe
+    del registro) azzerava silenziosamente la provincia impostata dai singoli
+    scraper monocomune per i comuni non inclusi nel run corrente.
     """
     conn.execute(
         """
@@ -211,9 +218,9 @@ def upsert_ente(conn: sqlite3.Connection, ente: EnteMetadato) -> int:
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (codice_istat) DO UPDATE SET
             denominazione = excluded.denominazione,
-            provincia     = excluded.provincia,
-            popolazione   = excluded.popolazione,
-            sito_web      = excluded.sito_web,
+            provincia     = COALESCE(excluded.provincia, enti.provincia),
+            popolazione   = COALESCE(excluded.popolazione, enti.popolazione),
+            sito_web      = COALESCE(excluded.sito_web, enti.sito_web),
             modulo        = COALESCE(excluded.modulo, enti.modulo),
             url_base      = COALESCE(excluded.url_base, enti.url_base),
             stato_scraper = COALESCE(excluded.stato_scraper, enti.stato_scraper)

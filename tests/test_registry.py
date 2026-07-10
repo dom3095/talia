@@ -129,6 +129,21 @@ class TestCaricaRegistro:
         with pytest.raises(ValueError, match="slug duplicato"):
             carica_registro(csv_path)
 
+    def test_stato_cella_vuota_usa_default_attivo(self):
+        """Bug trovato in code review: row.get("stato", "attivo") applicava il
+        default solo se la CHIAVE mancava, non se la cella era presente ma
+        vuota — una riga con colonna stato vuota diventava stato="" e spariva
+        silenziosamente da tutto lo scraping senza errore di validazione."""
+        from talia.modulo2_scraping.registry import _row_to_entry
+
+        row = {
+            "slug": "test", "denominazione": "Test", "codice_istat": "123456",
+            "modulo": "jcitygov", "piattaforma_tecnica": "jCityGov",
+            "base_url": "https://test.it", "stato": "",
+        }
+        entry = _row_to_entry(row)
+        assert entry.stato == "attivo"
+
 
 class TestValidaRegistro:
     """Test della validazione."""
@@ -186,6 +201,52 @@ class TestValidaRegistro:
         )
         problemi = valida_registro([e])
         assert any("skip_ssl=true" in p for p in problemi)
+
+    def test_qs_base_mancante_su_catania_attivo(self):
+        """qs_base mancante su modulo=catania con stato=attivo → errore.
+
+        Gap trovato in code review: senza questo controllo una riga catania/urbi
+        con qs_base vuoto passa la validazione e produce un URL con "?None" a runtime.
+        """
+        e = EntryRegistro(
+            slug="test", denominazione="Test", codice_istat="123456",
+            modulo="catania", piattaforma_tecnica="URBI/Maggioli", base_url="https://test.it",
+            qs_base=None, ente_mittente="COMUNE DI TEST", stato="attivo",
+        )
+        problemi = valida_registro([e])
+        assert any("qs_base mancante" in p for p in problemi)
+
+    def test_ente_mittente_mancante_su_urbi_attivo(self):
+        """ente_mittente mancante su modulo=urbi con stato=attivo → errore."""
+        e = EntryRegistro(
+            slug="test", denominazione="Test", codice_istat="123456",
+            modulo="urbi", piattaforma_tecnica="URBI Cloud", base_url="https://test.it",
+            qs_base="DB_NAME=test", ente_mittente=None, stato="attivo",
+        )
+        problemi = valida_registro([e])
+        assert any("ente_mittente mancante" in p for p in problemi)
+
+    def test_qs_base_non_richiesto_su_catania_pending(self):
+        """qs_base mancante su modulo=catania con stato=pending non è un errore
+        (pending non richiede nemmeno base_url, coerentemente)."""
+        e = EntryRegistro(
+            slug="test", denominazione="Test", codice_istat="123456",
+            modulo="catania", piattaforma_tecnica="URBI/Maggioli", base_url=None,
+            qs_base=None, ente_mittente=None, stato="pending",
+        )
+        problemi = valida_registro([e])
+        assert not any("qs_base mancante" in p for p in problemi)
+
+    def test_modulo_pending_valido(self):
+        """modulo='pending' è riconosciuto (pseudo-modulo per comuni censiti
+        ma non ancora implementati)."""
+        e = EntryRegistro(
+            slug="test", denominazione="Test", codice_istat="123456",
+            modulo="pending", piattaforma_tecnica="ComuneWeb", base_url=None,
+            stato="pending",
+        )
+        problemi = valida_registro([e])
+        assert problemi == []
 
 
 class TestFiltriEseguibili:

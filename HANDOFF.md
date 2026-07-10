@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-10 (Refactor: Registro unificato scraper — tutte le 5 PR completate, in attesa di review)
+> Aggiornato: 2026-07-11 (Refactor: Registro unificato scraper — code review multi-angolo eseguita, bug corretti, 39 comuni recuperati)
 
 ---
 
@@ -42,14 +42,59 @@ review complessiva da Dom prima del merge** (nessun push, main resta protetto):
 codice nuovo/modificato** (gli 8 errori E501 residui in `tests/test_registry.py` sono
 preesistenti da PR1, non introdotti in questa sessione).
 
+### Code review multi-angolo (2026-07-11) — 8 findings, bug corretti
+
+Eseguita `/code-review` (8 angolazioni parallele + verifica 1-voto) sull'intero diff
+`main...HEAD`. 6 findings confermati, 2 plausibili (bassa severità, non corretti — vedi
+sotto). Bug corretti in un commit successivo alle 5 PR:
+
+1. **`trapani.py`**: `_parse_page()` ignorava `base_url` e costruiva `url_fonte` sempre
+   dalla costante di modulo — bug di correttezza reale introdotto in PR2 (violava
+   l'esplicabilità: un `base_url` custom avrebbe prodotto link alla fonte sbagliati).
+   Fix: `base_url` propagato a `_parse_page`. 2 nuovi test.
+2. **`db.py::upsert_ente`**: `provincia`/`popolazione`/`sito_web` non erano protette da
+   `COALESCE` come `modulo`/`url_base`/`stato_scraper` — ogni run di `run_scrapers.py`
+   (che sincronizza *tutto* il registro ad ogni invocazione) azzerava silenziosamente la
+   provincia dei comuni non inclusi nel run corrente (205/206 righe hanno provincia vuota
+   nel CSV). Fix: `COALESCE` esteso a tutti i campi opzionali. 2 nuovi test.
+3. **`registry.py::_row_to_entry`**: `stato` non applicava il default `"attivo"` su una
+   cella CSV presente-ma-vuota (solo su chiave mancante) — una riga malformata sarebbe
+   silenziosamente sparita da tutto lo scraping senza errore di validazione. Fix: pattern
+   `or` coerente con gli altri campi. 1 nuovo test.
+4. **`registry.py::valida_registro`**: nessuna validazione che `qs_base`/`ente_mittente`
+   fossero *presenti* per righe catania/urbi attive (solo che fossero assenti altrove) —
+   gap che avrebbe prodotto un URL con `?None` a runtime. Fix: nuovo controllo + aggiunto
+   `modulo="pending"` come pseudo-modulo valido (serviva per il recupero dei 39 comuni,
+   vedi sotto). 4 nuovi test.
+
+Non corretti (bassa severità/plausibili, non bloccanti): import-time loading del registro
+in `run_scrapers.py` (nuova classe di errore ma comportamento consapevole), ANAC
+special-casato in 6 punti (smell di manutenibilità, non un bug), `COALESCE` che impedisce
+di azzerare `modulo`/`url_base`/`stato_scraper` a NULL (limitazione di design accettabile
+per ora). Vedi il report completo della review per dettagli.
+
+### Recupero 39 comuni censiti
+
+La review ha anche scoperto che la rimozione dei CSV di censimento (PR3) aveva perso i
+dati (piattaforma/URL) di 39 comuni PA/TP censiti in TAL-50 senza scraper — il piano
+originale prevedeva di migrarli come righe `stato=pending`, passo non eseguito. Recuperati
+da `git show main:data/censimento_albi_pa_tp.csv` e riaggiunti al registro con
+`modulo=pending`. Di questi, **Altavilla Milicia** (etichettata "HyperSIC" nel censimento)
+usa in realtà lo stesso URL pattern già gestito da `hspromila.py` — verificato dal vivo
+(102 atti reali) e attivato subito (`modulo=hspromila`, `stato=attivo`), zero nuovo codice.
+Dettagli in `docs/wiki/14-censimento-albi.md`.
+
+**Registro dopo il recupero: 245 righe (204 attive di default, 38 pending, 2 escluso_default,
+1 bloccato).** 467 test totali verdi.
+
 Working tree pulito (tutto committato). Nessun dato nominativo committato.
 
 ### Prossimo passo
 
-Review complessiva delle 5 PR da parte di Dom (richiesta esplicitamente: "facciamo review
-alla fine di tutto"). Dopo l'approvazione: push del branch + apertura PR su GitHub, oppure
-squash/riorganizzazione dei commit se Dom preferisce una history diversa — da concordare
-in fase di review, non ancora deciso.
+Review complessiva da parte di Dom (richiesta esplicitamente: "facciamo review alla fine
+di tutto" → eseguita `/code-review`, bug corretti). Dopo l'approvazione: push del branch +
+apertura PR su GitHub, oppure squash/riorganizzazione dei commit se Dom preferisce una
+history diversa — da concordare in fase di review, non ancora deciso.
 
 ## DB attuale
 

@@ -8,6 +8,30 @@ Configurazione scraper: **`data/registro_scraper.csv`** è l'unica fonte di veri
 `censimento_albi_pa_tp[_COMPLETO].csv`, rimossi). Vedi `registry.py` per il loader.
 Le sezioni sotto restano come narrativa storica di come ogni comune è stato scoperto.
 
+### Recupero 39 comuni censiti (code review 2026-07-11)
+
+La rimozione dei CSV di censimento (sopra) aveva silenziosamente perso i dati
+(piattaforma/URL) di 39 dei 77 comuni PA/TP censiti in TAL-50 che non avevano
+ancora uno scraper funzionante — il piano originale del refactor prevedeva di
+migrarli come righe `stato=pending` nel registro, passo non eseguito. Bug
+trovato in code review e corretto: i 39 comuni sono stati riaggiunti al
+registro con `modulo=pending` (pseudo-modulo, nessuna factory associata —
+`filtra_eseguibili()` li esclude comunque da ogni esecuzione), preservando
+`piattaforma_tecnica`/`base_url`/`provincia` per chi riprenderà il lavoro.
+
+Di questi, **Altavilla Milicia** (082004, piattaforma "HyperSIC" nel censimento)
+usa in realtà lo stesso URL pattern di Halley HSPromila
+(`hypersicapp.net/cms<slug>/portale/albopretorio/...`, già gestito da
+`hspromila.py`): verificato dal vivo (102 atti reali), attivato subito come
+`modulo=hspromila`, `stato=attivo` — **nessun nuovo codice necessario**.
+Gli altri 3 comuni etichettati "HyperSIC" nel censimento originale (Giardinello,
+Campofiorito, Sclafani Bagni) puntano in realtà a siti generici del comune, non
+a hypersicapp.net — probabile errore di etichettatura nel censimento; restano
+`pending`.
+
+**Copertura dopo il recupero: 204 comuni attivi di default** (era 203),
++38 comuni `pending` censiti ma non scrapati (dati preservati per ripresa futura).
+
 ## Metodo
 
 1. **Sweep deterministico** del pattern jCityGov `https://<slug>.trasparenza-valutazione-merito.it` su tutti i 391 comuni (GET, fingerprint Liferay nel body).

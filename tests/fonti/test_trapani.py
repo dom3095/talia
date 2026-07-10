@@ -310,6 +310,38 @@ def test_scarica_atti_base_url_parametro_usato(monkeypatch):
     # Verifica che almeno una richiesta sia stata fatta col base_url custom
     assert len(richieste_fatte) > 0
     assert any(base_url_custom in url for url in richieste_fatte), (
-        f"Nessuna richiesta contiene {base_url_custom}. "
-        f"Richieste fatte: {richieste_fatte}"
+        f"Nessuna richiesta contiene {base_url_custom}. Richieste fatte: {richieste_fatte}"
     )
+
+
+def test_parse_page_url_fonte_usa_base_url_custom():
+    """_parse_page deve costruire url_fonte dal base_url passato, non dalla
+    costante di modulo _BASE_URL (bug trovato in code review: scarica_atti
+    passava base_url alle richieste HTTP ma non a _parse_page, così gli atti
+    scaricati da un tenant diverso avevano comunque url_fonte puntato a
+    servizi-trapani.e-pal.it — violazione dell'esplicabilità)."""
+    base_url_custom = "http://test.example.com"
+    atti = _parse_page(_HTML_PAGINA_1, base_url=base_url_custom)
+    assert len(atti) > 0
+    assert all(a.url_fonte.startswith(base_url_custom) for a in atti)
+
+
+def test_scarica_atti_url_fonte_usa_base_url_custom(monkeypatch):
+    """Verifica end-to-end: scarica_atti(base_url=...) produce atti con
+    url_fonte che riflette il base_url passato, non la costante di modulo."""
+    base_url_custom = "http://test.example.com"
+
+    class _FintaRisposta(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def _finta_urlopen(req, **kwargs):
+        return _FintaRisposta(_HTML_PAGINA_1.encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", _finta_urlopen)
+    atti = list(scarica_atti(base_url=base_url_custom, max_pagine=1))
+    assert len(atti) > 0
+    assert all(a.url_fonte.startswith(base_url_custom) for a in atti)

@@ -75,7 +75,7 @@ def _row_to_entry(row: dict) -> EntryRegistro:
         modulo=row["modulo"],
         piattaforma_tecnica=row["piattaforma_tecnica"],
         base_url=row.get("base_url") or None,
-        stato=row.get("stato", "attivo"),
+        stato=row.get("stato") or "attivo",
         provincia=row.get("provincia") or None,
         qs_base=row.get("qs_base") or None,
         ente_mittente=row.get("ente_mittente") or None,
@@ -92,8 +92,15 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
     - modulo non riconosciuto → errore
     - codice_istat non 6 cifre → errore
     - base_url mancante su stato attivo/escluso_default/bloccato → errore
-    - qs_base/ente_mittente su modulo non-urbi/catania → warning
+    - qs_base/ente_mittente mancanti su modulo urbi/catania con stato
+      attivo/escluso_default/bloccato → errore
+    - qs_base/ente_mittente valorizzati su modulo non-urbi/catania → warning
     - skip_ssl=true su modulo non-halley → warning
+
+    ``modulo="pending"`` è un valore pseudo-modulo (nessuno scraper reale)
+    per i comuni censiti ma non ancora implementati: righe con questo modulo
+    hanno sempre ``stato="pending"`` (escluse da ``filtra_eseguibili`` prima
+    di raggiungere `costruisci_scrapers`, quindi non serve una factory).
     """
     problemi = []
     slug_visti = set()
@@ -110,6 +117,7 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
         "ribera",
         "agrigento",
         "anac",
+        "pending",
     }
 
     for entry in entries:
@@ -135,6 +143,25 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
             and entry.modulo != "anac"
         ):
             problemi.append(f"base_url mancante per slug {entry.slug!r} con stato={entry.stato!r}")
+
+        # qs_base/ente_mittente mancanti su urbi/catania (gap trovato in code
+        # review: senza questo controllo una riga catania/urbi con qs_base
+        # vuoto passa la validazione e produce un URL con "?None" a runtime)
+        if entry.modulo in ("urbi", "catania") and entry.stato in (
+            "attivo",
+            "escluso_default",
+            "bloccato",
+        ):
+            if not entry.qs_base:
+                problemi.append(
+                    f"qs_base mancante per slug {entry.slug!r} "
+                    f"(modulo={entry.modulo!r}, stato={entry.stato!r})"
+                )
+            if not entry.ente_mittente:
+                problemi.append(
+                    f"ente_mittente mancante per slug {entry.slug!r} "
+                    f"(modulo={entry.modulo!r}, stato={entry.stato!r})"
+                )
 
         # qs_base/ente_mittente fuori posto
         if entry.qs_base and entry.modulo not in ("urbi", "catania"):

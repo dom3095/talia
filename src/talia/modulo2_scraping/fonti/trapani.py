@@ -78,7 +78,7 @@ def _strip(html: str) -> str:
     return " ".join(_RE_TAG.sub("", unescape(html)).split())
 
 
-def _parse_page(html: str) -> list[AttoMetadato]:
+def _parse_page(html: str, base_url: str = _BASE_URL) -> list[AttoMetadato]:
     atti = []
     for panel_m in _RE_PANEL.finditer(html):
         panel_html = panel_m.group(1)
@@ -106,7 +106,7 @@ def _parse_page(html: str) -> list[AttoMetadato]:
         data_fine_m = _RE_DATA_FINE.search(panel_html)
 
         # Permalink non disponibile sul sito: URL sintetica per unicità DB
-        url = f"{_BASE_URL}/AlboOnline/albo/{numero_plain}/{anno}"
+        url = f"{base_url}/AlboOnline/albo/{numero_plain}/{anno}"
 
         atti.append(
             AttoMetadato(
@@ -143,9 +143,7 @@ def _build_url(
     page: int = 1,
     base_url: str = _BASE_URL,
 ) -> str:
-    return (
-        f"{base_url}{_ALBO_PATH}?dataPubblicazioneDal={dal}&dataPubblicazioneAl={al}&page={page}"
-    )
+    return f"{base_url}{_ALBO_PATH}?dataPubblicazioneDal={dal}&dataPubblicazioneAl={al}&page={page}"
 
 
 def _intervallo_default(oggi: date | None = None) -> tuple[str, str]:
@@ -192,7 +190,7 @@ def scarica_atti(
         req = urllib.request.Request(url, headers=_HEADERS)
         with urllib.request.urlopen(req, timeout=20) as r:
             html = r.read().decode("utf-8", errors="replace")
-        atti = _parse_page(html)
+        atti = _parse_page(html, base_url=base_url)
         if not atti:
             if current_page == 1:
                 _LOG.warning(
