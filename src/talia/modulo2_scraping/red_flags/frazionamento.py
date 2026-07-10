@@ -44,8 +44,8 @@ class FrazionamentoRilevato:
     codice_istat: str
     n_atti: int
     totale_euro: float
-    periodo_da: str        # ISO date
-    periodo_a: str         # ISO date
+    periodo_da: str  # ISO date
+    periodo_a: str  # ISO date
     atti: list[dict] = field(default_factory=list)  # {id, url_fonte, importo, data_atto}
 
 
@@ -102,10 +102,7 @@ def rileva_frazionamento(
             data_ancora = date.fromisoformat(ancora["data_atto"])
             data_fine = data_ancora + timedelta(days=finestra_giorni)
 
-            atti_finestra = [
-                a for a in atti[i:]
-                if date.fromisoformat(a["data_atto"]) <= data_fine
-            ]
+            atti_finestra = [a for a in atti[i:] if date.fromisoformat(a["data_atto"]) <= data_fine]
 
             if len(atti_finestra) < n_atti_soglia:
                 continue
