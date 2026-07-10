@@ -1,0 +1,392 @@
+denominazione,provincia,codice_istat,popolazione
+Palermo,PA,082053,657651
+Catania,CT,087015,293902
+Messina,ME,083048,243262
+Siracusa,SR,089017,118385
+Marsala,TP,081011,80218
+Gela,CL,085007,75668
+Ragusa,RG,088009,69794
+Caltanissetta,CL,085004,61711
+Vittoria,RG,088012,61006
+Trapani,TP,081021,58438
+Agrigento,AG,084001,58323
+Bagheria,PA,082006,54257
+Modica,RG,088006,53959
+Acireale,CT,087004,51456
+Mazara del Vallo,TP,081012,49995
+Paternò,CT,087033,47870
+Misterbianco,CT,087029,47356
+Alcamo,TP,081001,45314
+Barcellona Pozzo di Gotto,ME,083005,41632
+Sciacca,AG,084041,40899
+Licata,AG,084021,38125
+Caltagirone,CT,087011,38123
+Monreale,PA,082049,38018
+Augusta,SR,089001,36169
+Carini,PA,082021,35681
+Adrano,CT,087006,35549
+Canicattì,AG,084011,34863
+Favara,AG,084017,32972
+Milazzo,ME,083049,32146
+Castelvetrano,TP,081006,31824
+Partinico,PA,082054,31401
+Avola,SR,089002,31328
+Comiso,RG,088003,30214
+Mascalucia,CT,087024,29984
+Aci Catena,CT,087003,28749
+Giarre,CT,087017,28114
+Erice,TP,081008,28012
+Niscemi,CL,085013,27975
+Enna,EN,086009,27894
+Misilmeri,PA,082048,27570
+Gravina di Catania,CT,087019,26543
+Belpasso,CT,087007,26378
+Termini Imerese,PA,082070,26201
+Scicli,RG,088011,25922
+Lentini,SR,089011,24484
+Noto,SR,089013,23704
+Biancavilla,CT,087008,23703
+Palma di Montechiaro,AG,084027,23643
+San Cataldo,CL,085016,23424
+Floridia,SR,089009,22685
+Piazza Armerina,EN,086014,22196
+Pachino,SR,089014,22068
+San Giovanni la Punta,CT,087041,22049
+Rosolini,SR,089016,21526
+Tremestieri Etneo,CT,087051,21032
+Villabate,PA,082079,19819
+Ribera,AG,084033,19302
+Bronte,CT,087009,19234
+Pozzallo,RG,088008,18929
+Aci Castello,CT,087002,18122
+Carlentini,SR,089006,17958
+Aci Sant'Antonio,CT,087005,17270
+Scordia,CT,087049,17185
+Porto Empedocle,AG,084028,16841
+Palagonia,CT,087032,16540
+Ispica,RG,088005,15122
+Castellammare del Golfo,TP,081005,14603
+Cefalù,PA,082027,14354
+Nicosia,EN,086012,14272
+Riposto,CT,087039,14181
+Barrafranca,EN,086004,13977
+Leonforte,EN,086011,13878
+Mascali,CT,087023,13792
+Patti,ME,083066,13325
+Capo d'Orlando,ME,083009,13260
+Melilli,SR,089012,13076
+Grammichele,CT,087018,13064
+Francofonte,SR,089010,12923
+Pedara,CT,087034,12896
+Raffadali,AG,084030,12837
+Sant'Agata di Militello,ME,083084,12803
+Menfi,AG,084023,12711
+Mazzarino,CL,085009,12333
+Priolo Gargallo,SR,089021,12167
+Ravanusa,AG,084031,12128
+Cinisi,PA,082031,12031
+Terrasini,PA,082071,11985
+Valderice,TP,081022,11951
+Riesi,CL,085015,11814
+Lipari,ME,083041,11642
+Campobello di Mazara,TP,081004,11580
+San Gregorio di Catania,CT,087042,11497
+Paceco,TP,081013,11487
+Ficarazzi,PA,082035,11484
+Motta Sant'Anastasia,CT,087030,11394
+Corleone,PA,082034,11286
+Belmonte Mezzagno,PA,082009,11149
+Randazzo,CT,087038,11108
+Taormina,ME,083097,11084
+Capaci,PA,082020,11030
+Mussomeli,CL,085012,11010
+Casteldaccia,PA,082023,10884
+Salemi,TP,081018,10871
+Partanna,TP,081015,10854
+Ramacca,CT,087037,10775
+Santa Flavia,PA,082067,10751
+Trecastagni,CT,087050,10482
+Campobello di Licata,AG,084010,10438
+Trabia,PA,082073,10360
+Altofonte,PA,082005,10266
+Sant'Agata li Battiati,CT,087045,9829
+Fiumefreddo di Sicilia,CT,087016,9690
+Troina,EN,086018,9628
+Acate,RG,088001,9574
+Aragona,AG,084003,9493
+Santa Croce Camerina,RG,088010,9452
+Giardini-Naxos,ME,083032,9268
+Zafferana Etnea,CT,087055,9249
+Santa Teresa di Riva,ME,083089,9240
+Castelbuono,PA,082022,9161
+Palazzolo Acreide,SR,089015,9091
+Sortino,SR,089019,8907
+Villafranca Tirrena,ME,083105,8748
+Misiliscemi,TP,081025,8669
+San Giuseppe Jato,PA,082064,8511
+Agira,EN,086001,8484
+Casteltermini,AG,084012,8422
+Santa Venerina,CT,087048,8351
+Racalmuto,AG,084029,8345
+Caccamo,PA,082014,8295
+Chiaramonte Gulfi,RG,088002,8224
+Valguarnera Caropepe,EN,086019,8182
+Viagrande,CT,087053,8155
+San Giovanni Gemini,AG,084036,8127
+Naro,AG,084026,8103
+Solarino,SR,089018,7853
+Militello in Val di Catania,CT,087025,7807
+Petrosino,TP,081024,7760
+Valverde,CT,087052,7714
+Pantelleria,TP,081014,7493
+Altavilla Milicia,PA,082004,7429
+Torregrotta,ME,083098,7426
+Regalbuto,EN,086016,7388
+Santa Maria di Licodia,CT,087047,7322
+Sommatino,CL,085019,7267
+Pietraperzia,EN,086015,7227
+Terme Vigliatore,ME,083106,7213
+Canicattini Bagni,SR,089005,7186
+Nicolosi,CT,087031,7156
+Gioiosa Marea,ME,083033,7114
+San Pietro Clarenza,CT,087044,7102
+Isola delle Femmine,PA,082043,7100
+San Filippo del Mela,ME,083077,7065
+Gangi,PA,082036,7063
+Borgetto,PA,082013,7021
+Lercara Friddi,PA,082045,6935
+Campofelice di Roccella,PA,082017,6918
+Marineo,PA,082046,6779
+Calatafimi-Segesta,TP,081003,6738
+Tortorici,ME,083099,6732
+Santa Margherita di Belice,AG,084038,6544
+Rometta,ME,083076,6541
+Montelepre,PA,082050,6421
+Balestrate,PA,082007,6413
+Vizzini,CT,087054,6409
+Pace del Mela,ME,083064,6388
+Cammarata,AG,084009,6275
+Serradifalco,CL,085018,6265
+Sambuca di Sicilia,AG,084034,6114
+Lampedusa e Linosa,AG,084020,6105
+Piana degli Albanesi,PA,082057,6010
+Grotte,AG,084018,5839
+Brolo,ME,083007,5826
+Acquedolci,ME,083107,5744
+Santa Caterina Villarmosa,CL,085017,5727
+Centuripe,EN,086007,5599
+San Cipirello,PA,082063,5478
+Linguaglossa,CT,087021,5416
+Custonaci,TP,081007,5392
+Cerda,PA,082028,5391
+Calatabiano,CT,087010,5383
+Assoro,EN,086003,5366
+Mineo,CT,087027,5216
+Mirabella Imbaccari,CT,087028,5191
+Villarosa,EN,086020,5130
+Santa Ninfa,TP,081019,5095
+Spadafora,ME,083096,5091
+Prizzi,PA,082060,5055
+Mistretta,ME,083052,5014
+Catenanuova,EN,086006,4999
+Butera,CL,085003,4937
+Aidone,EN,086002,4929
+Santo Stefano Quisquina,AG,084040,4897
+Bisacquino,PA,082010,4829
+Castel di Iudica,CT,087013,4748
+Santa Lucia del Mela,ME,083086,4744
+Santo Stefano di Camastra,ME,083091,4674
+Siculiana,AG,084042,4632
+Calascibetta,EN,086005,4628
+Capri Leone,ME,083010,4516
+Realmonte,AG,084032,4487
+Camporotondo Etneo,CT,087012,4476
+San Vito Lo Capo,TP,081020,4415
+Delia,CL,085006,4325
+Gibellina,TP,081010,4264
+Torrenova,ME,083108,4240
+Favignana,TP,081009,4185
+Caltavuturo,PA,082015,4171
+Torretta,PA,082072,4141
+Roccalumera,ME,083072,4105
+Collesano,PA,082032,4095
+Piedimonte Etneo,CT,087035,4079
+Saponara,ME,083092,4078
+Naso,ME,083060,4015
+Maletto,CT,087022,4015
+Mazzarrone,CT,087056,3989
+Cattolica Eraclea,AG,084014,3975
+Piraino,ME,083068,3964
+San Fratello,ME,083078,3942
+Bolognetta,PA,082011,3932
+Caltabellotta,AG,084007,3907
+Francavilla di Sicilia,ME,083025,3901
+Bivona,AG,084004,3882
+Venetico,ME,083104,3855
+Ciminna,PA,082030,3845
+Alia,PA,082001,3806
+Portopalo di Capo Passero,SR,089020,3749
+Valledolmo,PA,082076,3747
+Nizza di Sicilia,ME,083061,3723
+Gagliano Castelferrato,EN,086010,3722
+Ragalna,CT,087058,3676
+Maniace,CT,087057,3671
+Furnari,ME,083028,3665
+Vallelunga Pratameno,CL,085021,3641
+Polizzi Generosa,PA,082058,3607
+Montemaggiore Belsito,PA,082051,3566
+Castellana Sicula,PA,082024,3549
+Cianciana,AG,084015,3517
+San Biagio Platani,AG,084035,3501
+Lascari,PA,082044,3500
+Caronia,ME,083011,3463
+San Michele di Ganzaria,CT,087043,3463
+Camporeale,PA,082019,3448
+Petralia Soprana,PA,082055,3443
+Furci Siculo,ME,083027,3428
+Villafrati,PA,082080,3377
+Capizzi,ME,083008,3347
+Castiglione di Sicilia,CT,087014,3298
+Sant'Angelo di Brolo,ME,083088,3297
+Castell'Umberto,ME,083014,3295
+Raddusa,CT,087036,3280
+Campofranco,CL,085005,3218
+Trappeto,PA,082074,3211
+Aci Bonaccorsi,CT,087001,3200
+Monterosso Almo,RG,088007,3183
+Milena,CL,085010,3178
+Castronovo di Sicilia,PA,082025,3175
+Giarratana,RG,088004,3143
+Gaggi,ME,083029,3138
+Alessandria della Rocca,AG,084002,3118
+San Piero Patti,ME,083081,3082
+Tusa,ME,083101,3051
+Licodia Eubea,CT,087020,3047
+Buseto Palizzolo,TP,081002,3031
+Mezzojuso,PA,082047,3020
+Castrofilippo,AG,084013,3020
+Montevago,AG,084025,3015
+Pollina,PA,082059,2998
+Petralia Sottana,PA,082056,2975
+Nissoria,EN,086013,2969
+Chiusa Sclafani,PA,082029,2957
+Vicari,PA,082078,2948
+San Pier Niceto,ME,083080,2911
+Monforte San Giorgio,ME,083054,2880
+Falcone,ME,083019,2874
+Galati Mamertino,ME,083030,2794
+San Cono,CT,087040,2790
+Sciara,PA,082068,2787
+Burgio,AG,084005,2780
+Sinagra,ME,083095,2760
+Letojanni,ME,083038,2699
+Roccapalumba,PA,082062,2634
+Santa Elisabetta,AG,084037,2608
+Ferla,SR,089008,2600
+Cesarò,ME,083017,2572
+Alì Terme,ME,083003,2567
+Castroreale,ME,083016,2548
+Montallegro,AG,084024,2543
+Montalbano Elicona,ME,083057,2420
+Merì,ME,083047,2396
+Giardinello,PA,082038,2258
+Scaletta Zanclea,ME,083094,2249
+Palazzo Adriano,PA,082052,2227
+Camastra,AG,084008,2163
+Oliveri,ME,083063,2157
+Alimena,PA,082002,2152
+Cerami,EN,086008,2150
+Vita,TP,081023,2139
+Resuttano,CL,085014,2139
+Buccheri,SR,089003,2133
+Rodì Milici,ME,083075,2130
+San Marco d'Alunzio,ME,083079,2083
+Ventimiglia di Sicilia,PA,082077,2080
+Alcara li Fusi,ME,083001,2072
+Giuliana,PA,082039,2032
+Baucina,PA,082008,2014
+Marianopoli,CL,085008,2006
+Geraci Siculo,PA,082037,1925
+Lucca Sicula,AG,084022,1917
+Contessa Entellina,PA,082033,1865
+San Mauro Castelverde,PA,082065,1847
+Gualtieri Sicaminò,ME,083035,1834
+Librizzi,ME,083039,1771
+Savoca,ME,083093,1766
+Villalba,CL,085022,1731
+Salaparuta,TP,081017,1721
+Itala,ME,083036,1663
+Montedoro,CL,085011,1643
+Montagnareale,ME,083056,1631
+Sant'Alfio,CT,087046,1631
+Isnello,PA,082042,1598
+Mazzarrà Sant'Andrea,ME,083046,1567
+Ficarra,ME,083020,1566
+Roccamena,PA,082061,1562
+Longi,ME,083042,1562
+Fiumedinisi,ME,083021,1559
+Poggioreale,TP,081016,1534
+Graniti,ME,083034,1522
+Sant'Alessio Siculo,ME,083085,1497
+Bompietro,PA,082012,1474
+Sant'Angelo Muxaro,AG,084039,1471
+Sutera,CL,085020,1436
+Pettineo,ME,083067,1433
+Villafranca Sicula,AG,084043,1426
+San Teodoro,ME,083090,1421
+Novara di Sicilia,ME,083062,1413
+San Salvatore di Fitalia,ME,083082,1378
+Calamonaci,AG,084006,1375
+Castel di Lucio,ME,083013,1366
+Valdina,ME,083103,1352
+Militello Rosmarino,ME,083050,1334
+Campofiorito,PA,082018,1332
+Aliminusa,PA,082003,1291
+Ustica,PA,082075,1287
+Pagliara,ME,083065,1230
+Joppolo Giancaxio,AG,084019,1210
+Godrano,PA,082040,1153
+Roccavaldina,ME,083073,1149
+Raccuja,ME,083069,1139
+Buscemi,SR,089004,1128
+Ucria,ME,083102,1105
+Fondachelli-Fantina,ME,083023,1090
+Blufi,PA,082082,1083
+Castelmola,ME,083015,1073
+Santa Domenica Vittoria,ME,083083,1067
+Milo,CT,087026,1065
+Acquaviva Platani,CL,085001,1041
+Gratteri,PA,082041,1019
+Cefalà Diana,PA,082026,1007
+Mirto,ME,083051,1000
+Antillo,ME,083004,992
+Malfa,ME,083043,988
+Comitini,AG,084016,944
+Tripi,ME,083100,933
+Santa Cristina Gela,PA,082066,925
+Casalvecchio Siculo,ME,083012,907
+Limina,ME,083040,900
+Santa Marina Salina,ME,083087,892
+Motta Camastra,ME,083058,882
+Forza d'Agrò,ME,083024,878
+Sperlinga,EN,086017,833
+Reitano,ME,083070,829
+Motta d'Affermo,ME,083059,828
+Alì,ME,083002,823
+Cassaro,SR,089007,813
+Malvagna,ME,083044,794
+Moio Alcantara,ME,083053,756
+Frazzanò,ME,083026,755
+Roccella Valdemone,ME,083074,711
+Leni,ME,083037,702
+Basicò,ME,083006,679
+Mongiuffi Melia,ME,083055,653
+Mandanici,ME,083045,629
+Scillato,PA,082081,627
+Bompensiere,CL,085002,610
+Campofelice di Fitalia,PA,082016,548
+Floresta,ME,083022,516
+Condrò,ME,083018,481
+Sclafani Bagni,PA,082069,450
+Gallodoro,ME,083031,381
+Roccafiorita,ME,083071,228

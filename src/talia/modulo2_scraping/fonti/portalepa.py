@@ -1,11 +1,13 @@
-"""Spider per l'albo pretorio del Comune di Siracusa (portalepa PHP).
+"""Spider generico per albi pretori su piattaforma "portalepa" PHP.
 
-URL base: https://portalepa.comune.siracusa.it
-Paginazione: link embedded nella pagina, parametro tabella_albo[page]=N con CSRF token.
-Righe: <tr class="paginated_element"> con 5 celle
-       (numero, oggetto, tipo_atto, data_affissione, fine_pubblicazione).
+Stessa piattaforma di Siracusa (`siracusa.py`), riusata da più comuni sotto
+domini diversi (es. Gela: dominio proprio; Monreale: *.soluzionipa.it) — TAL-49.
+Path riconoscibile: /openweb/albo/albo_pretorio.php, righe
+<tr class="paginated_element"> con 5 celle
+(numero, oggetto, tipo_atto, data_affissione, fine_pubblicazione).
 
-Codice ISTAT Siracusa: 089018
+Nota: alcuni tenant (es. Partinico, variante "_full") hanno un layout di
+colonne diverso e NON sono compatibili con questo modulo — vedi TAL-49.
 
 Dati pubblici ai sensi del D.lgs. 33/2013.
 """
@@ -19,22 +21,14 @@ import urllib.request
 from collections.abc import Iterable, Iterator
 from html import unescape
 
-from talia.modulo2_scraping.db import (
-    AttoMetadato,
-    EnteMetadato,
-    inserisci_atto,
-    upsert_ente,
-)
+from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
 
 # ---------------------------------------------------------------------------
 # Costanti
 # ---------------------------------------------------------------------------
 
-FONTE_SCRAPER = "siracusa"
-CODICE_ISTAT = "089017"
-
-_BASE_URL = "https://portalepa.comune.siracusa.it"
+FONTE_SCRAPER = "portalepa"
 _ALBO_PATH = "/openweb/albo/albo_pretorio.php"
 
 _HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"}
@@ -58,7 +52,7 @@ def _strip(html: str) -> str:
     return " ".join(_RE_TAG.sub("", unescape(html)).split())
 
 
-def _parse_page(html: str) -> list[AttoMetadato]:
+def _parse_page(html: str, base_url: str, codice_istat: str) -> list[AttoMetadato]:
     atti = []
     for row_m in _RE_ROW.finditer(html):
         row_html = row_m.group(1)
@@ -68,13 +62,13 @@ def _parse_page(html: str) -> list[AttoMetadato]:
         link_m = _RE_LINK.search(row_html)
         if not link_m:
             continue
-        url = _BASE_URL + "/" + link_m.group(1).lstrip("/")
-        # tipo_atto in portalepa è "Determina nr.X del dd/mm/yyyy" → estrai la prima parola
+        url = base_url + "/" + link_m.group(1).lstrip("/")
+        # tipo_atto è "Determina nr.X del dd/mm/yyyy" → estrai la prima parola
         tipo_raw = cells[2] if len(cells) > 2 else ""
         tipo = tipo_raw.split()[0].lower() if tipo_raw else "atto"
         oggetto = cells[1] or None
         atti.append(AttoMetadato(
-            ente_codice_istat=CODICE_ISTAT,
+            ente_codice_istat=codice_istat,
             tipo=tipo,
             url_fonte=url,
             fonte_scraper=FONTE_SCRAPER,
@@ -88,12 +82,12 @@ def _parse_page(html: str) -> list[AttoMetadato]:
     return atti
 
 
-def _next_page_links(html: str) -> dict[int, str]:
+def _next_page_links(html: str, base_url: str) -> dict[int, str]:
     """Restituisce {numero_pagina: url} per tutti i link di paginazione."""
     links: dict[int, str] = {}
     for m in _RE_NEXT.finditer(html):
         page_num = int(m.group(2))
-        links[page_num] = _BASE_URL + unescape(m.group(1))
+        links[page_num] = base_url + unescape(m.group(1))
     return links
 
 
@@ -102,27 +96,36 @@ def _next_page_links(html: str) -> dict[int, str]:
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
-    """Scarica atti dall'albo pretorio di Siracusa.
+def scarica_atti(
+    base_url: str,
+    codice_istat: str,
+    *,
+    max_pagine: int = 100,
+) -> Iterator[AttoMetadato]:
+    """Scarica atti da un albo pretorio "portalepa" (famiglia di Siracusa).
 
-    Richiede connettività di rete. Per i test usa _parse_page() con HTML fixture.
+    Args:
+        base_url:     URL base del portale, es. "https://portale.comune.gela.cl.it".
+        codice_istat: codice ISTAT a 6 cifre del comune.
+        max_pagine:   numero massimo di pagine da scaricare.
     """
     # CookieJar necessario: portalepa imposta PHPSESSID alla prima risposta
     # e rifiuta le richieste successive senza cookie (HTTP 400).
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    url: str = _BASE_URL + _ALBO_PATH
+    base = base_url.rstrip("/")
+    url = base + _ALBO_PATH
     current_page = 1
     for _ in range(max_pagine):
         req = urllib.request.Request(url, headers=_HEADERS)
         with opener.open(req, timeout=20) as r:
             html = r.read().decode("utf-8", errors="replace")
-        atti = _parse_page(html)
+        atti = _parse_page(html, base, codice_istat)
         if not atti:
             break
         yield from atti
-        next_links = _next_page_links(html)
+        next_links = _next_page_links(html, base)
         next_url = next_links.get(current_page + 1)
         if not next_url:
             break
@@ -145,12 +148,3 @@ def salva_atti(
             duplicati += 1
     conn.commit()
     return {"inseriti": inseriti, "duplicati": duplicati}
-
-
-def prepara_ente(conn: sqlite3.Connection) -> None:
-    """Upsert del Comune di Siracusa nel DB (prerequisito per inserisci_atto)."""
-    upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Siracusa",
-        codice_istat=CODICE_ISTAT,
-        provincia="SR",
-    ))

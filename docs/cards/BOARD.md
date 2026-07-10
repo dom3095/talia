@@ -49,6 +49,7 @@ batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard S
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-49](TAL-49.md) | Censimento albi + rollout scraper comuni siciliani | 🕷️ SCR | branch `feat/E3-censimento-comuni-sicilia`, **PR #8 pronta per il merge**; 192 comuni (72,9% popolazione), 384 test |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |

@@ -24,9 +24,11 @@ Dati pubblici ai sensi del D.lgs. 33/2013.
 from __future__ import annotations
 
 import http.cookiejar
+import logging
 import re
 import sqlite3
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable, Iterator
@@ -47,6 +49,24 @@ _ALBO_PATH = "/web/trasparenza/papca-g/-/papca"
 _PAPCA_PATH = "/web/trasparenza/papca-g"
 _DEFAULT_LIMIT = 200
 _DEFAULT_DELAY = 0.5
+
+# Alcuni tenant (es. Milazzo, Aragona, Gaggi, Letojanni, Noto: 0 atti dalla
+# API standard, TAL-49) espongono l'albo su un'istanza "papca-ap" diversa,
+# con un id "igrid" specifico del tenant che non è prevedibile a priori.
+# Va scoperto leggendo la pagina menu /web/trasparenza/albo-pretorio, che
+# contiene blocchi data-resource="<label>" con data-mainurl
+# = "/web/trasparenza/papca-ap/-/papca/igrid/<id>". Scoperto 2026-07-07.
+# Alcuni tenant (es. Racalmuto) hanno "Albo pretorio" vuoto ma "Storico atti"
+# popolato: si prova nell'ordine finché una risorsa non è vuota.
+_LANDING_PATH = "/web/trasparenza/albo-pretorio"
+_RISORSE_FALLBACK = ("Albo pretorio", "Storico atti")
+_RE_MAINURL = re.compile(
+    r'data-resource="([^"]+)"[^>]*data-mainurl="([^"]+)"',
+    re.IGNORECASE,
+)
+_RE_TOTALE = re.compile(r"Sono stati trovati.*?<strong>(\d+)</strong> risultati")
+
+logger = logging.getLogger(__name__)
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -99,6 +119,22 @@ def _parse_date_cella(raw: str) -> tuple[str | None, str | None]:
     return d1, d2
 
 
+def _scopri_risorse_alternative(opener, base: str) -> dict[str, str]:
+    """Scopre i percorsi "papca-ap/.../igrid/<id>" alternativi per i tenant
+    la cui API standard (papca-g, categoria 0) ritorna 0 risultati.
+
+    La pagina menu /web/trasparenza/albo-pretorio contiene blocchi
+    data-resource="<label>" con data-mainurl che punta all'istanza "igrid"
+    corretta per il tenant (scoperto su Milazzo & co., TAL-49). Ritorna
+    {label: path}, es. {"Albo pretorio": "...", "Storico atti": "..."}.
+    """
+    try:
+        html = _fetch(opener, f"{base}{_LANDING_PATH}")
+    except (TimeoutError, urllib.error.URLError):
+        return {}
+    return dict(_RE_MAINURL.findall(html))
+
+
 def _url_dettaglio(base_url: str, pub_id: str) -> str:
     return (
         f"{base_url}{_PAPCA_PATH}"
@@ -114,20 +150,26 @@ def _url_dettaglio(base_url: str, pub_id: str) -> str:
 
 
 def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetadato]:
+    # Alcuni tenant non hanno la colonna "Anno e Numero Registro": in quel caso
+    # le celle sono [tipo, oggetto, periodo] invece di [tipo, numero, oggetto,
+    # periodo] e senza questo controllo oggetto e date finiscono nei campi
+    # sbagliati (successo con Castel di Iudica & co., run del 2026-07-07).
+    ha_numero = "Anno e Numero" in html
+    i_oggetto = 2 if ha_numero else 1
+    i_date = 3 if ha_numero else 2
+
     atti = []
     for m in _RE_ROW.finditer(html):
         pub_id = m.group(1)
         row_html = m.group(2)
         celle = list(_RE_CELL.finditer(row_html))
-        if len(celle) < 3:
+        if len(celle) <= i_date:
             continue
 
         tipo = _parse_tipo(celle[0].group(1))
-        numero_raw = _strip(celle[1].group(1))   # "2026/1031"
-        oggetto = _strip(celle[2].group(1)) or None
-        data_pub, data_scad = _parse_date_cella(
-            _strip(celle[3].group(1)) if len(celle) > 3 else ""
-        )
+        numero_raw = _strip(celle[1].group(1)) if ha_numero else ""  # "2026/1031"
+        oggetto = _strip(celle[i_oggetto].group(1)) or None
+        data_pub, data_scad = _parse_date_cella(_strip(celle[i_date].group(1)))
 
         # Separa anno/numero dal formato "YYYY/NNNN"
         numero = None
@@ -212,18 +254,38 @@ def scarica_atti(
     """
     opener = _opener or _build_opener(skip_ssl=skip_ssl)
     base = base_url.rstrip("/")
+    papca_path = _PAPCA_PATH
 
     # 1. Setup sessione
     _fetch(opener, f"{base}{_ALBO_PATH}")
 
     # 2. Pagina 1 tramite eseguiFiltro (POST)
     filter_url = (
-        f"{base}{_PAPCA_PATH}"
+        f"{base}{papca_path}"
         f"?p_p_id={_PORTLET}&p_p_lifecycle=1&p_p_state=pop_up&p_p_mode=view"
         f"&_{_PORTLET}_action=eseguiFiltro&_{_PORTLET}_categoriaId={categoria_id}"
     )
     post_data = urllib.parse.urlencode({f"_{_PORTLET}_categoriaId": categoria_id}).encode()
     html = _fetch(opener, filter_url, data=post_data)
+
+    # Alcuni tenant (Milazzo, Aragona, Gaggi, Letojanni, Noto: TAL-49) non
+    # hanno risultati sul percorso standard: la vera istanza dell'albo è
+    # altrove e va scoperta dalla pagina menu.
+    m_totale = _RE_TOTALE.search(html)
+    if m_totale and m_totale.group(1) == "0":
+        risorse = _scopri_risorse_alternative(opener, base)
+        for label in _RISORSE_FALLBACK:
+            alt_path = risorse.get(label)
+            if not alt_path:
+                continue
+            candidato = _fetch(opener, f"{base}{alt_path}")
+            m_alt = _RE_TOTALE.search(candidato)
+            if not m_alt or m_alt.group(1) != "0":
+                papca_path = alt_path.split("/-/papca")[0]
+                html = candidato
+                break
+        else:
+            logger.warning("jcitygov %s: 0 atti su tutti i percorsi noti", base)
 
     raccolti = 0
     while raccolti < limit:
@@ -245,7 +307,7 @@ def scarica_atti(
 
         # 3. Pagine successive tramite paginationAction=NEXT (GET, lifecycle=0)
         next_url = (
-            f"{base}{_PAPCA_PATH}"
+            f"{base}{papca_path}"
             f"?p_p_id={_PORTLET}&p_p_lifecycle=0&p_p_state=pop_up&p_p_mode=view"
             f"&_{_PORTLET}_paginationAction=NEXT&_{_PORTLET}_action=mostraLista"
         )

@@ -1,83 +1,113 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-06
+> Aggiornato: 2026-07-09 (fine TAL-49, pronto per PAL/CT)
 
 ---
 
 ## Branch attivo
 
-`feat/TAL-47-pdf-on-demand` — download PDF on-demand da catene ricostruite (Fase 2, MVP).
-Da committare e aprire PR. Il fix BUG-4 Trapani è stato mergiato su `main` (`097c203`).
-Il vecchio branch locale `fix/BUG-4-trapani-regex` è superato (conteneva solo un
-commit docs, nessun fix): può essere cancellato.
+`feat/E3-censimento-comuni-sicilia` — **PR #8 aperta, pronta per la review finale**.
+Sessione del 2026-07-07 (TAL-49): partita come sessione autonoma (censimento + rollout
+jCityGov), proseguita interattiva nel pomeriggio/sera con Dom (fix, nuove piattaforme,
+sweep di dominio). Proseguita il 2026-07-08 con il completamento dei 12 comuni più
+popolosi mancanti della provincia di Agrigento (4 gruppi da 3), e il 2026-07-09 con
+altri 6 dei 13 comuni ancora scoperti della stessa provincia (i più piccoli, tutti su
+piattaforme già supportate). Tutto committato e pushato, working tree pulito a parte
+`data/samples/1/` (locale, mai committare) e `notebooks/`/
+`data/comuni_sicilia_confini.geojson` (mappa di copertura, non ancora committati —
+decisione pendente di Dom).
 
-## Sessione 2026-07-05/06 — TAL-47: download PDF on-demand (Fase 2, MVP)
+### Cosa contiene la PR #8 (da rivedere e mergiare)
 
-**Decisione di processo (utente):** quando l'engine catena ricostruisce una catena,
-il sistema scarica i PDF degli atti; l'analisi e la rilevazione delle criticità è
-**in capo al codice, non a Claude**. Fascicoli con violazioni → salvati con file di
-spiegazione; senza violazioni → salvati comunque, senza spiegazione.
+Riassunto cumulativo:
 
-**Fatto (loop: agente haiku esplora → contesto principale consolida):**
-- Nuovo modulo `src/talia/modulo2_scraping/pdf_download.py`: `trova_allegati()` +
-  `scarica_pdf_procedimento()`. Endpoint scoperto: `/papca/display/<id>` espone gli
-  allegati in `<tr data-chiave-allegato>`; URL di download base64 negli onclick
-  (`atob('…')`), endpoint Liferay `p_p_lifecycle=2&p_p_resource_id=downloadAllegato`.
-  HTTP puro, niente Playwright.
-- Validazione: 31 allegati scaricati dai proc. Palma 653/654/655; hash SHA256 4/4
-  identici ai PDF veri di `data/samples/1/`. Idempotenza verificata (2° run: 0 download).
-- 3 bug dell'agente corretti in consolidamento: estensione dai magic bytes `%PDF`
-  (non dal mimetype dichiarato), idempotenza reale su file esistente, `url_pdf` al
-  primo PDF vero (non all'ultimo allegato = firma). Dettagli in TAL-47 § Tentativi.
-- `motivo_selezione.json` in ogni cartella scaricata: giustificazione esplicabile della
-  selezione generata dal DB (stato, metodo, ruoli atti + url_fonte, red flags, disclaimer).
-- 11 test nuovi (`tests/test_pdf_download.py`), **304 test verdi totali**, lint ok.
-- Doc: card `docs/cards/TAL-47.md` (Review), wiki `docs/wiki/14-pdf-on-demand.md`.
+- `data/comuni_sicilia.csv` — 391 comuni per popolazione (codici ISTAT ufficiali)
+- **Palermo** (`palermo.py`): SISPI in HTTP puro — 8 test
+- **Catania** (`catania.py`): wizard URBI in HTTP puro — 6 test
+- **Fix 4 codici ISTAT errati** (Caltanissetta, Siracusa, Enna, Palma) — migrazione applicata a `talia.db`
+- **jCityGov**: 60 comuni rollout iniziale + fix parser (12 tenant senza colonna "Anno e Numero
+  Registro") + fallback automatico per tenant con "0 risultati" sul percorso standard
+  (scopre risorsa "Albo pretorio" o "Storico atti" alternativa) → **66 comuni totali**
+  (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto sbloccati così)
+- **`portalepa.py`** (nuovo modulo, generalizzato da `siracusa.py`): **18 comuni**, di cui 16
+  trovati con sweep di dominio (`<slug>.soluzionipa.it`) — include **Caltagirone**, sbloccata
+  qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
+- **`halley.py`** (nuovo modulo, piattaforma Halley Informatica): **93 comuni**, di cui 85
+  trovati con sweep di dominio + Menfi/Siculiana/Realmonte/Joppolo Giancaxio (Agrigento) —
+  `skip_ssl` opzionale per catene certificato incomplete (Siculiana, Joppolo Giancaxio)
+- **`urbi.py`** (nuovo modulo, generalizzato da `catania.py`): **8 comuni** provincia di
+  Agrigento (Favara, Raffadali, Ravanusa, Campobello di Licata, Naro, Santa Margherita di
+  Belice, San Biagio Platani, Villafranca Sicula)
+- **`hspromila.py`** (nuovo modulo, variante Halley ASP.NET): **5 comuni** (Sambuca di Sicilia,
+  Santo Stefano Quisquina, Santa Elisabetta, Montallegro, Lucca Sicula) — bug di dedup
+  url_fonte scoperto e corretto in fase di test
+- **`ribera.py`** (nuovo modulo dedicato, WordPress): 1 comune
+- Wiki censimento aggiornata: `docs/wiki/14-censimento-albi.md`
+- **384 test verdi, ruff pulito** (erano 322 a inizio PR)
 
-**Batch 2026-07-06 — 20 catene critiche scaricate (limite utente: 20, diversificate per comune):**
-`procedimenti_critici(limite=20)` con round-robin per ente. Scaricate: Caltanissetta 6,
-Palma 6, Ragusa 5, Enna 3 (+ proc. 692 Palma, residuo di un run precedente interrotto:
-21 cartelle totali su disco). **136 allegati** in `data/raw/pdf/<ente>/<proc>/`, ognuna
-con `meta.json` + `motivo_selezione.json`. Escluse dal giro (fonti non supportate):
-Siracusa 5 catene (portalepa) e Agrigento 2 (ASP.NET) → servono downloader dedicati.
+**Copertura finale: 192 comuni attivi ≈ 3.644.530 abitanti, 72,9% della popolazione
+siciliana** (era 55% a inizio PR).
 
-**4 atti con 0 allegati** (WARNING nel log, comportamento atteso — l'albo non li espone più):
-atti 1088, 1089, 1424 (Caltanissetta), 298 (Enna). Conferma la lezione Trapani: gli albi
-espongono gli allegati solo per un periodo → il download va fatto vicino alla scoperta.
+### ⚠️ Decisioni per Dom (prima/durante il merge)
 
-**Segnali per catena in `motivo_selezione.json` (feedback utente):** esito critico
-con evidenza, avvio/chiusura stesso giorno, chiusura rapida, avvio non in albo,
-riferimento citato non riscontrato (condizionato alla copertura DB dell'ente —
-verifica anti-overfitting su tutte le 28 catene, vedi TAL-47 Tentativo 6), metodo
-fuzzy da verificare.
-
-**Nuova card TAL-48 (To Do):** red flag "riapertura dopo revoca" — idea utente
-verificata empiricamente: Palma 656 (bando ZES annullato 2023, ripubblicato 2026),
-Ragusa 1079 (determina riadottata dopo 18gg). Guardia anti-periodicità necessaria
-(falso positivo: atti trimestrali Enna). Vedi `docs/cards/TAL-48.md`.
-
-**Prossimi (Fase 2):** TAL-48 (riapertura dopo revoca), estrazione testo dai PDF
-scaricati (riuso engine OCR), run dei check e salvataggio fascicoli con/senza
-spiegazione, integrazione in `run_scrapers.py` (`--download-pdf`), estensione ad
-altre piattaforme (e-pal, portalepa, ASP.NET), confronto bando originale vs
-rilanciato (dipende da TAL-48 + estrazione testo).
+1. **Migrazione `talia.db`**: ✅ già applicata (backup `talia.db.bak-20260707`, gitignored).
+2. **Default run**: ora include **192 scraper HTTP**. Molto più ampio di quando la PR è stata
+   aperta (erano 64): valutare se va bene o se serve una whitelist più conservativa per i run
+   automatici futuri (cron) — vedi anche [[pre-cron-checklist]] in memoria.
+3. **La maggior parte dei comuni non è ancora mai stata eseguita su `talia.db`**: solo testati
+   su DB isolati (`/tmp/test_*.db`). Il primo run reale su `talia.db` con tutti gli scraper
+   andrà monitorato (volume, eventuali timeout SSL transitori già osservati su 1-2 comuni Halley).
+4. Restano scoperti: **Partinico** (portalepa variante `_full`, mapping colonne da fare),
+   **Messina** (bloccata, intervento IT del Comune necessario), 7 comuni piccolissimi della
+   provincia di Agrigento (~19.500 abitanti totali, ciascuno su una piattaforma diversa non
+   supportata: APKAPPA, Alph@soft, ComuneWeb, Municipium, custom — vedi dettagli e note
+   tecniche in `docs/wiki/14-censimento-albi.md` e `docs/cards/TAL-49.md` Tentativo 17).
+5. **`notebooks/copertura_scraper_sicilia.ipynb` + `data/comuni_sicilia_confini.geojson`**:
+   creati su richiesta (mappa colorata di copertura), ancora non committati — decidere se
+   includerli in questa PR o in una successiva.
 
 ## DB attuale
 
-Aggiornato 2026-07-03 (notte), dopo fix Trapani + run completo:
+`talia.db`: **65 enti | 78.323 atti** (dopo backfill storico, vedi sotto). I 109 comuni
+nuovi di oggi (portalepa/Halley + jCityGov sbloccati) **non sono ancora in `talia.db`**,
+solo nel codice registrato in `scripts/run_scrapers.py`.
 
-```
-7 enti | 4463 atti | 5 red flags
-Agrigento:             278 atti  2026-06-03 → 2026-06-26
-Caltanissetta:        1000 atti  2026-05-18 → 2026-06-25
-Enna:                  400 atti  2022-01-19 → 2025-04-02  (bassa freq. ~3 atti/mese)
-Palma di Montechiaro:  748 atti  2018-05-11 → 2026-06-05  ✅ backfill completo (già dal 26/06)
-Ragusa:               1000 atti  2023-05-09 → 2026-04-15
-Siracusa:              670 atti  2023-10-03 → 2026-06-26
-Trapani:               367 atti  2026-04-10 → 2026-07-02  ✅ BUG-4 risolto, +329 atti
-```
+**Backfill storico completato** (2 lotti lanciati manualmente da Dom in parallelo alla
+sessione, 27 comuni jCityGov totali, `--no-stop --max-pagine 500`): entrambi terminati
+senza errori, verificato in `scraper_runs`. Alcuni comuni (Bagheria, Giarre, Gravina di
+Catania, Salemi, Sant'Agata li Battiati, Caltanissetta) hanno toccato il tetto dei 10.000
+atti: potrebbero avere ancora storico oltre il limite, da tenere a mente per un lotto 2.
 
----
+Nota dati residua: Lentini ha una `data_pub` "0202-06-16" — refuso della fonte (albo),
+non del parser. Valutare un guard "anno < 1990 → NULL" in `parse_data_iso` (non ancora fatto).
+
+## 🤝 Istruzioni per la prossima sessione
+
+1. **Se Dom ha già mergiato la PR #8**: verificare che `main` sia aggiornato, poi valutare
+   se lanciare il primo run completo con tutti i 161 scraper su `talia.db` (grande, farlo
+   a lotti o monitorare attentamente le prime esecuzioni).
+2. **Se la PR #8 è ancora aperta**: continua a ricevere commit su questo branch (fix,
+   nuove piattaforme) finché non viene mergiata — non aprire branch nuovi per lo stesso
+   filone di lavoro (censimento/scraper).
+3. Prossimi comuni da censire (non ancora fatti): Favara (URBI Cloud), Partinico (portalepa
+   `_full`), e la lista media/piccola in `docs/wiki/14-censimento-albi.md` (~15 comuni,
+   piattaforma da scoprire).
+4. Vale la pena ripetere lo sweep di dominio (Halley/portalepa) periodicamente: nuovi
+   comuni potrebbero attivare l'albo o cambiare piattaforma nel tempo.
+
+### Regole di sempre
+
+- MAI push su main, MAI merge: branch + PR, il merge lo fa Dom (PR #8 è sua da rivedere).
+- Fix agli scraper: commit sul branch `feat/E3-censimento-comuni-sicilia` finché
+  la PR #8 è aperta (sono la stessa unità di lavoro), poi branch nuovi.
+- Ogni tentativo significativo va nella card `docs/cards/TAL-49.md`, sezione 🔬 Tentativi
+  (12 tentativi loggati oggi).
+- Prima di dichiarare una piattaforma "nuova", verificare contro gli scraper già esistenti
+  nel repo (portalepa era etichettato erroneamente "SoluzioniPA" da un agente di ricognizione
+  — era in realtà lo stesso codice di `siracusa.py`).
+- Validare sempre la funzione di fingerprint di uno sweep contro un caso noto-positivo E
+  noto-negativo prima di lanciarlo su scala (il primo sweep Halley falliva silenziosamente
+  per un limite di lettura troppo basso sulla risposta HTTP).
 
 ## Modifiche non committate
 
@@ -166,6 +196,32 @@ Aggiornati `CLAUDE.md` e `docs/cards/_TEMPLATE.md` con:
 ---
 
 ## Prossimi passi
+
+### 0 — Review e merge PR #8 (TAL-49)
+
+Rivedere la PR, decidere su migrazione ISTAT e default run (vedi sopra), mergiare.
+
+### 1 — Approfondimento Palermo e Catania
+
+**Palermo** (`palermo.py`) e **Catania** (`catania.py`) sono già implementati e HTTP puro
+(non richiedono Playwright come per Agrigento). Entrambi espongono solo atti in pubblicazione
+(~15-30 gg), quindi il primo run su `talia.db` post-merge avrà dati recenti ma no storico.
+
+Verificare da `talia.db` dopo merge:
+- Palermo: `SELECT COUNT(*) FROM atti WHERE ente_codice_istat = '082053'`
+- Catania: `SELECT COUNT(*) FROM atti WHERE ente_codice_istat = '087003'`
+
+Se i numeri sono bassi (< 100 atti), consider fare un backfill manuale via
+`--no-stop --max-pagine 500` su un DB separato per capire quanto storico è
+recuperabile.
+
+### 2 — Comuni restanti della provincia di Agrigento (7, molto piccoli)
+
+Caltabellotta, Bivona, Cianciana, Castrofilippo, Burgio, Sant'Angelo Muxaro, Calamonaci:
+ciascuno su una piattaforma diversa (APKAPPA, Alph@soft, ComuneWeb, custom, Municipium).
+Vedi documentazione dettagliata in `docs/wiki/14-censimento-albi.md` e `docs/cards/TAL-49.md`
+(Tentativo 17) per chi vuole riprenderli in futuro.
+
 
 ### 0 — ~~Fix Trapani~~ ✅ FATTO (2026-07-03, branch `fix/BUG-4-trapani-filtro-data`)
 

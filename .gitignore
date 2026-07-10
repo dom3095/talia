@@ -64,3 +64,4 @@ Thumbs.db
 .agents/
 skills-lock.json
 .claude/settings.local.json
+*.db.bak-*

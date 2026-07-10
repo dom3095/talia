@@ -9,7 +9,9 @@ from talia.modulo2_scraping.fonti.jcitygov import (
     _parse_date_cella,
     _parse_pagina,
     _parse_tipo,
+    _scopri_risorse_alternative,
     _url_dettaglio,
+    scarica_atti,
 )
 
 # ---------------------------------------------------------------------------
@@ -18,6 +20,10 @@ from talia.modulo2_scraping.fonti.jcitygov import (
 
 _HTML_LISTA = """
 <table>
+<thead><tr>
+  <th>Tipo Atto</th><th><span>Anno e Numero Registro</span></th>
+  <th>Oggetto</th><th>Periodo Pubblicazioneda - a</th><th>&nbsp;</th>
+</tr></thead>
 <tbody>
 <tr class="master-detail-list-line master-detail-list-line-odd" data-id="4721119">
   <td class="categoria text">
@@ -39,6 +45,29 @@ _HTML_LISTA = """
   <td class="annonumero number">2026/42</td>
   <td class="oggetto text">APPROVAZIONE PIANO OPERATIVO.</td>
   <td class="date">01/06/2026  30/06/2026</td>
+  <td class="allegati">1</td>
+</tr>
+</tbody>
+</table>
+"""
+
+# Variante reale (es. Castel di Iudica): manca la colonna "Anno e Numero
+# Registro" — le celle sono [tipo, oggetto, periodo]. Run 2026-07-07.
+_HTML_LISTA_SENZA_NUMERO = """
+<table>
+<thead><tr>
+  <th>Tipo Atto</th><th>Oggetto</th>
+  <th>Periodo Pubblicazioneda - a</th><th>&nbsp;</th>
+</tr></thead>
+<tbody>
+<tr class="master-detail-list-line master-detail-list-line-odd" data-id="5436021">
+  <td class="categoria text">
+    <span class="categoria_categoria">DETERMINE</span>
+    <span class="categoria_separatore"> /</span>
+    <span class="categoria_sottocategoria">DETERMINA CAPO SETTORE</span>
+  </td>
+  <td class="oggetto text">IRROGAZIONE SANZIONE DI PROVA ART. 7-BIS.</td>
+  <td class="date">12/06/2026  31/12/2031</td>
   <td class="allegati">1</td>
 </tr>
 </tbody>
@@ -134,3 +163,116 @@ def test_parse_pagina_secondo_atto():
 
 def test_parse_pagina_html_vuoto():
     assert _parse_pagina("", _BASE, _ISTAT) == []
+
+
+def test_parse_pagina_layout_senza_colonna_numero():
+    """Tenant senza colonna 'Anno e Numero Registro' (es. Castel di Iudica)."""
+    atti = _parse_pagina(_HTML_LISTA_SENZA_NUMERO, _BASE, _ISTAT)
+    assert len(atti) == 1
+    a = atti[0]
+    assert a.numero is None
+    assert a.oggetto == "IRROGAZIONE SANZIONE DI PROVA ART. 7-BIS."
+    assert a.data_pub == "2026-06-12"
+    assert a.data_scadenza == "2031-12-31"
+
+
+# ---------------------------------------------------------------------------
+# Test fallback "percorso alternativo" (tenant papca-ap: Milazzo & co., TAL-49)
+# ---------------------------------------------------------------------------
+
+_HTML_LANDING_CON_MAINURL = (
+    '<a data-currentTypeMenu="DEFAULT" data-resource="Albo pretorio" '
+    'data-parentid="20688" '
+    'data-mainurl="/web/trasparenza/papca-ap/-/papca/igrid/269681"></a>'
+)
+
+_HTML_ZERO_RISULTATI = (
+    "<div>Sono stati trovati <strong>0</strong> risultati in <strong>0</strong> pagine.</div>"
+)
+
+
+class _FakeHeaders:
+    def get_content_charset(self, default="utf-8"):
+        return "utf-8"
+
+
+class _FakeResponse:
+    def __init__(self, html: str):
+        self._body = html.encode("utf-8")
+        self.headers = _FakeHeaders()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def read(self):
+        return self._body
+
+
+class _FakeOpener:
+    """Opener finto: instrada le richieste in base al primo marker contenuto nell'URL."""
+
+    def __init__(self, responses: dict[str, str]):
+        self._responses = responses
+
+    def open(self, req, timeout=30):
+        url = req.full_url
+        for marker, html in self._responses.items():
+            if marker in url:
+                return _FakeResponse(html)
+        raise AssertionError(f"URL non atteso nel test: {url}")
+
+
+def test_scopri_risorse_alternative_trova_mainurl():
+    opener = _FakeOpener({"/web/trasparenza/albo-pretorio": _HTML_LANDING_CON_MAINURL})
+    risorse = _scopri_risorse_alternative(
+        opener, "https://milazzo.trasparenza-valutazione-merito.it"
+    )
+    assert risorse == {"Albo pretorio": "/web/trasparenza/papca-ap/-/papca/igrid/269681"}
+
+
+def test_scopri_risorse_alternative_non_trovate():
+    opener = _FakeOpener({"/web/trasparenza/albo-pretorio": "<html>niente qui</html>"})
+    risorse = _scopri_risorse_alternative(opener, "https://x.trasparenza-valutazione-merito.it")
+    assert risorse == {}
+
+
+def test_scarica_atti_usa_percorso_alternativo_se_zero_risultati():
+    """Tenant tipo Milazzo: papca-g/categoria 0 ritorna 0 atti, il vero albo
+    è raggiungibile solo dal percorso "papca-ap/igrid/<id>" scoperto dalla
+    pagina menu (TAL-49)."""
+    base = "https://milazzo.trasparenza-valutazione-merito.it"
+    responses = {
+        "eseguiFiltro": _HTML_ZERO_RISULTATI,
+        "/web/trasparenza/albo-pretorio": _HTML_LANDING_CON_MAINURL,
+        "igrid/269681": _HTML_LISTA,
+        "papca-g/-/papca": "<html></html>",
+    }
+    opener = _FakeOpener(responses)
+    atti = list(scarica_atti(base, "083048", limit=10, _opener=opener, delay=0))
+    assert len(atti) == 2
+    assert atti[0].ente_codice_istat == "083048"
+
+
+def test_scarica_atti_prova_storico_atti_se_albo_pretorio_vuoto():
+    """Tenant tipo Racalmuto: sia papca-g che l'istanza "Albo pretorio"
+    alternativa ritornano 0 atti; i dati veri sono sotto "Storico atti"."""
+    base = "https://racalmuto.trasparenza-valutazione-merito.it"
+    html_landing = (
+        '<a data-resource="Albo pretorio" '
+        'data-mainurl="/web/trasparenza/papca-ap/-/papca/igrid/251859"></a>'
+        '<a data-resource="Storico atti" '
+        'data-mainurl="/web/trasparenza/papca-ap/-/papca/igrid/251881"></a>'
+    )
+    responses = {
+        "eseguiFiltro": _HTML_ZERO_RISULTATI,
+        "/web/trasparenza/albo-pretorio": html_landing,
+        "igrid/251859": _HTML_ZERO_RISULTATI,
+        "igrid/251881": _HTML_LISTA,
+        "papca-g/-/papca": "<html></html>",
+    }
+    opener = _FakeOpener(responses)
+    atti = list(scarica_atti(base, "084029", limit=10, _opener=opener, delay=0))
+    assert len(atti) == 2
