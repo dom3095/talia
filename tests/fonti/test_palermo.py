@@ -171,3 +171,22 @@ def test_salva_atti_inserisce_e_deduplica(tmp_path):
     esito2 = salva_atti(atti, conn)
     assert esito2 == {"inseriti": 0, "duplicati": 2}
     assert conta_atti(conn) == 2
+
+
+# ---------------------------------------------------------------------------
+# Test parametrizzazione base_url
+# ---------------------------------------------------------------------------
+
+
+def test_prepara_ente_accetta_base_url_parametro(tmp_path):
+    """Verifica che prepara_ente accetti il parametro base_url."""
+    conn = connetti(tmp_path / "test.db")
+    inizializza_db(conn)
+    # Dovrebbe non sollevare
+    prepara_ente(
+        conn,
+        base_url="http://test.example.com",
+        codice_istat="999999",
+        denominazione="Test Comune",
+    )
+    # L'importante è che non sollevi TypeError per parametri inaspettati

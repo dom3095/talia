@@ -119,14 +119,19 @@ def _data_iso(s: str | None) -> str | None:
     return parse_data_iso(s.replace("-", "/")) if s else None
 
 
-def _url_dettaglio(id_pubblica: str) -> str:
+def _url_dettaglio(id_pubblica: str, base_url: str = _BASE, qs_base: str = _QS_COMUNE) -> str:
     return (
-        f"{_BASE}?{_QS_COMUNE}&StwEvent=91000302"
+        f"{base_url}?{qs_base}&StwEvent=91000302"
         f"&IdMePubblica={id_pubblica}&curArchivio=&SOLCollegamentoAtti=S"
     )
 
 
-def _parse_pagina(html: str) -> tuple[list[AttoMetadato], int]:
+def _parse_pagina(
+    html: str,
+    base_url: str = _BASE,
+    qs_base: str = _QS_COMUNE,
+    ente_mittente: str = ENTE_MITTENTE,
+) -> tuple[list[AttoMetadato], int]:
     """Estrae gli atti del COMUNE DI CATANIA dalla pagina lista.
 
     Ritorna (atti, n_righe_totali): n_righe_totali conta anche gli atti di
@@ -141,7 +146,7 @@ def _parse_pagina(html: str) -> tuple[list[AttoMetadato], int]:
             continue  # header o righe di servizio
         righe += 1
         ente_m = _RE_ENTE.search(row)
-        if not ente_m or ente_m.group(1).strip().upper() != ENTE_MITTENTE:
+        if not ente_m or ente_m.group(1).strip().upper() != ente_mittente:
             continue  # atto di altro ente ospitato sull'albo di Catania
         oggetto_m = _RE_OGGETTO.search(row)
         oggetto = " ".join(unescape(oggetto_m.group(1)).split()) if oggetto_m else None
@@ -151,7 +156,7 @@ def _parse_pagina(html: str) -> tuple[list[AttoMetadato], int]:
             AttoMetadato(
                 ente_codice_istat=CODICE_ISTAT,
                 tipo=_tipo_da_tipologia(tipologia.group(1) if tipologia else ""),
-                url_fonte=_url_dettaglio(id_m.group(1)),
+                url_fonte=_url_dettaglio(id_m.group(1), base_url, qs_base),
                 fonte_scraper=FONTE_SCRAPER,
                 data_accesso=ora_utc(),
                 numero=(pub_m.group(3).strip() if pub_m and pub_m.group(3) else None),
@@ -182,7 +187,12 @@ def _post(opener: urllib.request.OpenerDirector, url: str, dati: dict[str, str])
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
+def scarica_atti(
+    max_pagine: int = 100,
+    base_url: str = _BASE,
+    qs_base: str = _QS_COMUNE,
+    ente_mittente: str = ENTE_MITTENTE,
+) -> Iterator[AttoMetadato]:
     """Scarica gli atti in pubblicazione dall'albo pretorio di Catania.
 
     Richiede rete. Per i test usare _parse_pagina() con HTML fixture.
@@ -193,7 +203,7 @@ def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    req = urllib.request.Request(f"{_BASE}?{_QS_COMUNE}", headers=_HEADERS)
+    req = urllib.request.Request(f"{base_url}?{qs_base}", headers=_HEADERS)
     with opener.open(req, timeout=30) as r:
         r.read()
 
@@ -202,11 +212,11 @@ def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
     ids_precedenti: set[str] = set()
     for pagina in range(1, max_pagine + 1):
         if pagina == 1:
-            html = _post(opener, f"{_BASE}?{_QS_COMUNE}&StwEvent=910001", _FORM_RICERCA)
+            html = _post(opener, f"{base_url}?{qs_base}&StwEvent=910001", _FORM_RICERCA)
         else:
             html = _post(
                 opener,
-                f"{_BASE}?{_QS_COMUNE}&StwEvent=9100030",
+                f"{base_url}?{qs_base}&StwEvent=9100030",
                 {
                     "Stepper_StepAttivo": "2",
                     "ElencoPubblicazioni_DimensionePagina": "10",
@@ -217,7 +227,7 @@ def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
         if ids_pagina and ids_pagina == ids_precedenti:
             break  # oltre l'ultima pagina il portale ripete l'ultima
         ids_precedenti = ids_pagina
-        atti, righe = _parse_pagina(html)
+        atti, righe = _parse_pagina(html, base_url, qs_base, ente_mittente)
         if righe == 0:
             break
         scartati += righe - len(atti)
@@ -249,10 +259,17 @@ def salva_atti(
     return {"inseriti": inseriti, "duplicati": duplicati}
 
 
-def prepara_ente(conn: sqlite3.Connection) -> None:
+def prepara_ente(
+    conn: sqlite3.Connection,
+    base_url: str = _BASE,
+    qs_base: str = _QS_COMUNE,
+    ente_mittente: str = ENTE_MITTENTE,
+    codice_istat: str = CODICE_ISTAT,
+    denominazione: str = "Comune di Catania",
+) -> None:
     """Upsert del Comune di Catania nel DB (prerequisito per inserisci_atto)."""
     upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Catania",
-        codice_istat=CODICE_ISTAT,
+        denominazione=denominazione,
+        codice_istat=codice_istat,
         provincia="CT",
     ))

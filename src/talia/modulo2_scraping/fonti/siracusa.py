@@ -58,7 +58,7 @@ def _strip(html: str) -> str:
     return " ".join(_RE_TAG.sub("", unescape(html)).split())
 
 
-def _parse_page(html: str) -> list[AttoMetadato]:
+def _parse_page(html: str, base_url: str = _BASE_URL) -> list[AttoMetadato]:
     atti = []
     for row_m in _RE_ROW.finditer(html):
         row_html = row_m.group(1)
@@ -68,7 +68,7 @@ def _parse_page(html: str) -> list[AttoMetadato]:
         link_m = _RE_LINK.search(row_html)
         if not link_m:
             continue
-        url = _BASE_URL + "/" + link_m.group(1).lstrip("/")
+        url = base_url + "/" + link_m.group(1).lstrip("/")
         # tipo_atto in portalepa è "Determina nr.X del dd/mm/yyyy" → estrai la prima parola
         tipo_raw = cells[2] if len(cells) > 2 else ""
         tipo = tipo_raw.split()[0].lower() if tipo_raw else "atto"
@@ -88,12 +88,12 @@ def _parse_page(html: str) -> list[AttoMetadato]:
     return atti
 
 
-def _next_page_links(html: str) -> dict[int, str]:
+def _next_page_links(html: str, base_url: str = _BASE_URL) -> dict[int, str]:
     """Restituisce {numero_pagina: url} per tutti i link di paginazione."""
     links: dict[int, str] = {}
     for m in _RE_NEXT.finditer(html):
         page_num = int(m.group(2))
-        links[page_num] = _BASE_URL + unescape(m.group(1))
+        links[page_num] = base_url + unescape(m.group(1))
     return links
 
 
@@ -102,7 +102,10 @@ def _next_page_links(html: str) -> dict[int, str]:
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
+def scarica_atti(
+    max_pagine: int = 100,
+    base_url: str = _BASE_URL,
+) -> Iterator[AttoMetadato]:
     """Scarica atti dall'albo pretorio di Siracusa.
 
     Richiede connettività di rete. Per i test usa _parse_page() con HTML fixture.
@@ -112,17 +115,17 @@ def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    url: str = _BASE_URL + _ALBO_PATH
+    url: str = base_url + _ALBO_PATH
     current_page = 1
     for _ in range(max_pagine):
         req = urllib.request.Request(url, headers=_HEADERS)
         with opener.open(req, timeout=20) as r:
             html = r.read().decode("utf-8", errors="replace")
-        atti = _parse_page(html)
+        atti = _parse_page(html, base_url)
         if not atti:
             break
         yield from atti
-        next_links = _next_page_links(html)
+        next_links = _next_page_links(html, base_url)
         next_url = next_links.get(current_page + 1)
         if not next_url:
             break
@@ -147,10 +150,15 @@ def salva_atti(
     return {"inseriti": inseriti, "duplicati": duplicati}
 
 
-def prepara_ente(conn: sqlite3.Connection) -> None:
+def prepara_ente(
+    conn: sqlite3.Connection,
+    base_url: str = _BASE_URL,
+    codice_istat: str = CODICE_ISTAT,
+    denominazione: str = "Comune di Siracusa",
+) -> None:
     """Upsert del Comune di Siracusa nel DB (prerequisito per inserisci_atto)."""
     upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Siracusa",
-        codice_istat=CODICE_ISTAT,
+        denominazione=denominazione,
+        codice_istat=codice_istat,
         provincia="SR",
     ))

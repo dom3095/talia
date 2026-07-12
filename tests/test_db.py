@@ -9,7 +9,9 @@ import pytest
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,
+    _estendi_enti,
     atti_per_ente,
+    azzera_info_scraper,
     connetti,
     conta_atti,
     inizializza_db,
@@ -19,6 +21,7 @@ from talia.modulo2_scraping.db import (
     salva_red_flag,
     upsert_ente,
 )
+from talia.modulo2_scraping.registry import EntryRegistro, sincronizza_enti_da_registro
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -71,6 +74,48 @@ def test_inizializza_db_idempotente(db):
     assert {"enti", "atti", "entita_estratte", "check_esiti", "red_flags"} <= nomi
 
 
+def test_estendi_enti_su_db_nuovo(db):
+    """inizializza_db chiama già _estendi_enti: le colonne devono esserci."""
+    colonne = {r[1] for r in db.execute("PRAGMA table_info(enti)").fetchall()}
+    assert {"modulo", "url_base", "stato_scraper"} <= colonne
+
+
+def test_estendi_enti_su_schema_vecchio_preserva_righe():
+    """Simula un talia.db esistente creato prima che modulo/url_base/stato_scraper
+    esistessero: _estendi_enti deve aggiungere le colonne senza perdere dati."""
+    conn = connetti(":memory:")
+    conn.execute(
+        """
+        CREATE TABLE enti (
+            id            INTEGER PRIMARY KEY,
+            denominazione TEXT    NOT NULL,
+            codice_istat  TEXT    UNIQUE NOT NULL,
+            provincia     TEXT,
+            popolazione   INTEGER,
+            sito_web      TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO enti (denominazione, codice_istat) VALUES ('Comune Vecchio', '000001')"
+    )
+    conn.commit()
+
+    _estendi_enti(conn)
+
+    colonne = {r[1] for r in conn.execute("PRAGMA table_info(enti)").fetchall()}
+    assert {"modulo", "url_base", "stato_scraper"} <= colonne
+    row = conn.execute("SELECT * FROM enti WHERE codice_istat = '000001'").fetchone()
+    assert row["denominazione"] == "Comune Vecchio"
+
+
+def test_estendi_enti_idempotente(db):
+    _estendi_enti(db)
+    _estendi_enti(db)
+    colonne = [r[1] for r in db.execute("PRAGMA table_info(enti)").fetchall()]
+    assert colonne.count("modulo") == 1
+
+
 # ---------------------------------------------------------------------------
 # Enti
 # ---------------------------------------------------------------------------
@@ -97,6 +142,187 @@ def test_upsert_ente_aggiorna(db, ente_palermo):
     ).fetchone()
     assert row["denominazione"] == "Comune di Palermo (aggiornato)"
     assert row["popolazione"] == 641999
+
+
+def test_upsert_ente_con_modulo_url_base_stato_scraper(db):
+    ente = EnteMetadato(
+        denominazione="Comune di Vittoria",
+        codice_istat="088012",
+        modulo="halley",
+        url_base="https://trasparenza.comune.vittoria.rg.it",
+        stato_scraper="attivo",
+    )
+    upsert_ente(db, ente)
+    row = db.execute(
+        "SELECT modulo, url_base, stato_scraper FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["modulo"] == "halley"
+    assert row["url_base"] == "https://trasparenza.comune.vittoria.rg.it"
+    assert row["stato_scraper"] == "attivo"
+
+
+def test_upsert_ente_vecchio_stile_non_azzera_modulo(db):
+    """Un upsert 'vecchio stile' (solo denominazione/codice_istat, come fanno i
+    runner scraper) non deve azzerare modulo/url_base/stato_scraper già impostati
+    da sincronizza_enti_da_registro — altrimenti ogni run scraper li cancellerebbe."""
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Vittoria",
+            codice_istat="088012",
+            modulo="halley",
+            url_base="https://trasparenza.comune.vittoria.rg.it",
+            stato_scraper="attivo",
+        ),
+    )
+    upsert_ente(db, EnteMetadato(denominazione="Comune di Vittoria", codice_istat="088012"))
+    row = db.execute(
+        "SELECT modulo, url_base, stato_scraper FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["modulo"] == "halley"
+    assert row["url_base"] == "https://trasparenza.comune.vittoria.rg.it"
+    assert row["stato_scraper"] == "attivo"
+
+
+def test_upsert_ente_vecchio_stile_non_azzera_provincia(db):
+    """Bug trovato in code review: provincia non era protetta da COALESCE come
+    modulo/url_base/stato_scraper — un upsert 'vecchio stile' senza provincia
+    (come sincronizza_enti_da_registro fa per ~205 righe su 206 del registro,
+    che hanno provincia vuota) azzerava silenziosamente la provincia impostata
+    in precedenza dagli scraper monocomune (es. prepara_ente di catania.py)."""
+    upsert_ente(
+        db,
+        EnteMetadato(denominazione="Comune di Catania", codice_istat="087015", provincia="CT"),
+    )
+    # Simula sincronizza_enti_da_registro con provincia vuota (caso comune nel registro)
+    upsert_ente(db, EnteMetadato(denominazione="Comune di Catania", codice_istat="087015"))
+    row = db.execute("SELECT provincia FROM enti WHERE codice_istat='087015'").fetchone()
+    assert row["provincia"] == "CT"
+
+
+def test_upsert_ente_vecchio_stile_non_azzera_popolazione_e_sito_web(db):
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Catania",
+            codice_istat="087015",
+            popolazione=311584,
+            sito_web="https://www.comune.catania.it",
+        ),
+    )
+    upsert_ente(db, EnteMetadato(denominazione="Comune di Catania", codice_istat="087015"))
+    row = db.execute(
+        "SELECT popolazione, sito_web FROM enti WHERE codice_istat='087015'"
+    ).fetchone()
+    assert row["popolazione"] == 311584
+    assert row["sito_web"] == "https://www.comune.catania.it"
+
+
+def test_azzera_info_scraper(db):
+    """La COALESCE in upsert_ente impedisce di azzerare modulo/url_base/
+    stato_scraper tramite un upsert normale (limitazione di design trovata
+    in code review) — azzera_info_scraper è la via esplicita per farlo."""
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Vittoria",
+            codice_istat="088012",
+            modulo="halley",
+            url_base="https://trasparenza.comune.vittoria.rg.it",
+            stato_scraper="attivo",
+        ),
+    )
+    azzera_info_scraper(db, "088012")
+    row = db.execute(
+        "SELECT modulo, url_base, stato_scraper FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["modulo"] is None
+    assert row["url_base"] is None
+    assert row["stato_scraper"] is None
+
+
+def test_azzera_info_scraper_non_tocca_altri_campi(db):
+    upsert_ente(
+        db,
+        EnteMetadato(
+            denominazione="Comune di Vittoria",
+            codice_istat="088012",
+            provincia="RG",
+            modulo="halley",
+        ),
+    )
+    azzera_info_scraper(db, "088012")
+    row = db.execute(
+        "SELECT denominazione, provincia FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["denominazione"] == "Comune di Vittoria"
+    assert row["provincia"] == "RG"
+
+
+# ---------------------------------------------------------------------------
+# sincronizza_enti_da_registro
+# ---------------------------------------------------------------------------
+
+
+def _entry_registro(**overrides) -> EntryRegistro:
+    base = dict(
+        slug="vittoria",
+        denominazione="Comune di Vittoria",
+        codice_istat="088012",
+        modulo="halley",
+        piattaforma_tecnica="Halley EG",
+        base_url="https://trasparenza.comune.vittoria.rg.it",
+        stato="attivo",
+        provincia="RG",
+    )
+    base.update(overrides)
+    return EntryRegistro(**base)
+
+
+def test_sincronizza_enti_da_registro_crea_enti(db):
+    entries = [_entry_registro()]
+    n = sincronizza_enti_da_registro(db, entries)
+    assert n == 1
+    row = db.execute(
+        "SELECT denominazione, provincia, modulo, url_base, stato_scraper "
+        "FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["denominazione"] == "Comune di Vittoria"
+    assert row["provincia"] == "RG"
+    assert row["modulo"] == "halley"
+    assert row["url_base"] == "https://trasparenza.comune.vittoria.rg.it"
+    assert row["stato_scraper"] == "attivo"
+
+
+def test_sincronizza_enti_da_registro_idempotente(db):
+    entries = [_entry_registro()]
+    sincronizza_enti_da_registro(db, entries)
+    n2 = sincronizza_enti_da_registro(db, entries)
+    assert n2 == 1
+    conteggio = db.execute("SELECT COUNT(*) AS c FROM enti").fetchone()["c"]
+    assert conteggio == 1
+
+
+def test_sincronizza_enti_da_registro_salta_anac(db):
+    entries = [_entry_registro(slug="anac", modulo="anac", codice_istat="", base_url=None)]
+    n = sincronizza_enti_da_registro(db, entries)
+    assert n == 0
+    assert db.execute("SELECT COUNT(*) AS c FROM enti").fetchone()["c"] == 0
+
+
+def test_sincronizza_enti_da_registro_include_bloccato_e_pending(db):
+    entries = [
+        _entry_registro(slug="messina", codice_istat="083048", stato="bloccato"),
+        _entry_registro(slug="comune_pending", codice_istat="000002", stato="pending"),
+    ]
+    n = sincronizza_enti_da_registro(db, entries)
+    assert n == 2
+    stati = {
+        r["codice_istat"]: r["stato_scraper"]
+        for r in db.execute("SELECT codice_istat, stato_scraper FROM enti").fetchall()
+    }
+    assert stati["083048"] == "bloccato"
+    assert stati["000002"] == "pending"
 
 
 # ---------------------------------------------------------------------------

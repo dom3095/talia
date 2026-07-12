@@ -78,7 +78,7 @@ def _strip(html: str) -> str:
     return " ".join(_RE_TAG.sub("", unescape(html)).split())
 
 
-def _parse_page(html: str) -> list[AttoMetadato]:
+def _parse_page(html: str, base_url: str = _BASE_URL) -> list[AttoMetadato]:
     atti = []
     for panel_m in _RE_PANEL.finditer(html):
         panel_html = panel_m.group(1)
@@ -106,7 +106,7 @@ def _parse_page(html: str) -> list[AttoMetadato]:
         data_fine_m = _RE_DATA_FINE.search(panel_html)
 
         # Permalink non disponibile sul sito: URL sintetica per unicità DB
-        url = f"{_BASE_URL}/AlboOnline/albo/{numero_plain}/{anno}"
+        url = f"{base_url}/AlboOnline/albo/{numero_plain}/{anno}"
 
         atti.append(
             AttoMetadato(
@@ -125,18 +125,25 @@ def _parse_page(html: str) -> list[AttoMetadato]:
     return atti
 
 
-def _next_page_url(html: str, current_page: int) -> str | None:
+def _next_page_url(
+    html: str,
+    current_page: int,
+    base_url: str = _BASE_URL,
+) -> str | None:
     """Restituisce l'URL della pagina successiva se presente nella paginazione."""
     for m in _RE_NEXT_PAGE.finditer(html):
         if int(m.group(2)) == current_page + 1:
-            return _BASE_URL + unescape(m.group(1))
+            return base_url + unescape(m.group(1))
     return None
 
 
-def _build_url(dal: str, al: str, page: int = 1) -> str:
-    return (
-        f"{_BASE_URL}{_ALBO_PATH}?dataPubblicazioneDal={dal}&dataPubblicazioneAl={al}&page={page}"
-    )
+def _build_url(
+    dal: str,
+    al: str,
+    page: int = 1,
+    base_url: str = _BASE_URL,
+) -> str:
+    return f"{base_url}{_ALBO_PATH}?dataPubblicazioneDal={dal}&dataPubblicazioneAl={al}&page={page}"
 
 
 def _intervallo_default(oggi: date | None = None) -> tuple[str, str]:
@@ -161,6 +168,7 @@ def scarica_atti(
     dal: str | None = None,
     al: str | None = None,
     max_pagine: int = 50,
+    base_url: str = _BASE_URL,
 ) -> Iterator[AttoMetadato]:
     """Scarica atti dall'albo pretorio di Trapani.
 
@@ -175,14 +183,14 @@ def scarica_atti(
     if al is None:
         al = al_default
 
-    url: str | None = _build_url(dal, al, 1)
+    url: str | None = _build_url(dal, al, 1, base_url)
     current_page = 1
 
     for _ in range(max_pagine):
         req = urllib.request.Request(url, headers=_HEADERS)
         with urllib.request.urlopen(req, timeout=20) as r:
             html = r.read().decode("utf-8", errors="replace")
-        atti = _parse_page(html)
+        atti = _parse_page(html, base_url=base_url)
         if not atti:
             if current_page == 1:
                 _LOG.warning(
@@ -192,7 +200,7 @@ def scarica_atti(
                 )
             break
         yield from atti
-        url = _next_page_url(html, current_page)
+        url = _next_page_url(html, current_page, base_url)
         if not url:
             break
         current_page += 1
@@ -215,13 +223,18 @@ def salva_atti(
     return {"inseriti": inseriti, "duplicati": duplicati}
 
 
-def prepara_ente(conn: sqlite3.Connection) -> None:
+def prepara_ente(
+    conn: sqlite3.Connection,
+    base_url: str = _BASE_URL,
+    codice_istat: str = CODICE_ISTAT,
+    denominazione: str = "Comune di Trapani",
+) -> None:
     """Upsert del Comune di Trapani nel DB (prerequisito per inserisci_atto)."""
     upsert_ente(
         conn,
         EnteMetadato(
-            denominazione="Comune di Trapani",
-            codice_istat=CODICE_ISTAT,
+            denominazione=denominazione,
+            codice_istat=codice_istat,
             provincia="TP",
         ),
     )

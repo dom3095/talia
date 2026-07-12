@@ -4,9 +4,10 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 **Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags
-batch + catene procedimenti v2 + download PDF on-demand) e Modulo 3 (Dashboard Streamlit) —
-384 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review), validazione fascicoli reali (TAL-12),
-censimento Palermo/Trapani (TAL-50 in Progress).
+batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
+Modulo 3 (Dashboard Streamlit) — 458 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review),
+validazione fascicoli reali (TAL-12), censimento Palermo/Trapani (TAL-50 in Progress), refactor
+registro scraper in Review (branch `feat/config-scraper-registro`).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -56,7 +57,7 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-49](TAL-49.md) | Censimento albi + rollout scraper comuni siciliani | 🕷️ SCR | branch `feat/E3-censimento-comuni-sicilia`, **PR #8 pronta per il merge**; 192 comuni (72,9% popolazione), 384 test |
+| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`, 5 PR completate + code review multi-angolo (8/8 findings sistemati: 4 bug bloccanti + 3 design/robustezza — import lazy del registro, ANAC centralizzato in `MODULI_SENZA_ENTE`, `azzera_info_scraper` escape hatch) + 39 comuni censiti recuperati (1 attivato — Altavilla Milicia — 38 pending). 473 test verdi. **In attesa di review finale di Dom prima del push/PR** |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
@@ -85,6 +86,7 @@ censimento Palermo/Trapani (TAL-50 in Progress).
 | [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | integrato in runner; 6 test |
 | [TAL-45](TAL-45.md) | Dashboard M3: tab ⛓️ Procedimenti + timeline | graceful degradation se catene non costruite |
 | [TAL-46](TAL-46.md) | Engine catena v2: contenimento oggetto + guard-rail gemelli | strategia 2.5; caso Palma: mega-catena → 3 catene; migrazione DB applicata |
+| [TAL-49](TAL-49.md) | Censimento albi + rollout scraper comuni siciliani | mergiata (#8); 192 comuni (72,9% popolazione), 384 test |
 
 ## Legenda priorità
 

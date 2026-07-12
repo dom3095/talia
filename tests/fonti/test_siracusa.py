@@ -211,3 +211,17 @@ def test_salva_atti_idempotente(db):
 def test_salva_atti_lista_vuota(db):
     esito = salva_atti([], db)
     assert esito["inseriti"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test parametrizzazione base_url
+# ---------------------------------------------------------------------------
+
+
+def test_parse_page_accetta_base_url_parametro():
+    """Verifica che _parse_page accetti il parametro base_url."""
+    base_url_custom = "http://test.example.com"
+    atti = _parse_page(_HTML_PAGINA_1, base_url=base_url_custom)
+    # Gli URL costruiti devono contenere il base_url custom
+    assert len(atti) > 0
+    assert all(base_url_custom in a.url_fonte for a in atti)
