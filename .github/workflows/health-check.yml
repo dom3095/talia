@@ -1,0 +1,77 @@
+# Health-check settimanale del registro scraper (TAL-51). Budget zero: stdlib
+# puro (scripts/health_check_registro.py), nessuna dipendenza a pagamento.
+# Notifica: una singola issue persistente (label `health-check`), aggiornata
+# o chiusa a ogni run — niente rumore, un to-do concreto e auto-risolvente.
+name: Health check registro scraper
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # lunedì 05:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Installa il pacchetto
+        run: pip install -e .
+
+      - name: Esegui health-check
+        id: check
+        continue-on-error: true
+        run: |
+          python scripts/health_check_registro.py \
+            --summary summary.md --json report.json
+
+      - name: Pubblica summary nella run
+        if: always()
+        run: cat summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Carica report come artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-check-report
+          path: |
+            summary.md
+            report.json
+          retention-days: 30
+
+      - name: Aggiorna o chiudi l'issue di stato
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.check.outcome }}
+        run: |
+          TITLE="Health-check registro scraper: comuni irraggiungibili"
+          EXISTING=$(gh issue list --label health-check --state open --json number --jq '.[0].number // empty')
+
+          if [ "$OUTCOME" = "failure" ]; then
+            if [ -n "$EXISTING" ]; then
+              gh issue edit "$EXISTING" --body-file summary.md
+              echo "Issue #$EXISTING aggiornata."
+            else
+              gh issue create --title "$TITLE" --label health-check --body-file summary.md
+              echo "Issue creata."
+            fi
+          else
+            if [ -n "$EXISTING" ]; then
+              gh issue close "$EXISTING" \
+                --comment "Tutti i comuni attivi rispondono di nuovo (run $(date -u +%Y-%m-%dT%H:%M:%SZ)). Auto-chiusa dal workflow."
+              echo "Issue #$EXISTING chiusa."
+            else
+              echo "Nessuna issue aperta, nulla da chiudere."
+            fi
+          fi

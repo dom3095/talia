@@ -19,6 +19,7 @@ from talia.modulo2_scraping.fonti.agrigento import (
     CODICE_ISTAT,
     FONTE_SCRAPER,
     _parse_html,
+    prepara_ente,
     salva_atti,
 )
 
@@ -192,3 +193,19 @@ def test_salva_atti_idempotente(db):
 def test_salva_atti_lista_vuota(db):
     esito = salva_atti([], db)
     assert esito["inseriti"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test parametrizzazione base_url
+# ---------------------------------------------------------------------------
+
+
+def test_prepara_ente_accetta_base_url_parametro(db):
+    """Verifica che prepara_ente accetti il parametro base_url."""
+    # Dovrebbe non sollevare
+    prepara_ente(
+        db,
+        base_url="http://test.example.com",
+        codice_istat="999999",
+        denominazione="Test Agrigento",
+    )

@@ -161,10 +161,10 @@ def _parse_hidden(html: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def _apri_sessione() -> urllib.request.OpenerDirector:
+def _apri_sessione(base_url: str = _BASE_URL) -> urllib.request.OpenerDirector:
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    _get(opener, _BASE_URL + "/")  # imposta JSESSIONID e cookie CSRF
+    _get(opener, base_url + "/")  # imposta JSESSIONID e cookie CSRF
     return opener
 
 
@@ -180,20 +180,23 @@ def _post(opener: urllib.request.OpenerDirector, url: str, dati: dict[str, str])
         return r.read().decode("utf-8", errors="replace")
 
 
-def _scopri_categorie(opener: urllib.request.OpenerDirector) -> dict[str, str]:
+def _scopri_categorie(
+    opener: urllib.request.OpenerDirector,
+    base_url: str = _BASE_URL,
+) -> dict[str, str]:
     """Ritorna {tipo_normalizzato: url_push_assoluto} scoprendo il menu reale.
 
     Passa dalla pagina servizi e da scelta_tipo_documento perché i parametri
     TD delle card non coincidono con quelli dell'URL push effettivo.
     """
     categorie: dict[str, str] = {}
-    html = _get(opener, _BASE_URL + _SERVIZI_PATH)
+    html = _get(opener, base_url + _SERVIZI_PATH)
     for label, url_scelta in _parse_categorie(html):
         tipo = _TIPO_DA_CATEGORIA.get(label.lower())
         if tipo is None:
             logger.info("Palermo: categoria non mappata ignorata: %r", label)
             continue
-        url_scelta = urllib.parse.urljoin(_BASE_URL + "/albopretorio/jsp/", url_scelta)
+        url_scelta = urllib.parse.urljoin(base_url + "/albopretorio/jsp/", url_scelta)
         push_m = _RE_PUSH.search(_get(opener, url_scelta))
         if not push_m:
             logger.warning("Palermo: push URL non trovato per categoria %r", label)
@@ -215,6 +218,7 @@ def _scopri_categorie(opener: urllib.request.OpenerDirector) -> dict[str, str]:
 def scarica_atti(
     max_pagine: int = 100,
     categorie: Iterable[str] = CATEGORIE_DEFAULT,
+    base_url: str = _BASE_URL,
 ) -> Iterator[AttoMetadato]:
     """Scarica atti dall'albo pretorio di Palermo.
 
@@ -222,8 +226,8 @@ def scarica_atti(
     sequenza sulle categorie richieste. Richiede rete; per i test usare
     _parse_pagina() e le altre funzioni pure con HTML fixture.
     """
-    opener = _apri_sessione()
-    disponibili = _scopri_categorie(opener)
+    opener = _apri_sessione(base_url)
+    disponibili = _scopri_categorie(opener, base_url)
     mancanti = set(categorie) - set(disponibili)
     if mancanti:
         logger.warning("Palermo: categorie richieste non trovate nel menu: %s", mancanti)
@@ -245,7 +249,7 @@ def scarica_atti(
             if not atti or corrente >= totali or pagine_lette >= max_pagine:
                 break
             time.sleep(_PAUSA_SECONDI)
-            html = _post(opener, _BASE_URL + _LISTA_PIU_PATH, _parse_hidden(html))
+            html = _post(opener, base_url + _LISTA_PIU_PATH, _parse_hidden(html))
 
     if totale_atti == 0:
         logger.warning(
@@ -271,13 +275,18 @@ def salva_atti(
     return {"inseriti": inseriti, "duplicati": duplicati}
 
 
-def prepara_ente(conn: sqlite3.Connection) -> None:
+def prepara_ente(
+    conn: sqlite3.Connection,
+    base_url: str = _BASE_URL,
+    codice_istat: str = CODICE_ISTAT,
+    denominazione: str = "Comune di Palermo",
+) -> None:
     """Upsert del Comune di Palermo nel DB (prerequisito per inserisci_atto)."""
     upsert_ente(
         conn,
         EnteMetadato(
-            denominazione="Comune di Palermo",
-            codice_istat=CODICE_ISTAT,
+            denominazione=denominazione,
+            codice_istat=codice_istat,
             provincia="PA",
         ),
     )

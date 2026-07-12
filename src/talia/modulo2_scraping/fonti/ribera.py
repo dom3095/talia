@@ -78,7 +78,7 @@ def _tipo_da_categoria(categoria: str) -> str:
     return "atto"
 
 
-def _parse_pagina(html: str) -> list[AttoMetadato]:
+def _parse_pagina(html: str, base_url: str = _BASE_URL) -> list[AttoMetadato]:
     atti = []
     for row_m in _RE_ROW.finditer(html):
         row_html = row_m.group(1)
@@ -97,7 +97,7 @@ def _parse_pagina(html: str) -> list[AttoMetadato]:
         atti.append(AttoMetadato(
             ente_codice_istat=CODICE_ISTAT,
             tipo=_tipo_da_categoria(categoria),
-            url_fonte=f"{_BASE_URL}?action=visatto&id={link_m.group(2)}",
+            url_fonte=f"{base_url}?action=visatto&id={link_m.group(2)}",
             fonte_scraper=FONTE_SCRAPER,
             data_accesso=ora_utc(),
             numero=protocollo or None,
@@ -114,17 +114,20 @@ def _parse_pagina(html: str) -> list[AttoMetadato]:
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(max_pagine: int = 100) -> Iterator[AttoMetadato]:
+def scarica_atti(
+    max_pagine: int = 100,
+    base_url: str = _BASE_URL,
+) -> Iterator[AttoMetadato]:
     """Scarica atti dall'albo pretorio di Ribera.
 
     Paginazione stateless via querystring: nessuna sessione necessaria.
     """
     for pagina in range(1, max_pagine + 1):
-        url = _BASE_URL if pagina == 1 else f"{_BASE_URL}?Pag={pagina}"
+        url = base_url if pagina == 1 else f"{base_url}?Pag={pagina}"
         req = urllib.request.Request(url, headers=_HEADERS)
         with urllib.request.urlopen(req, timeout=20) as r:
             html = r.read().decode("utf-8", errors="replace")
-        atti = _parse_pagina(html)
+        atti = _parse_pagina(html, base_url)
         if not atti:
             break
         yield from atti
@@ -152,10 +155,15 @@ def salva_atti(
     return {"inseriti": inseriti, "duplicati": duplicati}
 
 
-def prepara_ente(conn: sqlite3.Connection) -> None:
+def prepara_ente(
+    conn: sqlite3.Connection,
+    base_url: str = _BASE_URL,
+    codice_istat: str = CODICE_ISTAT,
+    denominazione: str = "Comune di Ribera",
+) -> None:
     """Upsert del Comune di Ribera nel DB (prerequisito per inserisci_atto)."""
     upsert_ente(conn, EnteMetadato(
-        denominazione="Comune di Ribera",
-        codice_istat=CODICE_ISTAT,
+        denominazione=denominazione,
+        codice_istat=codice_istat,
         provincia="AG",
     ))
