@@ -20,12 +20,17 @@ Golfo, Corleone, Capaci, Partanna, Caccamo) sono già presenti nel CSV consolida
 durante la code review del 2026-07-11 sul refactor, vedi sezione sotto), quindi nessun dato
 perso nel merge.
 
-**Nota (non bloccante, da verificare in futuro):** il CSV ha due comuni registrati due volte
-su piattaforme diverse con lo stesso `codice_istat` — Campofelice di Roccella
+**Nota (decisione presa, non un problema da risolvere):** il CSV ha due comuni registrati due
+volte su piattaforme diverse con lo stesso `codice_istat` — Campofelice di Roccella
 (`campofelicediroccella` halley + `campofeligerocchella` jcitygov, 082017) e Partanna
-(`partanna` halley + `partanna_tp` portalepa, 081015). Non causa danni (scraping ridondante,
-`registry.py::valida_registro` non controlla duplicati di `codice_istat` tra slug diversi)
-ma andrebbe deciso quale piattaforma tenere.
+(`partanna` halley + `partanna_tp` portalepa, 081015). **Tenuti entrambi deliberatamente**
+(scelta di Dom, 2026-07-12): ridondanza a costo zero — se una piattaforma cambia HTML o va
+giù, l'altra continua a coprire il comune senza bisogno di failover esplicito, dato che
+`filtra_eseguibili()` esegue entrambe le righe ad ogni run indipendentemente. Costo:
+doppia scrittura sull'ente ad ogni sincronizzazione (`sincronizza_enti_da_registro`, innocua
+per via del `COALESCE`) ed eventuali atti duplicati se le due fonti espongono lo stesso atto
+con URL diversi — non osservato finora, da monitorare se `red_flags` iniziano a doppiare
+segnalazioni per questi 2 comuni.
 
 **Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
 Prossimo passo: review di Dom.
