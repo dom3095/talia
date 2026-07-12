@@ -29,8 +29,8 @@ giù, l'altra continua a coprire il comune senza bisogno di failover esplicito, 
 `filtra_eseguibili()` esegue entrambe le righe ad ogni run indipendentemente. Costo:
 doppia scrittura sull'ente ad ogni sincronizzazione (`sincronizza_enti_da_registro`, innocua
 per via del `COALESCE`) ed eventuali atti duplicati se le due fonti espongono lo stesso atto
-con URL diversi — non osservato finora, da monitorare se `red_flags` iniziano a doppiare
-segnalazioni per questi 2 comuni.
+con URL diversi — non osservato finora. Tracciato in **[TAL-52](docs/cards/TAL-52.md)**
+(backlog, P3): dedup atti tra scraper ridondanti sullo stesso comune.
 
 **Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
 Prossimo passo: review di Dom.
