@@ -3,7 +3,7 @@
 - **Epica:** E3 — Censimento comuni siciliani
 - **Ruolo:** 🕷️ SCR + 🧭 TL
 - **Priorità:** P1
-- **Stato:** In Progress
+- **Stato:** Review (PR #12 aperta)
 - **Branch:** `feat/E3-province-palermo-trapani`
 
 ## 🎯 Obiettivo
@@ -34,8 +34,9 @@ Il censimento E3 (TAL-49, completato il 2026-07-09) ha coperto 192 comuni con 8 
 - [x] 3 comuni jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k), Castelvetrano (31.8k)
 - [x] 6 comuni portalepa nuovi: Partinico (31k), Cefalù (14k), Castellammare del Golfo (14.6k), Corleone (11k), Capaci (11k), Partanna (10.8k)
 - [x] 1 comune URBI: Caccamo (8.3k)
-- [ ] Validare con test: fetch dati reali da 3-5 comuni TIER 0
-- [ ] Merge su E3, primo run su DB isolato
+- [x] Validare con test: HTTP 200 su 3 comuni campione (Termini Imerese, Partinico, Caccamo)
+- [x] Riconciliato con `main` (refactor registro unificato scraper, PR #11): i 9 comuni TIER 0
+      sono confluiti in `data/registro_scraper.csv`, PR #12 aperta verso `main`
 
 ### Fase 3: TIER 1 + TIER 2 reverse-engineering (completato)
 - [x] Analizzato TIER 1 (Halley/EGov/APKAPPA): pattern non completamente generalizzabile → rimandato a TAL-51

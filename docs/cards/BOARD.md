@@ -48,14 +48,10 @@ pronta per PR finale).
 | [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | 🔤 NLP | branch `feat/TAL-48-riapertura-dopo-revoca`; MVP implementato (12 test); prossimo: integrazione pdf_download |
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
 
-### 🔧 In Progress (2)
-| ID | Titolo | Ruolo | Note |
-|----|--------|-------|------|
-| [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | branch `feat/E3-province-palermo-trapani`, Fase 1-3 completate (9 comuni TIER 0 nel registro); merge con `main` (refactor registro scraper, PR #11) risolto, in attesa di apertura PR finale |
-
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | **PR #12 aperta**, in attesa di review Dom — branch `feat/E3-province-palermo-trapani`, Fase 1-3 completate (9 comuni TIER 0 nel registro), riconciliato con `main` dopo refactor registro scraper (PR #11) |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |

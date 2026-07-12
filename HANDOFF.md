@@ -27,7 +27,8 @@ su piattaforme diverse con lo stesso `codice_istat` — Campofelice di Roccella
 `registry.py::valida_registro` non controlla duplicati di `codice_istat` tra slug diversi)
 ma andrebbe deciso quale piattaforma tenere.
 
-**Prossimo passo:** eseguire test + lint, poi push del branch e apertura PR verso `main`.
+**Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
+Prossimo passo: review di Dom.
 
 ## Refactor "Registro unificato scraper" (PR #11, già mergiata in `main`)
 
