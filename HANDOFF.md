@@ -1,7 +1,8 @@
 # HANDOFF.md — Stato sessione
 
 > Aggiornato: 2026-07-12 (Merge `feat/E3-province-palermo-trapani` → `main`, dopo che
-> `main` ha ricevuto il refactor "Registro unificato scraper" — PR #11)
+> `main` ha ricevuto il refactor "Registro unificato scraper" — PR #11; primo run reale
+> del health-check su GH Actions, trovato blocco WAF su portalepa — vedi sotto)
 
 ---
 
@@ -34,6 +35,38 @@ con URL diversi — non osservato finora. Tracciato in **[TAL-52](docs/cards/TAL
 
 **Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
 Prossimo passo: review di Dom.
+
+### Health-check: trovato blocco WAF Akamai su portalepa (2026-07-12)
+
+Primo trigger manuale di `health-check.yml` dopo il merge di PR #11 (run `29193148678`):
+**195/244 OK**, 32 falliti inattesi. Analisi del pattern (falliti incrociati con i totali
+per modulo nel registro) invece di trattarli come 32 comuni scollegati:
+
+| Piattaforma | Attivi in registro | Falliti | % |
+|---|---|---|---|
+| portalepa (+ `siracusa`, stessa piattaforma) | 24 | 21 | **87%** — sistemico |
+| hspromila | 6 | 3 | 50% — campione troppo piccolo per concludere |
+| halley | 93 | 7 | 7,5% — coerente con rumore/burst di concorrenza, non blocco |
+
+Diagnosi mirata (script temporaneo `scripts/_debug_egress.py`, rimosso da questo branch
+dopo l'uso — vedi run `29194988894`): 3 varianti di richiesta (HEAD minimal, GET minimal,
+GET con header da browser) verso `aliminusa.soluzionipa.it` e `caltagirone.soluzionipa.it`
+danno **sempre** `403` con header `X-Cache: CONFIG_NOCACHE` (firma Akamai). Header/metodo
+non contano: è un **blocco Akamai per IP/ASN** dei runner GitHub Actions (che girano su
+Azure), non un problema di come formuliamo la richiesta — quindi non risolvibile lato
+codice scraper.
+
+Valutate le opzioni (self-hosted runner locale, Oracle Cloud Always Free, VM AWS/Azure a
+pagamento — analisi completa non committata, in scratchpad di sessione) e un'estensione
+verso un possibile tool on-demand pubblico (Modulo 1) con relativi impatti privacy/legali
+se si toglie il vincolo di budget zero. **Decisione di Dom (2026-07-12): per ora restiamo
+in locale, nessuna migrazione cloud.** Il blocco portalepa (23 comuni + Siracusa) resta
+quindi un limite noto e documentato, non ancora risolto — da riprendere se/quando si
+riconsidera un self-hosted runner o si attiva davvero il cron su GH Actions.
+
+**Implicazione per la pre-cron checklist**: il cron su GH Actions, se attivato oggi,
+perderebbe silenziosamente la copertura dei ~23 comuni portalepa. Vedi nota in "Prossimi
+passi".
 
 ## Refactor "Registro unificato scraper" (PR #11, già mergiata in `main`)
 
@@ -193,12 +226,14 @@ e non sono state riverificate in questa sessione.
 
 ## 🤝 Istruzioni per la prossima sessione
 
-1. Se questa sessione (refactor registro) è stata approvata e mergiata: valutare se
-   lanciare un run completo con `_SCRAPERS_DEFAULT` (203 scraper) su `talia.db` — non
-   ancora fatto dopo il refactor, anche se il set di scraper è identico a prima
-   (verificato lossless, vedi sopra).
-2. Continua la sequenza PR4 (schema DB `enti` esteso) → PR5 (health-check CI) del piano
-   `Registro unificato scraper + health-check automatico`.
+1. PR #11 (registro unificato + health-check) e PR #12 (riconciliazione TAL-50) — vedi
+   stato aggiornato in cima al file. Dopo il merge di PR #12: valutare un run completo
+   con `_SCRAPERS_DEFAULT` su `talia.db`.
+2. **Blocco portalepa da GH Actions (WAF Akamai, vedi sopra) resta aperto.** Prima di
+   attivare per davvero il cron su GH Actions (pre-cron checklist), decidere come
+   trattare i ~23 comuni portalepa: accettare la lacuna, riprendere in considerazione
+   un self-hosted runner, o altro. Non bloccante per il resto (91% dei comuni copre
+   correttamente da GH Actions).
 3. Vale la pena ripetere lo sweep di dominio (Halley/portalepa) periodicamente: nuovi
    comuni potrebbero attivare l'albo o cambiare piattaforma nel tempo.
 
