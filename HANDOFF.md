@@ -1,10 +1,74 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-11 (Refactor: Registro unificato scraper — code review multi-angolo eseguita, bug corretti, 39 comuni recuperati)
+> Aggiornato: 2026-07-12 (Merge `feat/E3-province-palermo-trapani` → `main`, dopo che
+> `main` ha ricevuto il refactor "Registro unificato scraper" — PR #11; primo run reale
+> del health-check su GH Actions, trovato blocco WAF su portalepa — vedi sotto)
 
 ---
 
 ## Branch attivo (priorità)
+
+`feat/E3-province-palermo-trapani` — **in fase di riconciliazione con `main` per la PR
+finale (TAL-50)**. Il branch era rimasto indietro rispetto a `main`, che nel frattempo ha
+ricevuto (PR #11) un refactor architetturale dello scraping: le liste hardcoded
+`_JCITYGOV_COMUNI`/`_PORTALEPA_COMUNI`/`_URBI_COMUNI`/`_SCRAPERS` in `scripts/run_scrapers.py`
+sono state sostituite da un registro CSV (`data/registro_scraper.csv`) letto da
+`registry.py` via `_FACTORY_PER_MODULO`. Eseguito `git merge origin/main`: conflitti in
+`scripts/run_scrapers.py`, `docs/cards/BOARD.md`, `docs/wiki/14-censimento-albi.md` risolti
+adottando l'architettura di `main` — verificato che tutti i 9 comuni TIER 0 aggiunti da
+TAL-50 (Termini Imerese, Campofelice di Roccella, Partinico, Cefalù, Castellammare del
+Golfo, Corleone, Capaci, Partanna, Caccamo) sono già presenti nel CSV consolidato (recuperati
+durante la code review del 2026-07-11 sul refactor, vedi sezione sotto), quindi nessun dato
+perso nel merge.
+
+**Nota (decisione presa, non un problema da risolvere):** il CSV ha due comuni registrati due
+volte su piattaforme diverse con lo stesso `codice_istat` — Campofelice di Roccella
+(`campofelicediroccella` halley + `campofeligerocchella` jcitygov, 082017) e Partanna
+(`partanna` halley + `partanna_tp` portalepa, 081015). **Tenuti entrambi deliberatamente**
+(scelta di Dom, 2026-07-12): ridondanza a costo zero — se una piattaforma cambia HTML o va
+giù, l'altra continua a coprire il comune senza bisogno di failover esplicito, dato che
+`filtra_eseguibili()` esegue entrambe le righe ad ogni run indipendentemente. Costo:
+doppia scrittura sull'ente ad ogni sincronizzazione (`sincronizza_enti_da_registro`, innocua
+per via del `COALESCE`) ed eventuali atti duplicati se le due fonti espongono lo stesso atto
+con URL diversi — non osservato finora. Tracciato in **[TAL-52](docs/cards/TAL-52.md)**
+(backlog, P3): dedup atti tra scraper ridondanti sullo stesso comune.
+
+**Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
+Prossimo passo: review di Dom.
+
+### Health-check: trovato blocco WAF Akamai su portalepa (2026-07-12)
+
+Primo trigger manuale di `health-check.yml` dopo il merge di PR #11 (run `29193148678`):
+**195/244 OK**, 32 falliti inattesi. Analisi del pattern (falliti incrociati con i totali
+per modulo nel registro) invece di trattarli come 32 comuni scollegati:
+
+| Piattaforma | Attivi in registro | Falliti | % |
+|---|---|---|---|
+| portalepa (+ `siracusa`, stessa piattaforma) | 24 | 21 | **87%** — sistemico |
+| hspromila | 6 | 3 | 50% — campione troppo piccolo per concludere |
+| halley | 93 | 7 | 7,5% — coerente con rumore/burst di concorrenza, non blocco |
+
+Diagnosi mirata (script temporaneo `scripts/_debug_egress.py`, rimosso da questo branch
+dopo l'uso — vedi run `29194988894`): 3 varianti di richiesta (HEAD minimal, GET minimal,
+GET con header da browser) verso `aliminusa.soluzionipa.it` e `caltagirone.soluzionipa.it`
+danno **sempre** `403` con header `X-Cache: CONFIG_NOCACHE` (firma Akamai). Header/metodo
+non contano: è un **blocco Akamai per IP/ASN** dei runner GitHub Actions (che girano su
+Azure), non un problema di come formuliamo la richiesta — quindi non risolvibile lato
+codice scraper.
+
+Valutate le opzioni (self-hosted runner locale, Oracle Cloud Always Free, VM AWS/Azure a
+pagamento — analisi completa non committata, in scratchpad di sessione) e un'estensione
+verso un possibile tool on-demand pubblico (Modulo 1) con relativi impatti privacy/legali
+se si toglie il vincolo di budget zero. **Decisione di Dom (2026-07-12): per ora restiamo
+in locale, nessuna migrazione cloud.** Il blocco portalepa (23 comuni + Siracusa) resta
+quindi un limite noto e documentato, non ancora risolto — da riprendere se/quando si
+riconsidera un self-hosted runner o si attiva davvero il cron su GH Actions.
+
+**Implicazione per la pre-cron checklist**: il cron su GH Actions, se attivato oggi,
+perderebbe silenziosamente la copertura dei ~23 comuni portalepa. Vedi nota in "Prossimi
+passi".
+
+## Refactor "Registro unificato scraper" (PR #11, già mergiata in `main`)
 
 `feat/config-scraper-registro` — **Refactor: Registro unificato scraper + health-check**,
 parte da `main` con PR #8/#9/#10 già mergiate (censimento E3, TAL-48, TAL-50 Palermo/Trapani).
@@ -111,6 +175,48 @@ di tutto" → eseguita `/code-review`, bug corretti). Dopo l'approvazione: push 
 apertura PR su GitHub, oppure squash/riorganizzazione dei commit se Dom preferisce una
 history diversa — da concordare in fase di review, non ancora deciso.
 
+## Sessione 2026-07-10 — TAL-50: Censimento Palermo + Trapani (E3 estensione)
+
+### Cosa contiene il branch `feat/E3-province-palermo-trapani`
+
+**Fase 1 (censimento) — Completato:**
+- Ricerca web sistematica: 77 comuni mancanti PA/TP
+- Risultato: **100% con albo online raggiungibile** (nessun gap)
+- Distribuzione per piattaforma:
+  - **TIER 0 (subito):** 12 comuni su piattaforme già supportate
+    - jCityGov: Termini Imerese (26k), Campofelice Roccella (6.9k)
+    - portalepa: Partinico (31k), Cefalù (14k), Castellammare (14.6k), Corleone (11k), Capaci (11k), Partanna (10.8k)
+    - URBI: Caccamo (8.3k)
+    - + 3 comuni già nel registry E3 (Gibellina, Vicari, Lercara Friddi, Campobello di Mazara)
+  - **TIER 1 (facile):** 18 comuni su Halley/EGov/APKAPPA varianti
+  - **TIER 2 (reverse-eng):** 14 comuni custom/local
+  - **TIER 3 (fallback):** 1 comune (Gazzetta Amministrativa)
+- CSV: `data/censimento_albi_pa_tp.csv` (77 righe ordinato per popolazione)
+- Card TAL-50 con dettagli implementazione futura
+
+**Fase 2 (registry update) — Completato:**
+- [x] Aggiunta 9 comuni TIER 0 a `scripts/run_scrapers.py` (2 jCityGov + 6 portalepa + 1 URBI)
+  - jCityGov: Termini Imerese, Campofelice Roccella
+  - portalepa: Partinico, Cefalù, Castellammare del Golfo, Corleone, Capaci, Partanna
+  - URBI: Caccamo
+- [x] Validazione: HTTP 200 su 3 comuni campione (Termini Imerese, Partinico, Caccamo) ✅
+- [x] Deduplicazione: rimosso Castelvetrano jCityGov (già in E3), rinominato Capaci portalepa a `capaci_pa` per evitare collisione con E3
+
+**Fase 3 (TIER 1 + TIER 2 reverse-eng) — Completato:**
+- [x] Analizzato TIER 1 (Halley/EGov/APKAPPA): pattern non completamente generalizzabile → rimandato a TAL-51
+- [x] Reverse-engineering TIER 2 (5 comuni custom più grandi): TUTTI richiedono API JS/Playwright → NON fattibili HTTP puro, ROI basso
+- [x] Mappa copertura TALIA aggiornata: notebook `copertura_scraper_sicilia.ipynb` + GeoJSON + PNG/HTML interactive
+
+**Copertura finale TAL-50:**
+- Pre-merge E3: 192 comuni (~73% popolazione)
+- **Post-merge E3 + TAL-50 completo: 200 comuni (~81% popolazione) ← PRONTO ORA**
+- Potenziale TIER 1 (se implementato): 218 comuni (~85%) — rimandato a TAL-51
+- TIER 2 custom: NON prioritario (36.8k abitanti, alto effort)
+
+### Modifiche non committate
+
+Nessuna (working tree pulito).
+
 ## DB attuale
 
 `talia.db` locale (gitignored), non toccato da questa sessione (refactor PR1-3 è solo
@@ -120,12 +226,14 @@ e non sono state riverificate in questa sessione.
 
 ## 🤝 Istruzioni per la prossima sessione
 
-1. Se questa sessione (refactor registro) è stata approvata e mergiata: valutare se
-   lanciare un run completo con `_SCRAPERS_DEFAULT` (203 scraper) su `talia.db` — non
-   ancora fatto dopo il refactor, anche se il set di scraper è identico a prima
-   (verificato lossless, vedi sopra).
-2. Continua la sequenza PR4 (schema DB `enti` esteso) → PR5 (health-check CI) del piano
-   `Registro unificato scraper + health-check automatico`.
+1. PR #11 (registro unificato + health-check) e PR #12 (riconciliazione TAL-50) — vedi
+   stato aggiornato in cima al file. Dopo il merge di PR #12: valutare un run completo
+   con `_SCRAPERS_DEFAULT` su `talia.db`.
+2. **Blocco portalepa da GH Actions (WAF Akamai, vedi sopra) resta aperto.** Prima di
+   attivare per davvero il cron su GH Actions (pre-cron checklist), decidere come
+   trattare i ~23 comuni portalepa: accettare la lacuna, riprendere in considerazione
+   un self-hosted runner, o altro. Non bloccante per il resto (91% dei comuni copre
+   correttamente da GH Actions).
 3. Vale la pena ripetere lo sweep di dominio (Halley/portalepa) periodicamente: nuovi
    comuni potrebbero attivare l'albo o cambiare piattaforma nel tempo.
 

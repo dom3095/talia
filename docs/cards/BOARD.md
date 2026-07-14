@@ -3,11 +3,10 @@
 Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio di ogni card nei file
 `TAL-*.md` di questa cartella.
 
-**Stato attuale:** Modulo 1 (engine + checklist + report), Modulo 2 (scraping + red flags
 batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
-Modulo 3 (Dashboard Streamlit) — 458 test verdi. In corso: Fase 2 pipeline (TAL-47 in Review),
-validazione fascicoli reali (TAL-12), censimento Palermo/Trapani (TAL-50 in Progress), refactor
-registro scraper in Review (branch `feat/config-scraper-registro`).
+Modulo 3 (Dashboard Streamlit). In corso: Fase 2 pipeline (TAL-47 in Review), validazione
+fascicoli reali (TAL-12), censimento Palermo/Trapani (TAL-50: merge con `main` in corso,
+pronta per PR finale).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -37,6 +36,7 @@ registro scraper in Review (branch `feat/config-scraper-registro`).
 | [TAL-41](TAL-41.md) | Modulo 0: Registro Attori (gerarchia comuni + società in house) | E2 | 🕷️ SCR + 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
 | [TAL-40](TAL-40.md) | README pubblico + contributing | E4 | 🧭 TL | P3 |
+| [TAL-52](TAL-52.md) | Deduplicazione atti tra scraper ridondanti (stesso comune, 2 piattaforme) | E2 | 🕷️ SCR | P3 |
 
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
@@ -49,15 +49,10 @@ registro scraper in Review (branch `feat/config-scraper-registro`).
 | [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | 🔤 NLP | branch `feat/TAL-48-riapertura-dopo-revoca`; MVP implementato (12 test); prossimo: integrazione pdf_download |
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti |
 
-### 🔧 In Progress (2)
-| ID | Titolo | Ruolo | Note |
-|----|--------|-------|------|
-| [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | branch `feat/E3-province-palermo-trapani`, Fase 1 completato (77 comuni censiti), Fase 2 completato (8 comuni TIER 0 aggiunti al registry) |
-
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| — | Refactor: registro unificato scraper + health-check (piano `.claude/plans/smooth-wibbling-teapot.md`) | ⚙️ OPS + 🕷️ SCR | branch `feat/config-scraper-registro`, 5 PR completate + code review multi-angolo (8/8 findings sistemati: 4 bug bloccanti + 3 design/robustezza — import lazy del registro, ANAC centralizzato in `MODULI_SENZA_ENTE`, `azzera_info_scraper` escape hatch) + 39 comuni censiti recuperati (1 attivato — Altavilla Milicia — 38 pending). 473 test verdi. **In attesa di review finale di Dom prima del push/PR** |
+| [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | **PR #12 aperta**, in attesa di review Dom — branch `feat/E3-province-palermo-trapani`, Fase 1-3 completate (9 comuni TIER 0 nel registro), riconciliato con `main` dopo refactor registro scraper (PR #11) |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
@@ -76,6 +71,7 @@ registro scraper in Review (branch `feat/config-scraper-registro`).
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| — | Refactor: registro unificato scraper + health-check (#11) | `data/registro_scraper.csv` + `registry.py` + `_FACTORY_PER_MODULO`; health-check settimanale CI; 39 comuni censiti recuperati (1 attivato — Altavilla Milicia) |
 | TAL-0 | Wiki + CLAUDE.md + board iniziale | doc di partenza |
 | [TAL-21](TAL-21.md) | Schema DB atti + storage | `db.py`: DDL + helper CRUD + dataclass AttoMetadato/EnteMetadato |
 | [TAL-22](TAL-22.md) | Pipeline ANAC open data (regione 19) | `anac.py`: filtro Sicilia + idempotenza + 22 test offline |

@@ -271,7 +271,6 @@ def _make_agrigento_runner(entry: EntryRegistro):
 # jCityGov (Liferay *.trasparenza-valutazione-merito.it)
 # Messina esclusa: SSL self-signed cert — da risolvere separatamente.
 
-
 def _run_jcitygov_comune(
     conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
 ):
@@ -324,8 +323,6 @@ def _make_jcitygov_runner(entry: EntryRegistro):
 # portalepa PHP: stessa piattaforma di Siracusa, riusata da altri comuni
 # sotto domini diversi (TAL-49). Partinico ha un layout colonne diverso
 # ("_full"): non compatibile con questo modulo, vedi docs/wiki/14-censimento-albi.md.
-
-
 def _run_portalepa_comune(
     conn, nome, base_url, codice_istat, denominazione, max_pagine=10, no_stop=False, **_kwargs
 ):
@@ -547,6 +544,13 @@ def _make_hspromila_runner(entry: EntryRegistro):
 
 # TAL-51 PENDING (comuni Trapani/Palermo, reverse-engineering in progress, non
 # ancora nel registro perché richiedono scraper dedicati): vedi docs/cards/TAL-51.md.
+
+# - Trapani: Petrosino (7.7k, WordPress), Pantelleria (7.5k, HyperSIC),
+#   Calatafimi-Segesta (6.7k, HyperSIC), Poggioreale (1.5k, HyperSIC)
+# - Palermo: 11 comuni >5k su ComuneWeb (6), Halley (1), HyperSIC (1), APKAPPA (1),
+#   SaturnWeb (1), custom (1) — vedi docs/cards/TAL-51.md per dettagli.
+# Questi comuni sono censiti (data/censimento_albi_pa_tp_COMPLETO.csv) ma non ancora
+# nel registry perché richiedono scraper dedicati o reverse-engineering ulteriore.
 
 
 def _make_anac_runner(entry: EntryRegistro):
