@@ -33,7 +33,7 @@ Pipeline motore: `OCR (Tesseract) → estrazione entità (regex + spaCy) → che
 
 | Layer | Tecnologia |
 |-------|-----------|
-| Linguaggio | Python 3.14+ |
+| Linguaggio | Python 3.12+ |
 | Scraping | Scrapy / BeautifulSoup, cron su GitHub Actions |
 | OCR | Tesseract (`pytesseract`) |
 | NER / estrazione | regex + spaCy (`it_core_news_lg`) |
