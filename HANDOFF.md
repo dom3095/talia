@@ -1,25 +1,52 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-12 (Merge `feat/E3-province-palermo-trapani` → `main`, dopo che
-> `main` ha ricevuto il refactor "Registro unificato scraper" — PR #11; primo run reale
-> del health-check su GH Actions, trovato blocco WAF su portalepa — vedi sotto)
+> Aggiornato: 2026-07-20 (PR #11 e #12 confermate mergiate in `main` — questa sezione era
+> rimasta indietro, le dava ancora "in review"/"riconciliazione in corso". Lanciato run
+> scraper completo per riempire `talia.db` dall'ultima esecuzione, 2026-07-14. Vedi
+> "Run scraper 2026-07-20" più sotto per l'esito.)
 
 ---
 
-## Branch attivo (priorità)
+## Run scraper 2026-07-20
 
-`feat/E3-province-palermo-trapani` — **in fase di riconciliazione con `main` per la PR
-finale (TAL-50)**. Il branch era rimasto indietro rispetto a `main`, che nel frattempo ha
-ricevuto (PR #11) un refactor architetturale dello scraping: le liste hardcoded
+Lanciato `python3 scripts/run_scrapers.py` su `talia.db` locale (nessun flag, quindi i 204
+scraper `attivo` di default + red flags + catene). Ultimo run precedente: 2026-07-14.
+
+**Esito:** 204/204 scraper eseguiti, **6 falliti** (~3%, in linea col rumore storico) —
+6071 atti nuovi (10382 trovati, resto duplicati). DB ora: **238 enti | 104.812 atti |
+163 red flags**. Nuovi red flags calcolati in questo run: concentrazione 139, tempi
+anomali 1, revoche in catena 43 (frazionamento 0).
+
+Scraper falliti in questo run (non bloccanti, riprovare al prossimo run):
+- **halley** (2): `brolo`, `sortino`
+- **portalepa** (4): `castellammare_golfo`, `cefalù`, `corleone`, `partanna_tp`
+
+Nota: i 4 falliti portalepa sono sulla stessa piattaforma già segnalata per il blocco WAF
+Akamai da GH Actions (vedi sezione sotto) — ma questo run era **locale**, non da CI, quindi
+non è lo stesso blocco per IP/ASN Azure. Da tenere d'occhio se si ripete sistematicamente;
+per ora trattato come rumore di rete (log completo in `/tmp/talia_scraper_run_20260720_130806.log`,
+non committato).
+
+**Non ancora fatto in questa sessione:** nessun commit — il run ha solo scritto su
+`talia.db` locale (gitignored), nessun file da versionare è cambiato per via dello
+scraping in sé. Resta invece **non committato** un cambio preesistente (non fatto in
+questa sessione, trovato già nel working tree) a `.github/workflows/health-check.yml`
+che commenta il trigger `schedule:` — coerente con la decisione del 2026-07-12 di non
+attivare il cron per via del blocco Akamai, ma non risulta mai committato. Da chiedere a
+Dom se va committato via branch+PR o scartato.
+
+## Stato branch (storico, entrambe le PR ora mergiate)
+
+`feat/E3-province-palermo-trapani` (PR #12) e `feat/config-scraper-registro` (PR #11) sono
+**mergiate in `main`** dal 2026-07-12. `main` è attivo e aggiornato (`git status`: pulito a
+parte una modifica locale non committata a `.github/workflows/health-check.yml`, vedi sotto).
+
+Riepilogo di cosa è cambiato (per chi riprende in mano il progetto): le liste hardcoded
 `_JCITYGOV_COMUNI`/`_PORTALEPA_COMUNI`/`_URBI_COMUNI`/`_SCRAPERS` in `scripts/run_scrapers.py`
-sono state sostituite da un registro CSV (`data/registro_scraper.csv`) letto da
-`registry.py` via `_FACTORY_PER_MODULO`. Eseguito `git merge origin/main`: conflitti in
-`scripts/run_scrapers.py`, `docs/cards/BOARD.md`, `docs/wiki/14-censimento-albi.md` risolti
-adottando l'architettura di `main` — verificato che tutti i 9 comuni TIER 0 aggiunti da
-TAL-50 (Termini Imerese, Campofelice di Roccella, Partinico, Cefalù, Castellammare del
-Golfo, Corleone, Capaci, Partanna, Caccamo) sono già presenti nel CSV consolidato (recuperati
-durante la code review del 2026-07-11 sul refactor, vedi sezione sotto), quindi nessun dato
-perso nel merge.
+sono state sostituite da un registro CSV (`data/registro_scraper.csv`, 245 righe) letto da
+`registry.py` via `_FACTORY_PER_MODULO`. I 9 comuni TIER 0 di TAL-50 (Termini Imerese,
+Campofelice di Roccella, Partinico, Cefalù, Castellammare del Golfo, Corleone, Capaci,
+Partanna, Caccamo) sono nel registro consolidato.
 
 **Nota (decisione presa, non un problema da risolvere):** il CSV ha due comuni registrati due
 volte su piattaforme diverse con lo stesso `codice_istat` — Campofelice di Roccella
@@ -33,8 +60,8 @@ per via del `COALESCE`) ed eventuali atti duplicati se le due fonti espongono lo
 con URL diversi — non osservato finora. Tracciato in **[TAL-52](docs/cards/TAL-52.md)**
 (backlog, P3): dedup atti tra scraper ridondanti sullo stesso comune.
 
-**Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
-Prossimo passo: review di Dom.
+**Fatto:** test (473 verdi) + lint puliti, push del branch, **PR #12 mergiata in `main`
+il 2026-07-12.**
 
 ### Health-check: trovato blocco WAF Akamai su portalepa (2026-07-12)
 
