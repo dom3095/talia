@@ -2,8 +2,50 @@
 
 > Aggiornato: 2026-07-20 (PR #11 e #12 confermate mergiate in `main` — questa sezione era
 > rimasta indietro, le dava ancora "in review"/"riconciliazione in corso". Lanciato run
-> scraper completo per riempire `talia.db` dall'ultima esecuzione, 2026-07-14. Vedi
-> "Run scraper 2026-07-20" più sotto per l'esito.)
+> scraper completo per riempire `talia.db` dall'ultima esecuzione, 2026-07-14. Poi TAL-48:
+> bugfix critico + integrazione pdf_download, branch `feat/TAL-48-pdf-riaperture` pronto
+> per PR. Vedi sezioni sotto per i dettagli.)
+
+---
+
+## TAL-48: bugfix (0 rilevazioni reali) + integrazione pdf_download (2026-07-20)
+
+Branch `feat/TAL-48-pdf-riaperture` (il vecchio `feat/TAL-48-riapertura-dopo-revoca`
+locale era rimasto indietro di 5 commit rispetto a `main` — il suo MVP era già mergiato
+via PR #9 il 2026-07-10, il branch stesso non serviva più).
+
+**Bug trovato e corretto:** `rileva_riapertura_dopo_revoca` filtrava su `atti.data_atto`,
+che è **NULL per il 100% degli atti jCityGov** (79.462 su 104.812 atti totali, piattaforma
+dominante — inclusi tutti e 3 i casi reali documentati nella card). Risultato: 0
+rilevazioni su `talia.db` reale nonostante 449 catene revocate/annullate disponibili; i 12
+test esistenti non lo prendevano perché le fixture impostano sempre `data_atto` a mano.
+Fix in `red_flags/riapertura_revoca.py`: query riscritte con `COALESCE(data_atto,
+data_pub)`, senza toccare l'engine catena condiviso. Da 0 → **78 riaperture rilevate**.
+
+**Integrazione `pdf_download.py` (TAL-47):** nuove `scarica_pdf_atto()` (atto singolo
+senza catena), `procedimenti_da_riapertura()` + `scarica_pdf_riapertura()` (scarica
+entrambi i bandi di una riapertura + un `motivo_riapertura.json` esplicativo), flag CLI
+`--riaperture`. Validato end-to-end su `talia.db` reale: PDF scaricati per Ragusa proc.
+11306 e **Palma proc. 692→703** (uno dei 3 casi noti della card, confermato dal vivo).
+
+**Trovato anche:** `run_scrapers.py` calcolava `riapertura_dopo_revoca` nel report red
+flags ma non lo stampava mai — riga aggiunta.
+
+**Esito:** 480 test verdi (erano 473), lint pulito. Dettagli/Tentativi completi in
+[TAL-48.md](docs/cards/TAL-48.md). Candidati nuovi per TAL-12 annotati in
+[TAL-12.md](docs/cards/TAL-12.md#-candidati-per-i-prossimi-fascicoli-da-tal-48-2026-07-20).
+
+**⚠️ Attenzione locale/CI:** durante questa sessione `ruff format` su questo venv locale
+(Python 3.12.3) ha riscritto `except (urllib.error.URLError, TimeoutError):` in
+`pdf_download.py` nella forma senza parentesi (`except urllib.error.URLError,
+TimeoutError:`) — **sintassi valida solo da Python 3.14 (PEP 758)**, quindi un
+`SyntaxError` su questo venv. Il progetto dichiara `requires-python = ">=3.14"` e CI usa
+3.14 (`ci.yml`), ma il venv locale (`.venv`) è su 3.12.3: **`ruff format` locale può
+produrre codice che non gira in locale.** Ripristinato manualmente alle parentesi (valide
+su entrambe le versioni). Non ancora deciso se aggiornare il venv locale a 3.14 o
+convivere con la cautela su `ruff format`.
+
+**Prossimo passo:** aprire PR per `feat/TAL-48-pdf-riaperture`.
 
 ---
 
@@ -27,10 +69,10 @@ non è lo stesso blocco per IP/ASN Azure. Da tenere d'occhio se si ripete sistem
 per ora trattato come rumore di rete (log completo in `/tmp/talia_scraper_run_20260720_130806.log`,
 non committato).
 
-**Non ancora fatto in questa sessione:** nessun commit — il run ha solo scritto su
-`talia.db` locale (gitignored), nessun file da versionare è cambiato per via dello
-scraping in sé. Resta invece **non committato** un cambio preesistente (non fatto in
-questa sessione, trovato già nel working tree) a `.github/workflows/health-check.yml`
+Il run in sé non ha prodotto commit — ha solo scritto su `talia.db` locale (gitignored).
+I commit di questa sessione sono la sincronizzazione doc (vedi sopra) + il lavoro TAL-48.
+Resta **non committato** un cambio preesistente (non fatto in questa sessione, trovato già
+nel working tree) a `.github/workflows/health-check.yml`
 che commenta il trigger `schedule:` — coerente con la decisione del 2026-07-12 di non
 attivare il cron per via del blocco Akamai, ma non risulta mai committato. Da chiedere a
 Dom se va committato via branch+PR o scartato.

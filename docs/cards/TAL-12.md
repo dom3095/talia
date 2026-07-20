@@ -57,3 +57,22 @@ fonti pubbliche tracciate in `data/samples/1/sources.json`. **I PDF restano fuor
 **Raffinamenti annotati per follow-up:** trattino opzionale in 21-quinquies/nonies (fatto);
 firme digitali "NOME / Provider S.A." non estratte (ok per prudenza); date CCNL
 ("16.11.2022") rischiano di inquinare il check 2 sui fascicoli con annullamento.
+
+## 📦 Candidati per i prossimi fascicoli (da TAL-48, 2026-07-20)
+
+TAL-48 (integrazione pdf_download per le riaperture dopo revoca) ha scaricato PDF reali
+di coppie bando-originale/bando-riaperto — materiale grezzo per i fascicoli 2-11, non
+ancora passato dal report Modulo 1 né dalla validazione ⚖️ LEX:
+
+- **Ragusa proc. 11306** (red_flag 499): lavori area verde, CIG — revocato 2022-07-27,
+  riaperto 22 giorni dopo con oggetto quasi identico (Jaccard 0.86). PDF in
+  `data/raw/pdf/comune_di_ragusa/11306/` (locale, gitignored).
+- **Palma di Montechiaro proc. 692→703**: affidamento sorveglianza sanitaria annullato
+  2023-11-20, re-affidato 2024-07-17 (Jaccard 0.76) — uno dei 3 casi noti già citati nel
+  contesto di TAL-48. PDF in `data/raw/pdf/comune_di_palma_di_montechiaro/`.
+- Altri 76 red flag `riapertura_dopo_revoca` disponibili in `talia.db` (query
+  `SELECT * FROM red_flags WHERE tipo_flag='riapertura_dopo_revoca'`) per selezionarne
+  altri via `python -m talia.modulo2_scraping.pdf_download --riaperture --limite N`.
+
+Restano da fare per ciascuno (non automatizzato da TAL-48): far girare il report Modulo 1,
+confronto con valutazione ⚖️ LEX, tabella falsi positivi/negativi.

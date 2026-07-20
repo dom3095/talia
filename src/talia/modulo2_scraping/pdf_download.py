@@ -499,63 +499,23 @@ def motivo_selezione(conn: sqlite3.Connection, procedimento_id: int) -> dict:
     }
 
 
-def scarica_pdf_procedimento(
-    conn: sqlite3.Connection,
-    procedimento_id: int,
-    dest_dir: Path | None = None,
-    opener=None,
-    delay: float = _DEFAULT_DELAY,
-) -> list[Path]:
-    """Scarica i PDF di tutti gli atti di un procedimento.
+def _scarica_pdf_atti(
+    atti: list[tuple],
+    cur: sqlite3.Cursor,
+    dest_dir: Path,
+    opener,
+    delay: float,
+) -> tuple[list[Path], list[dict]]:
+    """Scarica gli allegati di una lista di atti ``(id, ente_id, url_fonte, ente_nome)``.
 
-    Args:
-        conn: connessione SQLite al DB talia.db
-        procedimento_id: ID del procedimento (foreign key a atti.procedimento_id)
-        dest_dir: directory destinazione (default: data/raw/pdf/<ente>/<procedimento_id>/)
-        opener: opener HTTP iniettabile
-        delay: pausa tra richieste (rate limiting)
-
-    Returns:
-        Lista di Path ai file scaricati.
-
-    Raises:
-        sqlite3.Error: se la query fallisce
+    Helper condiviso da ``scarica_pdf_procedimento`` (tutti gli atti di una
+    catena) e ``scarica_pdf_atto`` (un atto singolo, senza catena). Aggiorna
+    ``atti.url_pdf``/``hash_sha256`` in DB ma non fa commit né scrive
+    meta.json: è responsabilità del chiamante, che conosce la directory e il
+    tipo di selezione (procedimento vs atto singolo).
     """
-    opener = opener or _build_opener()
-
-    # Query atti del procedimento
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT
-            a.id,
-            a.ente_id,
-            a.url_fonte,
-            e.denominazione
-        FROM atti a
-        JOIN enti e ON a.ente_id = e.id
-        WHERE a.procedimento_id = ?
-        ORDER BY a.id
-        """,
-        (procedimento_id,),
-    )
-    atti = cur.fetchall()
-
-    if not atti:
-        _logger.warning(f"Nessun atto trovato per procedimento_id {procedimento_id}")
-        return []
-
-    # Determina directory destinazione
-    if dest_dir is None:
-        # data/raw/pdf/<ente>/<procedimento_id>/
-        ente_nome = (atti[0][3] or "sconosciuto").lower().replace(" ", "_")
-        dest_dir = Path("data/raw/pdf") / ente_nome / str(procedimento_id)
-
-    dest_dir = Path(dest_dir)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    downloaded = []
-    metadati = []  # Per meta.json
+    downloaded: list[Path] = []
+    metadati: list[dict] = []
 
     for atto_id, _ente_id, url_fonte, _ente_nome in atti:
         if not url_fonte:
@@ -617,6 +577,66 @@ def scarica_pdf_procedimento(
 
         time.sleep(delay)  # Pausa tra atti
 
+    return downloaded, metadati
+
+
+def scarica_pdf_procedimento(
+    conn: sqlite3.Connection,
+    procedimento_id: int,
+    dest_dir: Path | None = None,
+    opener=None,
+    delay: float = _DEFAULT_DELAY,
+) -> list[Path]:
+    """Scarica i PDF di tutti gli atti di un procedimento.
+
+    Args:
+        conn: connessione SQLite al DB talia.db
+        procedimento_id: ID del procedimento (foreign key a atti.procedimento_id)
+        dest_dir: directory destinazione (default: data/raw/pdf/<ente>/<procedimento_id>/)
+        opener: opener HTTP iniettabile
+        delay: pausa tra richieste (rate limiting)
+
+    Returns:
+        Lista di Path ai file scaricati.
+
+    Raises:
+        sqlite3.Error: se la query fallisce
+    """
+    opener = opener or _build_opener()
+
+    # Query atti del procedimento
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            a.id,
+            a.ente_id,
+            a.url_fonte,
+            e.denominazione
+        FROM atti a
+        JOIN enti e ON a.ente_id = e.id
+        WHERE a.procedimento_id = ?
+        ORDER BY a.id
+        """,
+        (procedimento_id,),
+    )
+    atti = cur.fetchall()
+
+    if not atti:
+        _logger.warning(f"Nessun atto trovato per procedimento_id {procedimento_id}")
+        return []
+
+    # Determina directory destinazione
+    if dest_dir is None:
+        # data/raw/pdf/<ente>/<procedimento_id>/
+        ente_nome = (atti[0][3] or "sconosciuto").lower().replace(" ", "_")
+        dest_dir = Path("data/raw/pdf") / ente_nome / str(procedimento_id)
+
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    downloaded, metadati = _scarica_pdf_atti(atti, cur, dest_dir, opener, delay)
+
     # Salva meta.json + motivo_selezione.json (perché questa catena è stata scaricata)
     if metadati:
         meta_path = dest_dir / "meta.json"
@@ -641,12 +661,101 @@ def scarica_pdf_procedimento(
     return downloaded
 
 
+def scarica_pdf_atto(
+    conn: sqlite3.Connection,
+    atto_id: int,
+    dest_dir: Path | None = None,
+    opener=None,
+    delay: float = _DEFAULT_DELAY,
+) -> list[Path]:
+    """Scarica gli allegati di un singolo atto, senza catena/procedimento.
+
+    Serve per l'atto di riapertura di TAL-48 quando l'engine catena non lo ha
+    (ancora) agganciato a una propria catena: ``scarica_pdf_procedimento``
+    cercherebbe per ``atti.procedimento_id`` e non lo troverebbe.
+
+    Args:
+        conn: connessione SQLite al DB talia.db
+        atto_id: ID dell'atto
+        dest_dir: directory destinazione (default: data/raw/pdf/<ente>/atto_<atto_id>/)
+        opener: opener HTTP iniettabile
+        delay: pausa tra richieste (rate limiting)
+
+    Returns:
+        Lista di Path ai file scaricati.
+    """
+    opener = opener or _build_opener()
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT a.id, a.ente_id, a.url_fonte, e.denominazione
+        FROM atti a
+        JOIN enti e ON a.ente_id = e.id
+        WHERE a.id = ?
+        """,
+        (atto_id,),
+    )
+    atti = cur.fetchall()
+
+    if not atti:
+        _logger.warning(f"Atto {atto_id} non trovato")
+        return []
+
+    if dest_dir is None:
+        ente_nome = (atti[0][3] or "sconosciuto").lower().replace(" ", "_")
+        dest_dir = Path("data/raw/pdf") / ente_nome / f"atto_{atto_id}"
+
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    downloaded, metadati = _scarica_pdf_atti(atti, cur, dest_dir, opener, delay)
+
+    if metadati:
+        meta_path = dest_dir / "meta.json"
+        try:
+            with open(meta_path, "w") as f:
+                json.dump(metadati, f, indent=2, ensure_ascii=False)
+            _logger.info(f"Salvato {meta_path} con {len(metadati)} allegati")
+        except OSError as e:
+            _logger.error(f"Errore salvataggio meta.json: {e}")
+
+    conn.commit()
+    return downloaded
+
+
 # ---------------------------------------------------------------------------
 # Selezione catene
 # ---------------------------------------------------------------------------
 
 # Fonti i cui atti sono scaricabili da questo modulo (dettaglio jCityGov/Liferay)
 _FONTI_SUPPORTATE = ("jcitygov",)
+
+
+def _diversifica_per_ente(rows: list[tuple[int, int]], limite: int | None) -> list[int]:
+    """Round-robin tra enti su coppie ``(id, ente_id)``: un elemento a testa per giro.
+
+    Un campione vario tra amministrazioni dice di più dello stesso numero di
+    elementi tutti dello stesso ente. Condiviso da ``procedimenti_critici`` e
+    ``procedimenti_da_riapertura``.
+    """
+    if limite is None:
+        return [r[0] for r in rows]
+
+    per_ente: dict[int, list[int]] = {}
+    for item_id, ente_id in rows:
+        per_ente.setdefault(ente_id, []).append(item_id)
+
+    selezionati: list[int] = []
+    code = list(per_ente.values())
+    while code and len(selezionati) < limite:
+        for coda in list(code):
+            if len(selezionati) >= limite:
+                break
+            selezionati.append(coda.pop(0))
+            if not coda:
+                code.remove(coda)
+    return selezionati
 
 
 def procedimenti_critici(
@@ -676,25 +785,138 @@ def procedimenti_critici(
         """,
         fonti,
     ).fetchall()
+    return _diversifica_per_ente(rows, limite)
 
-    if limite is None:
-        return [r[0] for r in rows]
 
-    # Round-robin tra enti: un procedimento per ente a ogni giro
-    per_ente: dict[int, list[int]] = {}
-    for proc_id, ente_id in rows:
-        per_ente.setdefault(ente_id, []).append(proc_id)
+def procedimenti_da_riapertura(
+    conn: sqlite3.Connection,
+    fonti: tuple[str, ...] = _FONTI_SUPPORTATE,
+    limite: int | None = 20,
+) -> list[int]:
+    """ID dei red flag ``riapertura_dopo_revoca`` (TAL-48) su enti con fonti supportate.
 
-    selezionati: list[int] = []
-    code = list(per_ente.values())
-    while code and len(selezionati) < limite:
-        for coda in list(code):
-            if len(selezionati) >= limite:
-                break
-            selezionati.append(coda.pop(0))
-            if not coda:
-                code.remove(coda)
-    return selezionati
+    Ogni riga individua UNA coppia di bandi da scaricare (originale revocato/
+    annullato + riapertura con oggetto simile): vedi ``scarica_pdf_riapertura``.
+    Diversificato per ente come ``procedimenti_critici``.
+    """
+    segnaposto = ",".join("?" * len(fonti))
+    rows = conn.execute(
+        f"""
+        SELECT rf.id, rf.ente_id
+        FROM red_flags rf
+        WHERE rf.tipo_flag = 'riapertura_dopo_revoca'
+          AND EXISTS (
+              SELECT 1 FROM atti a
+              WHERE a.ente_id = rf.ente_id AND a.fonte_scraper IN ({segnaposto})
+          )
+        ORDER BY rf.ente_id, rf.id
+        """,
+        fonti,
+    ).fetchall()
+    return _diversifica_per_ente(rows, limite)
+
+
+def scarica_pdf_riapertura(
+    conn: sqlite3.Connection,
+    red_flag_id: int,
+    opener=None,
+    delay: float = _DEFAULT_DELAY,
+) -> list[Path]:
+    """Scarica ENTRAMBI i bandi di una riapertura dopo revoca (TAL-48).
+
+    Il flag ``riapertura_dopo_revoca`` referenzia due cose distinte: la
+    catena originale revocata/annullata (procedimento) e il singolo atto di
+    riapertura, che potrebbe non avere ancora una propria catena. Scarica
+    prima la catena originale (che produce già il suo motivo_selezione.json
+    via ``scarica_pdf_procedimento``), poi la riapertura — la sua catena se
+    ne ha una, altrimenti il solo atto via ``scarica_pdf_atto`` — e infine un
+    motivo_riapertura.json nella cartella della catena originale che spiega
+    il collegamento tra le due (per il confronto testuale futuro, fuori
+    scope qui: vedi TAL-48).
+
+    Args:
+        conn: connessione SQLite al DB talia.db
+        red_flag_id: ID della riga in red_flags (tipo_flag='riapertura_dopo_revoca')
+        opener: opener HTTP iniettabile
+        delay: pausa tra richieste (rate limiting)
+
+    Returns:
+        Lista di Path ai file scaricati (entrambi i bandi).
+    """
+    opener = opener or _build_opener()
+
+    row = conn.execute(
+        "SELECT ente_id, atti_cig, descrizione FROM red_flags "
+        "WHERE id = ? AND tipo_flag = 'riapertura_dopo_revoca'",
+        (red_flag_id,),
+    ).fetchone()
+    if row is None:
+        _logger.warning(f"Red flag {red_flag_id}: non trovato o non è riapertura_dopo_revoca")
+        return []
+
+    ente_id, atti_cig_raw, descrizione = row
+    try:
+        dettaglio = json.loads(atti_cig_raw or "[]")
+    except json.JSONDecodeError:
+        dettaglio = []
+    if not dettaglio:
+        _logger.warning(f"Red flag {red_flag_id}: atti_cig vuoto o non valido")
+        return []
+
+    info = dettaglio[0]
+    id_catena_revocata = info.get("id_catena_revocata")
+    atto_riapertura_id = info.get("atto_riapertura_id")
+
+    downloaded: list[Path] = []
+    dest_dir_originale = None
+
+    if id_catena_revocata is not None:
+        downloaded += scarica_pdf_procedimento(conn, id_catena_revocata, opener=opener, delay=delay)
+        riga_ente = conn.execute(
+            "SELECT denominazione FROM enti WHERE id = ?", (ente_id,)
+        ).fetchone()
+        ente_nome = (riga_ente[0] if riga_ente else "sconosciuto").lower().replace(" ", "_")
+        dest_dir_originale = Path("data/raw/pdf") / ente_nome / str(id_catena_revocata)
+
+    if atto_riapertura_id is not None:
+        riga_atto = conn.execute(
+            "SELECT procedimento_id FROM atti WHERE id = ?", (atto_riapertura_id,)
+        ).fetchone()
+        proc_id_riapertura = riga_atto[0] if riga_atto else None
+        if proc_id_riapertura is not None and proc_id_riapertura != id_catena_revocata:
+            downloaded += scarica_pdf_procedimento(
+                conn, proc_id_riapertura, opener=opener, delay=delay
+            )
+        elif proc_id_riapertura is None:
+            downloaded += scarica_pdf_atto(conn, atto_riapertura_id, opener=opener, delay=delay)
+
+    if downloaded and dest_dir_originale is not None:
+        dest_dir_originale.mkdir(parents=True, exist_ok=True)
+        motivo_path = dest_dir_originale / "motivo_riapertura.json"
+        try:
+            with open(motivo_path, "w") as f:
+                json.dump(
+                    {
+                        "red_flag_id": red_flag_id,
+                        "criterio_selezione": (
+                            "riapertura_dopo_revoca (TAL-48): atto con oggetto simile "
+                            "pubblicato dallo stesso ente dopo la revoca/annullamento "
+                            "di questa catena"
+                        ),
+                        "descrizione": descrizione,
+                        "procedimento_originale_id": id_catena_revocata,
+                        "atto_riapertura_id": atto_riapertura_id,
+                        "disclaimer": "Segnalazione da verificare, non accertamento.",
+                    },
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            _logger.info(f"Salvato {motivo_path}")
+        except OSError as e:
+            _logger.error(f"Errore salvataggio motivo_riapertura.json: {e}")
+
+    return downloaded
 
 
 # ---------------------------------------------------------------------------
@@ -724,6 +946,12 @@ def main():
         default=20,
         help="massimo catene da scaricare, diversificate per comune (default: 20)",
     )
+    parser.add_argument(
+        "--riaperture",
+        action="store_true",
+        help="scarica le coppie originale+riapertura da red_flags "
+        "'riapertura_dopo_revoca' (TAL-48) invece delle catene critiche",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -738,16 +966,27 @@ def main():
 
     conn = sqlite3.connect(db_path)
 
-    procs = args.proc_ids or procedimenti_critici(conn, limite=args.limite)
-    _logger.info(f"Procedimenti da scaricare: {len(procs)} → {procs}")
+    if args.riaperture:
+        flag_ids = args.proc_ids or procedimenti_da_riapertura(conn, limite=args.limite)
+        _logger.info(f"Riaperture da scaricare: {len(flag_ids)} → {flag_ids}")
+        for flag_id in flag_ids:
+            _logger.info(f"=== Riapertura (red_flag {flag_id}) ===")
+            try:
+                downloaded = scarica_pdf_riapertura(conn, flag_id)
+                print(f"Red flag {flag_id}: {len(downloaded)} file")
+            except Exception as e:
+                print(f"Red flag {flag_id}: errore: {e}", file=sys.stderr)
+    else:
+        procs = args.proc_ids or procedimenti_critici(conn, limite=args.limite)
+        _logger.info(f"Procedimenti da scaricare: {len(procs)} → {procs}")
 
-    for proc_id in procs:
-        _logger.info(f"=== Procedimento {proc_id} ===")
-        try:
-            downloaded = scarica_pdf_procedimento(conn, proc_id)
-            print(f"Proc. {proc_id}: {len(downloaded)} file")
-        except Exception as e:
-            print(f"Proc. {proc_id}: errore: {e}", file=sys.stderr)
+        for proc_id in procs:
+            _logger.info(f"=== Procedimento {proc_id} ===")
+            try:
+                downloaded = scarica_pdf_procedimento(conn, proc_id)
+                print(f"Proc. {proc_id}: {len(downloaded)} file")
+            except Exception as e:
+                print(f"Proc. {proc_id}: errore: {e}", file=sys.stderr)
 
     conn.close()
 
