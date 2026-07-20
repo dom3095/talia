@@ -77,6 +77,33 @@ def test_frazionamento_rilevato(db: sqlite3.Connection, ente_pa: int) -> None:
     assert len(r.atti) == 3
 
 
+def test_frazionamento_data_atto_null_usa_data_pub_jcitygov(
+    db: sqlite3.Connection, ente_pa: int
+) -> None:
+    """Regressione: su jCityGov (76% degli atti nel DB reale) data_atto è
+    sempre NULL, solo data_pub è popolato. Prima del fix questi atti erano
+    invisibili al check (WHERE a.data_atto IS NOT NULL escludeva tutto)."""
+    for i, data in enumerate(("2026-01-10", "2026-01-20", "2026-01-30"), start=1):
+        inserisci_atto(
+            db,
+            AttoMetadato(
+                ente_codice_istat="082053",
+                tipo="determina",
+                url_fonte=f"http://albo.pa.it/jcg{i}",
+                fonte_scraper="jcitygov",
+                data_accesso="2026-06-01T10:00:00",
+                data_pub=data,
+                importo_euro=50_000.0,
+            ),
+        )
+
+    risultati = rileva_frazionamento(db)
+    assert len(risultati) == 1
+    assert risultati[0].n_atti == 3
+    assert risultati[0].periodo_da == "2026-01-10"
+    assert risultati[0].periodo_a == "2026-01-30"
+
+
 # ---------------------------------------------------------------------------
 # Caso negativo: totale sotto soglia
 # ---------------------------------------------------------------------------

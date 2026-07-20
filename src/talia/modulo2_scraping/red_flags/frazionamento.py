@@ -70,16 +70,21 @@ def rileva_frazionamento(
     Returns:
         Lista di ``FrazionamentoRilevato``, una per ogni ente/finestra segnalata.
     """
+    # COALESCE: data_atto manca sempre o quasi su alcune piattaforme (jCityGov,
+    # catania, urbi, hspromila, ribera — espongono solo la finestra di
+    # pubblicazione nella pagina-lista, non la data dell'atto). Senza fallback
+    # su data_pub questi enti restano invisibili al check.
     rows = conn.execute(
         """
         SELECT a.id, a.ente_id, e.codice_istat,
-               a.importo_euro, a.data_atto, a.url_fonte, a.cig
+               a.importo_euro, COALESCE(a.data_atto, a.data_pub) AS data_atto,
+               a.url_fonte, a.cig
         FROM   atti a
         JOIN   enti e ON e.id = a.ente_id
         WHERE  a.importo_euro > 0
           AND  a.importo_euro < ?
-          AND  a.data_atto IS NOT NULL
-        ORDER  BY a.ente_id, a.data_atto
+          AND  COALESCE(a.data_atto, a.data_pub) IS NOT NULL
+        ORDER  BY a.ente_id, data_atto
         """,
         (soglia,),
     ).fetchall()

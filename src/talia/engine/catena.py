@@ -295,10 +295,11 @@ def collega_per_cig(conn: sqlite3.Connection, cig: str) -> int | None:
     """
     atti = conn.execute(
         """
-        SELECT a.id, a.ente_id, a.tipo, a.oggetto, a.data_atto, a.testo_estratto
+        SELECT a.id, a.ente_id, a.tipo, a.oggetto,
+               COALESCE(a.data_atto, a.data_pub) AS data_atto, a.testo_estratto
         FROM   atti a
         WHERE  a.cig = ?
-        ORDER  BY a.data_atto ASC NULLS LAST
+        ORDER  BY data_atto ASC NULLS LAST
         """,
         (cig,),
     ).fetchall()
@@ -349,7 +350,8 @@ def collega_per_riferimenti_incrociati(conn: sqlite3.Connection, ente_id: int | 
     # Nessun filtro su testo_estratto: i riferimenti possono stare nell'oggetto
     atti = conn.execute(
         f"""
-        SELECT a.id, a.ente_id, a.oggetto, a.testo_estratto, a.numero, a.data_atto,
+        SELECT a.id, a.ente_id, a.oggetto, a.testo_estratto, a.numero,
+               COALESCE(a.data_atto, a.data_pub) AS data_atto,
                a.procedimento_id, a.tipo
         FROM   atti a
         WHERE  (a.oggetto IS NOT NULL OR a.testo_estratto IS NOT NULL)
@@ -438,7 +440,8 @@ def collega_per_contenimento(
     params: tuple = (ente_id,) if ente_id is not None else ()
     atti = conn.execute(
         f"""
-        SELECT id, ente_id, tipo, oggetto, data_atto, testo_estratto, procedimento_id
+        SELECT id, ente_id, tipo, oggetto,
+               COALESCE(data_atto, data_pub) AS data_atto, testo_estratto, procedimento_id
         FROM   atti
         WHERE  oggetto IS NOT NULL AND oggetto != ''
         {filtro}
@@ -537,7 +540,8 @@ def collega_per_oggetto_simile(
     """
     atti = conn.execute(
         """
-        SELECT id, ente_id, oggetto, tipo, data_atto, testo_estratto
+        SELECT id, ente_id, oggetto, tipo,
+               COALESCE(data_atto, data_pub) AS data_atto, testo_estratto
         FROM   atti
         WHERE  ente_id = ?
           AND  procedimento_id IS NULL
@@ -1044,7 +1048,8 @@ def _trova_o_crea_procedimento(
 def _aggiorna_stato_procedimento(conn: sqlite3.Connection, proc_id: int) -> None:
     """Ricalcola stato_finale e data_chiusura dai ruoli/date degli atti membri."""
     righe = conn.execute(
-        "SELECT ruolo_in_catena, data_atto FROM atti WHERE procedimento_id = ?",
+        "SELECT ruolo_in_catena, COALESCE(data_atto, data_pub) AS data_atto "
+        "FROM atti WHERE procedimento_id = ?",
         (proc_id,),
     ).fetchall()
     ruoli = [r["ruolo_in_catena"] for r in righe if r["ruolo_in_catena"]]

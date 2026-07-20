@@ -176,6 +176,50 @@ def test_collega_per_cig_crea_procedimento(db, ente_ag):
     assert "revoca" in ruoli
 
 
+def test_collega_per_cig_data_atto_null_usa_data_pub(db, ente_ag):
+    """Regressione: su jCityGov (piattaforma dominante nel DB, 76% degli atti)
+    `data_atto` è sempre NULL — solo `data_pub` è popolato. Prima del fix,
+    `collega_per_cig` calcolava data_avvio/data_chiusura solo da `data_atto`:
+    per queste catene restavano sempre NULL, rompendo a valle qualunque check
+    che ne dipende (revoca_in_catena, riapertura_dopo_revoca, dashboard)."""
+    from talia.engine.catena import _evolvi_schema
+
+    _evolvi_schema(db)
+
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo.ag/bando1",
+            tipo="bando",
+            cig="AB1234567D",
+            oggetto="Bando concorso operatori",
+            data_atto=None,
+            data_pub="2025-07-01",
+            testo_estratto="Bando di concorso pubblico per 7 operatori esperti",
+        ),
+    )
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo.ag/revoca1",
+            tipo="determina",
+            cig="AB1234567D",
+            oggetto="Revoca concorso operatori",
+            data_atto=None,
+            data_pub="2025-12-22",
+            testo_estratto="Si revoca il bando di concorso pubblico CIG AB1234567D",
+        ),
+    )
+
+    proc_id = collega_per_cig(db, "AB1234567D")
+
+    proc = db.execute("SELECT * FROM procedimenti WHERE id=?", (proc_id,)).fetchone()
+    assert proc["data_avvio"] == "2025-07-01"
+    assert proc["data_chiusura"] == "2025-12-22"
+
+
 def test_collega_per_cig_idempotente(db, ente_ag):
     from talia.engine.catena import _evolvi_schema
 
@@ -602,6 +646,45 @@ def test_collega_per_contenimento_caso_palma(db, ente_ag):
         "SELECT procedimento_id FROM atti WHERE url_fonte='http://albo/avvio_d'"
     ).fetchone()
     assert revoca_d["procedimento_id"] == avvio_d["procedimento_id"]
+
+
+def test_collega_per_contenimento_data_atto_null_usa_data_pub(db, ente_ag):
+    """Stessa regressione di test_collega_per_cig_data_atto_null_usa_data_pub,
+    ma per la strategia di contenimento (quella usata dal caso reale Palma
+    692→703 in TAL-48): con data_atto sempre NULL (jCityGov), data_avvio e
+    data_chiusura del procedimento non devono restare NULL."""
+    from talia.engine.catena import _evolvi_schema, collega_per_contenimento
+
+    _evolvi_schema(db)
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo/avvio_x",
+            oggetto="AFFIDAMENTO SERVIZIO SORVEGLIANZA SANITARIA ANNO 2025",
+            data_atto=None,
+            data_pub="2025-01-10",
+        ),
+    )
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo/revoca_x",
+            oggetto="ANNULLAMENTO AFFIDAMENTO SERVIZIO SORVEGLIANZA SANITARIA ANNO 2025",
+            data_atto=None,
+            data_pub="2025-06-20",
+        ),
+    )
+
+    n = collega_per_contenimento(db, ente_ag)
+    assert n == 1
+
+    proc = db.execute(
+        "SELECT data_avvio, data_chiusura FROM procedimenti WHERE ente_id=?", (ente_ag,)
+    ).fetchone()
+    assert proc["data_avvio"] == "2025-01-10"
+    assert proc["data_chiusura"] == "2025-06-20"
 
 
 def test_collega_per_contenimento_idempotente(db, ente_ag):
