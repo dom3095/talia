@@ -157,3 +157,42 @@ flusso di default di `run_scrapers.py` (oggi resta un comando CLI separato, come
 `procedimenti_critici` prima di questa card); confronto testuale PDF originale vs
 riapertura (card separata, richiede estrazione testo generalizzata oltre jCityGov);
 ricalibrazione soglia Jaccard con i PDF reali ora scaricabili.
+
+### 2026-07-20 — Tentativo 3 (il bug non era isolato: fix esteso a tutto il motore catena)
+
+**Approccio:** Dom ha chiesto "le date andrebbero scritte ovunque" — verifica di quanto
+fosse esteso il problema `data_atto` NULL oltre `riapertura_revoca.py`.
+
+**Esito:** ✅ molto più esteso del previsto. `grep data_atto` su tutto `src/talia/` ha
+trovato che **`engine/catena.py`** (calcolo `data_avvio`/`data_chiusura` per TUTTI i
+procedimenti, 3 punti: `collega_per_cig`, `collega_per_contenimento`,
+`collega_per_oggetto_simile`, più `_aggiorna_stato_procedimento`) e **3 red flag**
+(`concentrazione.py`, `frazionamento.py`, `catena_revoca.py`) leggevano `data_atto` senza
+fallback — `concentrazione.py`/`frazionamento.py` con `WHERE data_atto IS NOT NULL`,
+quindi **escludendo in silenzio l'80% degli atti del DB** (non solo jCityGov: anche
+catania, urbi, hspromila, ribera al 100%, halley al 12%). Verificato anche l'impatto reale
+su `talia.db`: **25.021/28.523 procedimenti (88%) con `data_chiusura` NULL**, 22.893 (80%)
+con `data_avvio` NULL.
+
+**Fix:** stesso pattern `COALESCE(data_atto, data_pub)` applicato a tutti i punti (5 query
+in `catena.py`, 1 in ciascuno dei 3 moduli red flag), alias mantenuto `data_atto` per non
+toccare la logica Python a valle. 5 nuovi test di regressione (uno per modulo, fixture con
+`data_atto=None, data_pub=valorizzato` — lo scenario jCityGov reale). 485 test verdi.
+
+**Appreso:** un bug "isolato" in un modulo nuovo era in realtà un sintomo di un'assunzione
+sbagliata condivisa da mezzo motore — vale la pena, quando si trova un bug di questo tipo,
+grep-are l'uso del campio in tutto `src/` invece di fermarsi al modulo che si stava
+toccando. **Limite noto non ancora risolto:** il fix vale per i procedimenti creati da ora
+in poi; quelli già in `talia.db` hanno ancora `data_chiusura`/`data_avvio` calcolati dal
+codice pre-fix (serve un ricalcolo separato, es. `_aggiorna_stato_procedimento` su tutti
+i procedimenti esistenti per `data_chiusura`; `data_avvio` non ha un percorso di
+aggiornamento post-creazione nemmeno nel codice attuale — richiede più pensiero). Non
+eseguito in questa sessione: è uno UPDATE su dati di produzione, da decidere esplicitamente.
+
+**Distinto dal backfill "data_atto vera"** (discusso con Dom, non ancora deciso quando
+farlo): questo fix usa `data_pub` come fallback quando manca `data_atto`, non recupera la
+data-atto reale. jCityGov espone una "Data atto" genuina nella pagina di dettaglio
+(`<tr class="ap-dataAtto">`, verificato dal vivo su un atto reale di Caltanissetta), ma
+richiederebbe una richiesta HTTP per atto invece che per pagina-lista (~20-50× più
+richieste su 79.462 atti) — card separata se/quando la precisione della data legale
+diventa rilevante (es. TAL-7, termini di autotutela a 12 mesi).
