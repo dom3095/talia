@@ -2,10 +2,43 @@
 
 > Aggiornato: 2026-07-21 (TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
 > motore catena + 3 red flag, integrazione pdf_download per le riaperture, backfill date
-> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. **PR
-> #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per review/merge. Vedi sezioni sotto.)
+> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. Poi
+> TAL-12: 8 nuovi fascicoli candidati preparati (download + report Modulo 1) da catene
+> problematiche. **PR #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per
+> review/merge. Vedi sezioni sotto.)
 
 ---
+
+## TAL-12: 8 fascicoli candidati preparati da catene problematiche (2026-07-21)
+
+Nuovo `scripts/prepara_fascicoli_candidati.py`: combina `procedimenti_da_riapertura()` +
+`procedimenti_critici()` (TAL-47/48, con dedup — una catena già coperta da una riapertura
+non è anche "critica"), scarica i PDF, li copia in `data/samples/<id>/` e lancia il
+Modulo 1 (`talia analizza`) per un report automatico. Eseguito su `talia.db`: 9 candidati
+selezionati (tutti riaperture — più narrabili delle catene critiche semplici), 8 con
+report completo (`data/samples/3,6,7,8,9,10,12,13`), 1 (`data/samples/11`, 63 PDF) senza
+report — OCR troppo lento su un documento scansionato grande, interrotto dopo 15+ min.
+Include **Palma proc. 692→703** (`data/samples/7`), uno dei 3 casi noti della card TAL-48.
+Dettaglio completo, incluso l'esito automatico di ciascuno, in
+[TAL-12.md](docs/cards/TAL-12.md#-fascicoli-2-9--preparati-in-attesa-di-lettura-lex-2026-07-21).
+Resta da fare: lettura umana ⚖️ LEX su ciascuno (non automatizzabile).
+
+**Fix collaterale:** `.gitignore` escludeva solo `*.pdf` sotto `data/samples/`, non i
+`report.json`/`report.md`/`fonte.json` generati qui — che contengono dati reali estratti
+dai PDF (firmatari, oggetti), stesso livello di sensibilità dei PDF. Aggiunta
+`data/samples/[0-9]*/` all'ignore (i campioni sintetici con nome non numerico, es.
+`fascicolo_coerente/`, restano tracciati come prima).
+
+**Anomalia non spiegata:** `data/samples/2/` (2 PDF preesistenti, materiale di test
+isolato non legato a nessuna card) è sparito dal filesystem durante la sessione. Nessun
+comando eseguito lo cancella (verificato: nessun comando di cancellazione nel codice
+toccato); causa non identificata. Dati non sensibili (PIAO + determina generici), ma
+segnalato per trasparenza — da tenere d'occhio se ricapita.
+
+**Tesseract installato in locale** (`brew install tesseract tesseract-lang`, lingua
+`ita` disponibile) — prima mancava, necessario per l'OCR dei PDF scansionati.
+
+493 test verdi (erano 490), lint pulito. Tutto committato e pushato su PR #13.
 
 ## TAL-48: bugfix data_atto (esteso a tutto il motore) + pdf_download + backfill (2026-07-20/21)
 
