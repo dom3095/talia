@@ -181,13 +181,31 @@ toccare la logica Python a valle. 5 nuovi test di regressione (uno per modulo, f
 
 **Appreso:** un bug "isolato" in un modulo nuovo era in realtà un sintomo di un'assunzione
 sbagliata condivisa da mezzo motore — vale la pena, quando si trova un bug di questo tipo,
-grep-are l'uso del campio in tutto `src/` invece di fermarsi al modulo che si stava
-toccando. **Limite noto non ancora risolto:** il fix vale per i procedimenti creati da ora
-in poi; quelli già in `talia.db` hanno ancora `data_chiusura`/`data_avvio` calcolati dal
-codice pre-fix (serve un ricalcolo separato, es. `_aggiorna_stato_procedimento` su tutti
-i procedimenti esistenti per `data_chiusura`; `data_avvio` non ha un percorso di
-aggiornamento post-creazione nemmeno nel codice attuale — richiede più pensiero). Non
-eseguito in questa sessione: è uno UPDATE su dati di produzione, da decidere esplicitamente.
+grep-are l'uso del campo in tutto `src/` invece di fermarsi al modulo che si stava
+toccando.
+
+### 2026-07-21 — Tentativo 4 (backfill date sui procedimenti già esistenti)
+
+**Approccio:** il fix del Tentativo 3 vale solo per i procedimenti creati da quel commit in
+poi. Scritto `scripts/backfill_date_procedimenti.py`: ricalcola `data_avvio`/`data_chiusura`
+per i procedimenti già in `talia.db`, con la stessa semantica per metodo di individuazione
+usata alla creazione (cig/oggetto_simile → atto più vecchio; contenimento_oggetto → atto
+con ruolo non derivato, non semplicemente il più vecchio). `data_chiusura` riusa
+`_aggiorna_stato_procedimento` esistente (nessuna logica duplicata). Nessuna richiesta
+HTTP: solo dati già in DB. 5 test (inclusa idempotenza) prima di toccare `talia.db` reale
+(backup preso prima, `talia.db.bak-pre-backfill-20260721`, locale non versionato).
+
+**Esito:** ✅ eseguito su `talia.db`. `data_avvio`: 22.893 → 278 procedimenti ancora senza
+(nessun atto con data disponibile — non un bug). `data_chiusura`: 25.021 → 11.094 ancora
+senza (procedimenti con un solo atto datato: nessuna "chiusura" distinta dall'avvio, per
+design). Verificati a campione i 5 casi noti della card (692, 703, 11306, 656, 1079): tutti
+ora con date reali (es. 692: avvio 2022-12-16 → chiusura 2025-12-02, prima entrambe NULL).
+490 test verdi.
+
+**Appreso:** ricalcolare da dati già raccolti (nessuna nuova richiesta HTTP) è stato a costo
+zero e a basso rischio proprio perché ogni metodo di individuazione ha una formula nota e
+testabile — la parte delicata non era la query ma replicare esattamente la stessa semantica
+di ciascuna delle 3 strategie (cig/contenimento/oggetto_simile), non una approssimazione.
 
 **Distinto dal backfill "data_atto vera"** (discusso con Dom, non ancora deciso quando
 farlo): questo fix usa `data_pub` come fallback quando manca `data_atto`, non recupera la
