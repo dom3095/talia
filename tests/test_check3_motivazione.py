@@ -80,11 +80,19 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
         lambda prompt: '{"giudizio": "specifica", "spiegazione": "motivazione concreta"}',
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
-    passaggi = [Passaggio(testo="testo norma", fonte="nazionale/l-241-1990.md")]
+    passaggi = [
+        Passaggio(
+            testo="testo norma", fonte="nazionale/l-241-1990.md", offset_inizio=10, offset_fine=21
+        )
+    ]
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto(passaggi))
     assert esito.stato is Stato.VERDE
     assert esito.spiegazione == "motivazione concreta"
-    assert "nazionale/l-241-1990.md" in esito.riferimenti_normativi
+    # Riferimento puntuale: filename + offset + testo esatto, non un bare filename.
+    rif_corpus = esito.riferimenti_normativi[-1]
+    assert "nazionale/l-241-1990.md" in rif_corpus
+    assert "10-21" in rif_corpus
+    assert "testo norma" in rif_corpus
     assert esito.citazioni
 
 

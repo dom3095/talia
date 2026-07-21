@@ -24,7 +24,7 @@ import re
 from ..fascicolo import ContestoFascicolo
 from ..llm import genera
 from ..models import Citazione, Stato
-from ..rag import IndiceCorpus
+from ..rag import IndiceCorpus, Passaggio
 from .base import EsitoCheck
 
 ID = "check-3"
@@ -113,6 +113,21 @@ def _estrai_giudizio(risposta: str) -> tuple[str, str]:
     return "incerta", f"Risposta LLM non interpretabile come JSON: {risposta[:200]!r}"
 
 
+def _cita_passaggio(passaggio: Passaggio) -> str:
+    """Riferimento puntuale a un passaggio del corpus normativo.
+
+    Un bare filename non è un riferimento verificabile: come per le citazioni
+    dell'atto, serve il testo esatto e un locatore (qui: offset di carattere
+    nel file sorgente) — principio di esplicabilità (CLAUDE.md).
+    """
+    estratto = " ".join(passaggio.testo.split())
+    if len(estratto) > 220:
+        estratto = estratto[:220].rstrip() + "…"
+    return (
+        f"{passaggio.fonte} (car. {passaggio.offset_inizio}-{passaggio.offset_fine}): «{estratto}»"
+    )
+
+
 def _esito_non_applicabile(spiegazione: str) -> EsitoCheck:
     return EsitoCheck(
         id=ID,
@@ -187,7 +202,7 @@ def valuta_motivazione(
         stato=stato,
         spiegazione=spiegazione_llm or f"Giudizio LLM: motivazione {giudizio}.",
         citazioni=citazioni,
-        riferimenti_normativi=list(_RIFERIMENTI) + [p.fonte for p in passaggi],
+        riferimenti_normativi=list(_RIFERIMENTI) + [_cita_passaggio(p) for p in passaggi],
     )
 
 

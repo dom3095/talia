@@ -97,30 +97,110 @@ _DIMENSIONE_CHUNK_MAX = 1200
 
 @dataclass(frozen=True)
 class Passaggio:
-    """Un chunk del corpus normativo, con provenienza per la citazione."""
+    """Un chunk del corpus normativo, con provenienza puntuale per la citazione.
+
+    `offset_inizio`/`offset_fine` sono posizioni di carattere nel file sorgente
+    (non nel testo concatenato di più file): permettono di citare il passaggio
+    con lo stesso stile «testo» (offset A–B) usato per gli atti — un bare
+    filename da solo non è un riferimento verificabile (principio di
+    esplicabilità, CLAUDE.md).
+    """
 
     testo: str
     fonte: str  # percorso relativo al corpus, es. "nazionale/l-241-1990.md"
+    offset_inizio: int = 0
+    offset_fine: int = 0
 
 
 def _tokenizza(testo: str) -> list[str]:
     return [t for t in _RE_TOKEN.findall(testo.lower()) if t not in _STOPWORD and len(t) > 2]
 
 
+def _dividi_paragrafo_lungo(testo: str, offset_base: int) -> list[tuple[str, int]]:
+    """Spezza un paragrafo che eccede la dimensione massima in frammenti a lunghezza fissa.
+
+    Necessario perché il corpus reale (`data/corpus_normativo/`, scaricato da
+    Normattiva/EUR-Lex) è spesso un unico blocco di ~100k caratteri senza righe
+    vuote: senza questo fallback l'intero file diventerebbe un solo passaggio,
+    vanificando sia il ranking BM25 (sempre a livello di file intero) sia la
+    precisione della citazione (un offset che copre tutto il documento non è
+    più puntuale di un bare filename). Il taglio avviene al primo spazio dopo
+    la soglia, per non spezzare le parole a metà.
+    """
+    pezzi: list[tuple[str, int]] = []
+    inizio = 0
+    n = len(testo)
+    while inizio < n:
+        fine = min(inizio + _DIMENSIONE_CHUNK_MAX, n)
+        if fine < n:
+            spazio = testo.find(" ", fine)
+            if spazio != -1 and spazio - fine < 200:
+                fine = spazio
+        grezzo = testo[inizio:fine]
+        ripulito = grezzo.strip()
+        if ripulito:
+            pezzi.append((ripulito, offset_base + inizio + grezzo.find(ripulito)))
+        inizio = fine
+    return pezzi
+
+
+def _dividi_paragrafi(testo: str) -> list[tuple[str, int]]:
+    """Paragrafi (separati da riga vuota) con il loro offset di inizio nel testo originale.
+
+    Split su un separatore a lunghezza fissa ("\\n\\n"): l'offset si ricostruisce
+    accumulando `len(parte) + 2` ad ogni iterazione, indipendentemente dal
+    contenuto — non richiede ricercare il paragrafo nel testo originale. Un
+    paragrafo che eccede da solo la dimensione massima di chunk viene spezzato
+    ulteriormente (`_dividi_paragrafo_lungo`).
+    """
+    risultato: list[tuple[str, int]] = []
+    offset = 0
+    for parte in testo.split("\n\n"):
+        ripulito = parte.strip()
+        if ripulito:
+            base = offset + parte.find(ripulito)
+            if len(ripulito) > _DIMENSIONE_CHUNK_MAX:
+                risultato.extend(_dividi_paragrafo_lungo(ripulito, base))
+            else:
+                risultato.append((ripulito, base))
+        offset += len(parte) + 2
+    return risultato
+
+
 def _chunk_file(path: Path, radice: Path) -> list[Passaggio]:
     """Divide un file markdown in chunk per paragrafo (accorpati fino a una dimensione massima)."""
     fonte = str(path.relative_to(radice))
-    paragrafi = [p.strip() for p in path.read_text(encoding="utf-8").split("\n\n") if p.strip()]
+    paragrafi = _dividi_paragrafi(path.read_text(encoding="utf-8"))
     chunk: list[Passaggio] = []
     corrente = ""
-    for paragrafo in paragrafi:
+    inizio_corrente = 0
+    fine_corrente = 0
+    for paragrafo, offset in paragrafi:
         if corrente and len(corrente) + len(paragrafo) > _DIMENSIONE_CHUNK_MAX:
-            chunk.append(Passaggio(testo=corrente, fonte=fonte))
+            chunk.append(
+                Passaggio(
+                    testo=corrente,
+                    fonte=fonte,
+                    offset_inizio=inizio_corrente,
+                    offset_fine=fine_corrente,
+                )
+            )
             corrente = paragrafo
+            inizio_corrente = offset
         else:
+            if not corrente:
+                inizio_corrente = offset
             corrente = f"{corrente}\n\n{paragrafo}" if corrente else paragrafo
+        fine_corrente = offset + len(paragrafo)
     if corrente:
-        chunk.append(Passaggio(testo=corrente, fonte=fonte))
+        chunk.append(
+            Passaggio(
+                testo=corrente,
+                fonte=fonte,
+                offset_inizio=inizio_corrente,
+                offset_fine=fine_corrente,
+            )
+        )
     return chunk
 
 

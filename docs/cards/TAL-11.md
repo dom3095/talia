@@ -87,11 +87,29 @@ librerie):
    `{...}` nella risposta → il greedy cattura tutto in mezzo, JSON non valido). Fix: si
    estraggono tutti gli oggetti JSON non annidati e si prende l'**ultimo** valido con chiave
    `giudizio`. Test di regressione in `test_check3_motivazione.py`.
+3. **Riferimenti al corpus non puntuali** (osservazione di Dom): `riferimenti_normativi`
+   riportava solo il nome del file (es. `nazionale/l-241-1990.md`), senza testo né locatore —
+   in violazione del principio di esplicabilità applicato altrove (ogni citazione porta offset
+   + testo esatto). Fix: `Passaggio` ora porta `offset_inizio`/`offset_fine` (posizione di
+   carattere nel file sorgente); `_cita_passaggio` produce riferimenti nello stile
+   `file (car. A-B): «testo»`, verificabile.
+4. **Conseguenza del fix precedente**: verificando gli offset sul corpus reale è emerso che
+   `l-241-1990.md` è un unico blocco di ~103k caratteri, quasi senza righe vuote (dump grezzo
+   da Normattiva) — il chunking per paragrafo non spezzava mai il file, che diventava un solo
+   `Passaggio` enorme: il ranking BM25 degradava a corrispondenza per intero file e l'offset
+   "puntuale" copriva comunque tutto il documento. Fix: `_dividi_paragrafo_lungo` spezza i
+   paragrafi che eccedono la dimensione massima di chunk in frammenti a lunghezza fissa
+   (taglio al primo spazio utile, per non spezzare le parole). Verificato: il corpus reale
+   (3719 passaggi totali) ora ha chunk di ~1200 caratteri max invece di file interi, e la
+   qualità del retrieval è visibilmente migliorata (il passaggio recuperato per un caso di
+   revoca ora è l'art. 21-quater/21-quinquies pertinente, non il boilerplate di intestazione
+   della pagina Normattiva).
 
-Verificato end-to-end con Ollama reale (`talia analizza data/samples/fascicolo_critico --llm`):
-esito 🟢 con citazioni RAG a `l-241-1990.md`, `dlgs-36-2023.md`, `dlgs-165-2001.md`,
-`dir-2014-24-ue.md`, `dlgs-267-2000.md`. Il giudizio del LLM resta un dato da verificare
-(⚖️ LEX), non un accertamento — coerente col resto del progetto.
+Verificato end-to-end con Ollama reale (`talia analizza data/samples/fascicolo_critico --llm`),
+**due volte** (prima e dopo il fix del chunking): il secondo run mostra citazioni puntuali e
+pertinenti (es. `nazionale/l-241-1990.md (car. 76501-77703): «...Art. 21-quater... la revoca
+determina la inidoneità del provvedimento revocato...»`). Il giudizio del LLM resta un dato da
+verificare (⚖️ LEX), non un accertamento — coerente col resto del progetto.
 
 ## 📝 Note
 Determinismo prima: questa card non sblocca il prototipo, segue la validazione iniziale
