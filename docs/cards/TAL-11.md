@@ -113,12 +113,27 @@ librerie):
    Verificato: per una motivazione lunga l'offset passa da 309–665 (sbagliato, copriva testo
    mai mostrato) a 309–509 (corretto, coincide col troncamento a 200 caratteri).
 
-Verificato end-to-end con Ollama reale (`talia analizza data/samples/fascicolo_critico --llm`),
-**tre volte** (prima del fix chunking, dopo, e dopo il fix dell'offset citazione): l'ultimo run
-mostra sia citazioni al corpus puntuali e pertinenti (es. `nazionale/l-241-1990.md (car.
-76501-77703): «...Art. 21-quater... la revoca determina la inidoneità del provvedimento
-revocato...»`) sia un offset dell'atto coerente col testo mostrato. Il giudizio del LLM resta
-un dato da verificare (⚖️ LEX), non un accertamento — coerente col resto del progetto.
+6. **Falso negativo trovato leggendo un fascicolo reale con Dom** (`data/samples/1`, il primo
+   fascicolo TAL-12 già validato da ⚖️ LEX): la revoca tratta come accertata una "**presunta**
+   divulgazione" segnalata dal Sindaco, senza descrivere alcuna verifica/istruttoria autonoma
+   del Segretario Generale prima di agire — un vizio di legittimità classico (carenza di
+   istruttoria, già tra le `_SEGNALI_ANNULLAMENTO` di check-1, ma lì rilevabile solo per
+   presenza letterale della frase, non per l'*assenza* di un'attività mai raccontata). Il
+   prompt originale (solo "specifica vs generica") dava 🟢 a questo caso, mancando il problema.
+   Fix: il prompt ora valuta **due dimensioni distinte** — specificità **e** carenza di
+   istruttoria (fatti presunti/segnalati trattati come accertati, senza verifica autonoma
+   documentata) — con nuovo campo JSON `carenza_istruttoria`. Una motivazione "specifica" con
+   `carenza_istruttoria=true` scende da 🟢 a 🟡 (mai 🔴 automatico: resta un giudizio da
+   verificare, non un accertamento), con nota esplicita in spiegazione sul perché non è un
+   giudizio pieno. Assenza/valore non booleano del campo → `False` (non si presume una carenza
+   che il modello non ha segnalato). 6 nuovi test (`_calcola_stato` isolato + integrazione).
+
+Verificato end-to-end con Ollama reale, **quattro volte** in totale (chunking, offset corpus,
+offset citazione atto, criterio istruttoria) su `data/samples/fascicolo_critico` e sul
+fascicolo 1 reale: con l'ultimo fix, il fascicolo 1 passa da 🟢 a 🟡 sul check-3, con
+spiegazione "non ha verificato autonomamente la presunta violazione, basandosi solo su una
+segnalazione del sindaco senza accertamenti interni" — coerente con l'osservazione di Dom. Il
+giudizio del LLM resta un dato da verificare (⚖️ LEX), non un accertamento.
 
 ## 📝 Note
 Determinismo prima: questa card non sblocca il prototipo, segue la validazione iniziale

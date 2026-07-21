@@ -11,6 +11,7 @@ from talia.engine.checklist import check3_motivazione as mod
 from talia.engine.checklist.base import EsitoCheck
 from talia.engine.checklist.check3_motivazione import (
     SOGLIA_ASSENTE,
+    _calcola_stato,
     _estrai_giudizio,
     flaggato_da_check_precedenti,
     valuta_motivazione,
@@ -99,6 +100,54 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
     assert esito.citazioni
 
 
+def test_calcola_stato_specifica_senza_carenza_istruttoria_e_verde():
+    assert _calcola_stato("specifica", carenza_istruttoria=False) is Stato.VERDE
+
+
+def test_calcola_stato_specifica_con_carenza_istruttoria_e_giallo():
+    # Osservazione concreta su un fascicolo reale (TAL-12/fascicolo 1): una
+    # motivazione narrativamente ricca che tratta come accertata una "presunta
+    # divulgazione" (parola dell'atto stesso), senza descrivere alcuna
+    # istruttoria autonoma, non merita un 🟢 pieno.
+    assert _calcola_stato("specifica", carenza_istruttoria=True) is Stato.GIALLO
+
+
+def test_calcola_stato_generica_e_rosso_a_prescindere_dalla_istruttoria():
+    assert _calcola_stato("generica", carenza_istruttoria=False) is Stato.ROSSO
+    assert _calcola_stato("generica", carenza_istruttoria=True) is Stato.ROSSO
+
+
+def test_calcola_stato_incerta_e_giallo():
+    assert _calcola_stato("incerta", carenza_istruttoria=False) is Stato.GIALLO
+
+
+def test_giallo_su_specifica_con_carenza_istruttoria_rilevata_dal_llm(monkeypatch):
+    monkeypatch.setattr(
+        mod,
+        "genera",
+        lambda prompt: (
+            '{"giudizio": "specifica", "carenza_istruttoria": true, '
+            '"spiegazione": "cita un interesse concreto ma su un fatto solo presunto"}'
+        ),
+    )
+    contesto = _contesto(_MOTIVAZIONE_LUNGA)
+    esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
+    assert esito.stato is Stato.GIALLO
+    assert "presunto" in esito.spiegazione
+    assert "non è un giudizio pieno" in esito.spiegazione
+
+
+def test_carenza_istruttoria_assente_dalla_risposta_non_penalizza(monkeypatch):
+    # Un modello che non usa il nuovo campo (o lo omette) non deve essere
+    # penalizzato: assenza di segnalazione ≠ carenza presunta.
+    monkeypatch.setattr(
+        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+    )
+    contesto = _contesto(_MOTIVAZIONE_LUNGA)
+    esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
+    assert esito.stato is Stato.VERDE
+
+
 def test_citazione_troncata_ha_offset_coerente_col_testo(monkeypatch):
     # Regressione: offset_fine indicava la fine dell'INTERA motivazione anche
     # quando il testo citato era troncato a 200 caratteri — dichiarando un
@@ -140,14 +189,18 @@ def test_estrai_giudizio_ignora_json_di_esempio_ripetuto_dal_modello():
         '"spiegazione": "..."}. Analizzando il testo, concludo che: '
         '{"giudizio": "generica", "spiegazione": "boilerplate senza elementi concreti"}'
     )
-    giudizio, spiegazione = _estrai_giudizio(risposta)
+    giudizio, carenza_istruttoria, spiegazione = _estrai_giudizio(risposta)
     assert giudizio == "generica"
+    assert carenza_istruttoria is False
     assert spiegazione == "boilerplate senza elementi concreti"
 
 
 def test_estrai_giudizio_risposta_senza_json_ritorna_incerta():
-    giudizio, spiegazione = _estrai_giudizio("non sono in grado di rispondere in JSON")
+    giudizio, carenza_istruttoria, spiegazione = _estrai_giudizio(
+        "non sono in grado di rispondere in JSON"
+    )
     assert giudizio == "incerta"
+    assert carenza_istruttoria is False
     assert "non interpretabile" in spiegazione
 
 

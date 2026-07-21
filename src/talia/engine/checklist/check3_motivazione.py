@@ -61,20 +61,47 @@ MOTIVAZIONE DA VALUTARE:
 NORME E GIURISPRUDENZA PERTINENTI (contesto di riferimento, non necessariamente citate nell'atto):
 {contesto_normativo}
 
-Valuta se la motivazione è SPECIFICA (indica un interesse pubblico concreto e \
-attuale, e tiene conto dell'affidamento dei privati destinatari) oppure \
-GENERICA/BOILERPLATE (mero richiamo formale, es. "ripristino della legalità", \
-senza elementi concreti).
+Valuta la motivazione su due aspetti distinti:
+
+1. SPECIFICITÀ: è SPECIFICA (indica un interesse pubblico concreto e attuale, e tiene \
+conto dell'affidamento dei privati destinatari) oppure GENERICA/BOILERPLATE (mero \
+richiamo formale, es. "ripristino della legalità", senza elementi concreti)?
+
+2. ISTRUTTORIA: la motivazione tratta come accertato un fatto che l'atto stesso descrive \
+come presunto, segnalato da terzi o non ancora verificato (es. "presunta violazione", una \
+segnalazione riportata senza indicare alcuna verifica autonoma svolta dall'amministrazione \
+prima di agire)? Se sì, è una carenza di istruttoria — anche quando la motivazione è \
+narrativamente ricca e dettagliata, una motivazione specifica basata su fatti non \
+verificati non equivale a una motivazione robusta.
 
 Rispondi SOLO con un oggetto JSON, senza altro testo prima o dopo:
-{{"giudizio": "specifica|generica|incerta", "spiegazione": "una frase che motiva il giudizio"}}
+{{"giudizio": "specifica|generica|incerta", "carenza_istruttoria": true|false, \
+"spiegazione": "una frase che motiva entrambi i giudizi"}}
 """
 
-_STATO_PER_GIUDIZIO = {
-    "specifica": Stato.VERDE,
-    "generica": Stato.ROSSO,
-    "incerta": Stato.GIALLO,
-}
+
+def _calcola_stato(giudizio: str, carenza_istruttoria: bool) -> Stato:
+    """Deriva lo stato dai due giudizi del LLM.
+
+    Una motivazione "specifica" ma basata su un fatto che l'atto stesso
+    definisce presunto/non verificato, senza istruttoria autonoma
+    documentata, non merita un 🟢 pieno: la ricchezza narrativa non compensa
+    l'aver agito su un'allegazione data per scontata (osservazione concreta
+    su un fascicolo reale, TAL-12/fascicolo 1 — la revoca tratta come
+    accertata una "presunta divulgazione" senza descrivere alcuna verifica).
+    """
+    if giudizio == "generica":
+        return Stato.ROSSO
+    if giudizio == "incerta":
+        return Stato.GIALLO
+    return Stato.GIALLO if carenza_istruttoria else Stato.VERDE
+
+
+_NOTA_CARENZA_ISTRUTTORIA = (
+    "Motivazione narrativamente specifica, ma il LLM segnala che tratta come accertato "
+    "un fatto che l'atto stesso descrive come presunto/non verificato, senza istruttoria "
+    "autonoma documentata: non è un giudizio pieno."
+)
 
 
 def flaggato_da_check_precedenti(esiti_precedenti: list[EsitoCheck]) -> bool:
@@ -87,8 +114,11 @@ def _isola_motivazione(testo: str) -> str:
     return match.group(1).strip() if match else testo.strip()
 
 
-def _estrai_giudizio(risposta: str) -> tuple[str, str]:
-    """Estrae {giudizio, spiegazione} dal JSON nella risposta del LLM.
+_GIUDIZI_VALIDI = frozenset({"specifica", "generica", "incerta"})
+
+
+def _estrai_giudizio(risposta: str) -> tuple[str, bool, str]:
+    """Estrae {giudizio, carenza_istruttoria, spiegazione} dal JSON nella risposta del LLM.
 
     I modelli "thinking" locali (es. qwen3) spesso ragionano ad alta voce prima
     della risposta finale, ripetendo talvolta l'esempio di formato del prompt
@@ -107,10 +137,13 @@ def _estrai_giudizio(risposta: str) -> tuple[str, str]:
         if "giudizio" not in dati:
             continue
         giudizio = dati.get("giudizio", "incerta")
-        if giudizio not in _STATO_PER_GIUDIZIO:
+        if giudizio not in _GIUDIZI_VALIDI:
             giudizio = "incerta"
-        return giudizio, dati.get("spiegazione", "")
-    return "incerta", f"Risposta LLM non interpretabile come JSON: {risposta[:200]!r}"
+        # Assenza/valore non booleano → False: non si presume una carenza di
+        # istruttoria che il modello non ha esplicitamente segnalato.
+        carenza_istruttoria = dati.get("carenza_istruttoria") is True
+        return giudizio, carenza_istruttoria, dati.get("spiegazione", "")
+    return "incerta", False, f"Risposta LLM non interpretabile come JSON: {risposta[:200]!r}"
 
 
 def _cita_passaggio(passaggio: Passaggio) -> str:
@@ -180,8 +213,10 @@ def valuta_motivazione(
 
     prompt = _PROMPT_TEMPLATE.format(motivazione=motivazione, contesto_normativo=contesto_normativo)
     risposta = genera(prompt)
-    giudizio, spiegazione_llm = _estrai_giudizio(risposta)
-    stato = _STATO_PER_GIUDIZIO[giudizio]
+    giudizio, carenza_istruttoria, spiegazione_llm = _estrai_giudizio(risposta)
+    stato = _calcola_stato(giudizio, carenza_istruttoria)
+    if giudizio == "specifica" and carenza_istruttoria:
+        spiegazione_llm = f"{spiegazione_llm} {_NOTA_CARENZA_ISTRUTTORIA}".strip()
 
     inizio = atto.testo.find(motivazione)
     citazioni: list[Citazione] = []
