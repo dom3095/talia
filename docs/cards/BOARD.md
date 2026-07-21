@@ -51,7 +51,7 @@ pronta per PR finale).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 27 nuovi test |
+| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test |
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | 🕷️ SCR | **PR #12 aperta**, in attesa di review Dom — branch `feat/E3-province-palermo-trapani`, Fase 1-3 completate (9 comuni TIER 0 nel registro), riconciliato con `main` dopo refactor registro scraper (PR #11) |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
