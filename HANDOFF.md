@@ -1,14 +1,41 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-20 (PR #11 e #12 confermate mergiate in `main` — questa sezione era
-> rimasta indietro, le dava ancora "in review"/"riconciliazione in corso". Lanciato run
-> scraper completo per riempire `talia.db` dall'ultima esecuzione, 2026-07-14. Poi TAL-48:
-> bugfix critico + integrazione pdf_download, branch `feat/TAL-48-pdf-riaperture` pronto
-> per PR. Vedi sezioni sotto per i dettagli.)
+> Aggiornato: 2026-07-21 (TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
+> motore catena + 3 red flag, integrazione pdf_download per le riaperture, backfill date
+> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. **PR
+> #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per review/merge. Vedi sezioni sotto.)
 
 ---
 
-## TAL-48: bugfix (0 rilevazioni reali) + integrazione pdf_download (2026-07-20)
+## TAL-48: bugfix data_atto (esteso a tutto il motore) + pdf_download + backfill (2026-07-20/21)
+
+**PR #13 aperta:** https://github.com/dom3095/talia/pull/13 (branch `feat/TAL-48-pdf-riaperture`).
+
+**Aggiornamento 2026-07-21 rispetto a quanto scritto sotto (Tentativo 2, 20/07):** il bug
+non era isolato a `riapertura_revoca.py`. `grep data_atto` su tutto `src/talia/` ha trovato
+lo stesso problema in `engine/catena.py` (5 punti: calcolo `data_avvio`/`data_chiusura` di
+**tutti** i procedimenti) e in `concentrazione.py`/`frazionamento.py`/`catena_revoca.py`,
+che con `WHERE data_atto IS NOT NULL` escludevano in silenzio l'**80% degli atti del DB**
+(non solo jCityGov: anche catania, urbi, hspromila, ribera al 100%, halley al 12%). Stesso
+fix `COALESCE(data_atto, data_pub)` applicato ovunque, 5 nuovi test di regressione.
+
+**Poi backfill** (`scripts/backfill_date_procedimenti.py`, nessuna richiesta HTTP, solo
+dati già in DB, idempotente, backup di `talia.db` preso prima): eseguito sui 28.523
+procedimenti esistenti. `data_avvio` NULL: 22.893 → 278 (i residui sono procedimenti senza
+alcun atto con data disponibile — non un bug). `data_chiusura` NULL: 25.021 → 11.094 (i
+residui sono procedimenti con un solo atto datato — nessuna "chiusura" distinta
+dall'avvio, per design). 490 test verdi totali.
+
+**Python allineato a 3.12 ovunque** (`pyproject.toml`, ruff, CI, wiki, CLAUDE.md) — la 3.14
+non è ancora la versione su cui si lavora davvero; vedi nota sotto per il perché.
+
+Dettagli completi (4 Tentativi) in [TAL-48.md](docs/cards/TAL-48.md). Candidati nuovi per
+TAL-12 in [TAL-12.md](docs/cards/TAL-12.md#-candidati-per-i-prossimi-fascicoli-da-tal-48-2026-07-20).
+
+**Nota permanente:** `talia.db.bak-pre-backfill-20260721` (133 MB, non versionato) resta in
+root — da eliminare quando il backfill è verificato stabile.
+
+### Sessione 2026-07-20 (dettaglio originale)
 
 Branch `feat/TAL-48-pdf-riaperture` (il vecchio `feat/TAL-48-riapertura-dopo-revoca`
 locale era rimasto indietro di 5 commit rispetto a `main` — il suo MVP era già mergiato
@@ -45,7 +72,8 @@ produrre codice che non gira in locale.** Ripristinato manualmente alle parentes
 su entrambe le versioni). Non ancora deciso se aggiornare il venv locale a 3.14 o
 convivere con la cautela su `ruff format`.
 
-**Prossimo passo:** aprire PR per `feat/TAL-48-pdf-riaperture`.
+**Prossimo passo (stato al 20/07, superato — vedi sopra):** ~~aprire PR per
+`feat/TAL-48-pdf-riaperture`~~ fatto, PR #13.
 
 ---
 
