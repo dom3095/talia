@@ -8,6 +8,13 @@ data/raw/
 logs/
 # (i campioni anonimizzati in data/samples/ vanno aggiunti a mano con `git add -f`)
 
+# Metadati/report generati per i fascicoli reali in data/samples/<id>/ (script
+# prepara_fascicoli_candidati.py, `talia analizza`): contengono dati estratti dai
+# PDF (firmatari, oggetti, motivazioni) — non meno sensibili dei PDF stessi.
+fonte.json
+report.md
+report.json
+
 # Segreti / configurazione locale
 .env
 .env.*
