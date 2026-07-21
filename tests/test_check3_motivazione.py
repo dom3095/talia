@@ -135,6 +135,9 @@ def test_giallo_su_specifica_con_carenza_istruttoria_rilevata_dal_llm(monkeypatc
     assert esito.stato is Stato.GIALLO
     assert "presunto" in esito.spiegazione
     assert "non è un giudizio pieno" in esito.spiegazione
+    # Regressione: la spiegazione del LLM (senza punto finale nel fixture) e la
+    # nota aggiunta non devono fondersi senza separazione ("...presunto Motivazione...").
+    assert "presunto. Motivazione narrativamente specifica" in esito.spiegazione
 
 
 def test_carenza_istruttoria_assente_dalla_risposta_non_penalizza(monkeypatch):

@@ -104,6 +104,20 @@ _NOTA_CARENZA_ISTRUTTORIA = (
 )
 
 
+def _unisci_frasi(prima: str, seconda: str) -> str:
+    """Concatena due frasi assicurando la punteggiatura tra loro.
+
+    La spiegazione del LLM non sempre termina con un punto (dipende dal
+    modello): senza questo accorgimento due frasi si fondevano senza
+    separazione visiva nel report (es. "...accertamenti interni Motivazione
+    narrativamente...").
+    """
+    prima = prima.rstrip()
+    if prima and not prima.endswith((".", "!", "?")):
+        prima += "."
+    return f"{prima} {seconda}".strip()
+
+
 def flaggato_da_check_precedenti(esiti_precedenti: list[EsitoCheck]) -> bool:
     """True se almeno un check deterministico precedente ha dato 🟡/🔴."""
     return any(e.stato in _STATI_FLAG for e in esiti_precedenti)
@@ -216,7 +230,7 @@ def valuta_motivazione(
     giudizio, carenza_istruttoria, spiegazione_llm = _estrai_giudizio(risposta)
     stato = _calcola_stato(giudizio, carenza_istruttoria)
     if giudizio == "specifica" and carenza_istruttoria:
-        spiegazione_llm = f"{spiegazione_llm} {_NOTA_CARENZA_ISTRUTTORIA}".strip()
+        spiegazione_llm = _unisci_frasi(spiegazione_llm, _NOTA_CARENZA_ISTRUTTORIA)
 
     inizio = atto.testo.find(motivazione)
     citazioni: list[Citazione] = []
