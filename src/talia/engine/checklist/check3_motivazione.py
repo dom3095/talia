@@ -186,12 +186,18 @@ def valuta_motivazione(
     inizio = atto.testo.find(motivazione)
     citazioni: list[Citazione] = []
     if inizio >= 0:
-        fine = inizio + len(motivazione)
+        # offset_fine deve corrispondere a dove finisce il testo effettivamente
+        # citato, non alla fine dell'intera motivazione: per motivazioni lunghe
+        # (>200 caratteri) la citazione è troncata, e offset_fine deve seguirla
+        # — altrimenti dichiarerebbe un intervallo più ampio di quanto è
+        # davvero riportato tra virgolette (stesso principio applicato ai
+        # riferimenti al corpus normativo).
+        fine_citata = min(inizio + len(motivazione), inizio + 200)
         citazioni.append(
             Citazione(
-                testo=atto.estratto(inizio, min(fine, inizio + 200)),
+                testo=atto.estratto(inizio, fine_citata),
                 offset_inizio=inizio,
-                offset_fine=fine,
+                offset_fine=fine_citata,
                 pagina=atto.pagina_per_offset(inizio),
             )
         )

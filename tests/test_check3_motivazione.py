@@ -41,6 +41,9 @@ class _IndiceFinto:
 _MOTIVAZIONE_LUNGA = (
     "considerato che " + "l'interesse pubblico concreto e attuale impone la revoca " * 3
 )
+# Oltre 200 caratteri dopo l'isolamento: esercita il ramo di troncamento della
+# citazione (vedi test_citazione_troncata_ha_offset_coerente_col_testo).
+_MOTIVAZIONE_MOLTO_LUNGA = "considerato che " + "l'interesse pubblico concreto e attuale " * 10
 
 
 def test_flaggato_da_check_precedenti_true_con_rosso():
@@ -94,6 +97,21 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
     assert "10-21" in rif_corpus
     assert "testo norma" in rif_corpus
     assert esito.citazioni
+
+
+def test_citazione_troncata_ha_offset_coerente_col_testo(monkeypatch):
+    # Regressione: offset_fine indicava la fine dell'INTERA motivazione anche
+    # quando il testo citato era troncato a 200 caratteri — dichiarando un
+    # intervallo più ampio di quanto effettivamente riportato tra virgolette
+    # (stesso principio dei riferimenti puntuali al corpus normativo).
+    assert len(_MOTIVAZIONE_MOLTO_LUNGA) - len("considerato che ") > 200
+    monkeypatch.setattr(
+        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+    )
+    contesto = _contesto(_MOTIVAZIONE_MOLTO_LUNGA)
+    esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
+    citazione = esito.citazioni[0]
+    assert citazione.offset_fine - citazione.offset_inizio == 200
 
 
 def test_rosso_su_giudizio_llm_generica(monkeypatch):

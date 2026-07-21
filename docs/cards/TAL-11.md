@@ -105,11 +105,20 @@ librerie):
    revoca ora è l'art. 21-quater/21-quinquies pertinente, non il boilerplate di intestazione
    della pagina Normattiva).
 
+5. **Stesso bug di offset anche sulla citazione dell'atto**: `offset_fine` era impostato alla
+   fine dell'**intera** motivazione, ma il testo citato (`Citazione.testo`) era troncato a 200
+   caratteri per leggibilità — l'offset dichiarava quindi un intervallo più ampio di quanto
+   effettivamente riportato tra virgolette. Stesso principio del fix precedente sul corpus:
+   `offset_fine` ora corrisponde esattamente a dove finisce il testo citato (troncato incluso).
+   Verificato: per una motivazione lunga l'offset passa da 309–665 (sbagliato, copriva testo
+   mai mostrato) a 309–509 (corretto, coincide col troncamento a 200 caratteri).
+
 Verificato end-to-end con Ollama reale (`talia analizza data/samples/fascicolo_critico --llm`),
-**due volte** (prima e dopo il fix del chunking): il secondo run mostra citazioni puntuali e
-pertinenti (es. `nazionale/l-241-1990.md (car. 76501-77703): «...Art. 21-quater... la revoca
-determina la inidoneità del provvedimento revocato...»`). Il giudizio del LLM resta un dato da
-verificare (⚖️ LEX), non un accertamento — coerente col resto del progetto.
+**tre volte** (prima del fix chunking, dopo, e dopo il fix dell'offset citazione): l'ultimo run
+mostra sia citazioni al corpus puntuali e pertinenti (es. `nazionale/l-241-1990.md (car.
+76501-77703): «...Art. 21-quater... la revoca determina la inidoneità del provvedimento
+revocato...»`) sia un offset dell'atto coerente col testo mostrato. Il giudizio del LLM resta
+un dato da verificare (⚖️ LEX), non un accertamento — coerente col resto del progetto.
 
 ## 📝 Note
 Determinismo prima: questa card non sblocca il prototipo, segue la validazione iniziale
