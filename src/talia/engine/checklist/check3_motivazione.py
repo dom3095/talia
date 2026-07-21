@@ -1,0 +1,200 @@
+"""TAL-11 — Check 3: qualità della motivazione (unico check che usa LLM).
+
+Eseguito **solo** su fascicoli già flaggati (🟡/🔴) da almeno un check
+deterministico precedente: la componente LLM è un'eccezione mirata, non la
+regola (principio "determinismo prima" — vedi CLAUDE.md). Isola la sezione di
+motivazione dell'atto di autotutela, recupera dal corpus normativo (via BM25,
+`engine.rag`) i passaggi più pertinenti, e chiede al LLM locale (Ollama,
+`engine.llm`) di valutare densità/specificità della motivazione rispetto ai
+requisiti giurisprudenziali (interesse pubblico concreto e attuale,
+comparazione con l'affidamento dei privati destinatari dell'atto).
+
+A differenza degli altri check, **non è registrato** nel registry automatico
+di `checklist/base.py`: richiede sia gli esiti dei check precedenti sia una
+chiamata di rete (LLM locale), quindi viene invocato esplicitamente da
+`analizza_testi`/`analizza_fascicolo` con `valuta_llm=True` — mai a sorpresa
+durante un'esecuzione "solo checklist deterministica".
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from ..fascicolo import ContestoFascicolo
+from ..llm import genera
+from ..models import Citazione, Stato
+from ..rag import IndiceCorpus
+from .base import EsitoCheck
+
+ID = "check-3"
+TITOLO = "Qualità della motivazione (LLM)"
+
+_RIFERIMENTI = (
+    "Requisito giurisprudenziale: interesse pubblico concreto e attuale alla revoca/annullamento",
+    "Requisito giurisprudenziale: comparazione con l'affidamento dei privati destinatari dell'atto",
+)
+
+# Sotto questa soglia la motivazione è considerata assente: 🔴 automatico,
+# senza invocare il LLM (spec TAL-11 — evita una chiamata di rete inutile).
+SOGLIA_ASSENTE = 50
+
+_STATI_FLAG = (Stato.ROSSO, Stato.GIALLO)
+
+# La sezione di motivazione tipicamente inizia con formule di stile
+# "premesso/considerato/ritenuto che..." e termina dove comincia il dispositivo
+# ("determina/decreta/dispone"). Se non trovata, l'intero testo è trattato come
+# motivazione (fallback prudente: mai restituire una motivazione vuota per un
+# atto che in realtà la contiene, solo perché non riconosciamo il pattern).
+_RE_MOTIVAZIONE = re.compile(
+    r"(?:premesso che|considerato che|ritenuto che|dato atto che)"
+    r"(.+?)(?=\n\s*(?:determina|decreta|dispone)\b|\Z)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+_PROMPT_TEMPLATE = """Sei un giurista che valuta la qualità della motivazione di un atto \
+amministrativo di autotutela (revoca/annullamento).
+
+MOTIVAZIONE DA VALUTARE:
+\"\"\"{motivazione}\"\"\"
+
+NORME E GIURISPRUDENZA PERTINENTI (contesto di riferimento, non necessariamente citate nell'atto):
+{contesto_normativo}
+
+Valuta se la motivazione è SPECIFICA (indica un interesse pubblico concreto e \
+attuale, e tiene conto dell'affidamento dei privati destinatari) oppure \
+GENERICA/BOILERPLATE (mero richiamo formale, es. "ripristino della legalità", \
+senza elementi concreti).
+
+Rispondi SOLO con un oggetto JSON, senza altro testo prima o dopo:
+{{"giudizio": "specifica|generica|incerta", "spiegazione": "una frase che motiva il giudizio"}}
+"""
+
+_STATO_PER_GIUDIZIO = {
+    "specifica": Stato.VERDE,
+    "generica": Stato.ROSSO,
+    "incerta": Stato.GIALLO,
+}
+
+
+def flaggato_da_check_precedenti(esiti_precedenti: list[EsitoCheck]) -> bool:
+    """True se almeno un check deterministico precedente ha dato 🟡/🔴."""
+    return any(e.stato in _STATI_FLAG for e in esiti_precedenti)
+
+
+def _isola_motivazione(testo: str) -> str:
+    match = _RE_MOTIVAZIONE.search(testo)
+    return match.group(1).strip() if match else testo.strip()
+
+
+def _estrai_giudizio(risposta: str) -> tuple[str, str]:
+    """Estrae {giudizio, spiegazione} dal JSON nella risposta del LLM.
+
+    I modelli "thinking" locali (es. qwen3) spesso ragionano ad alta voce prima
+    della risposta finale, ripetendo talvolta l'esempio di formato del prompt
+    (con lo stesso schema di chiavi) prima di dare la risposta vera: si cercano
+    tutti gli oggetti JSON non annidati nella risposta e si prende l'**ultimo**
+    che contiene la chiave "giudizio" (verificato empiricamente contro qwen3:4b
+    via Ollama — un singolo regex greedy `\\{.*\\}` cattura tutto tra la prima
+    e l'ultima graffa e fallisce il parsing quando compaiono più oggetti).
+    """
+    candidati = re.findall(r"\{[^{}]*\}", risposta, re.DOTALL)
+    for candidato in reversed(candidati):
+        try:
+            dati = json.loads(candidato)
+        except json.JSONDecodeError:
+            continue
+        if "giudizio" not in dati:
+            continue
+        giudizio = dati.get("giudizio", "incerta")
+        if giudizio not in _STATO_PER_GIUDIZIO:
+            giudizio = "incerta"
+        return giudizio, dati.get("spiegazione", "")
+    return "incerta", f"Risposta LLM non interpretabile come JSON: {risposta[:200]!r}"
+
+
+def _esito_non_applicabile(spiegazione: str) -> EsitoCheck:
+    return EsitoCheck(
+        id=ID,
+        titolo=TITOLO,
+        stato=Stato.NON_APPLICABILE,
+        spiegazione=spiegazione,
+        riferimenti_normativi=list(_RIFERIMENTI),
+    )
+
+
+def valuta_motivazione(
+    contesto: ContestoFascicolo,
+    esiti_precedenti: list[EsitoCheck],
+    indice: IndiceCorpus | None = None,
+) -> EsitoCheck:
+    """Check 3 (TAL-11): valutazione LLM della motivazione, con RAG sul corpus.
+
+    Va invocato dopo `esegui_checklist`, passandone gli esiti: se nessun check
+    precedente ha flaggato il fascicolo (🟡/🔴), il check è saltato — non ha
+    senso interrogare il LLM su un fascicolo che i check deterministici non
+    hanno segnalato ("solo sui flaggati", spec TAL-11).
+
+    `indice` è iniettabile per i test (evita di ricostruire l'indice BM25 sul
+    corpus reale ad ogni chiamata); se omesso viene costruito sul corpus di
+    `data/corpus_normativo/`.
+    """
+    if not flaggato_da_check_precedenti(esiti_precedenti):
+        return _esito_non_applicabile(
+            "Nessun check precedente ha flaggato il fascicolo: il check LLM è "
+            "riservato ai casi già segnalati da almeno un check deterministico."
+        )
+
+    atto = contesto.atto_autotutela.testo
+    motivazione = _isola_motivazione(atto.testo)
+    if len(motivazione) < SOGLIA_ASSENTE:
+        return EsitoCheck(
+            id=ID,
+            titolo=TITOLO,
+            stato=Stato.ROSSO,
+            spiegazione=f"Motivazione assente o troppo breve (<{SOGLIA_ASSENTE} caratteri): "
+            "non è possibile valutarne la qualità.",
+            riferimenti_normativi=list(_RIFERIMENTI),
+        )
+
+    indice = indice if indice is not None else IndiceCorpus()
+    passaggi = indice.cerca(motivazione, k=5)
+    contesto_normativo = "\n\n".join(f"[{p.fonte}]\n{p.testo}" for p in passaggi) or (
+        "(nessun passaggio pertinente trovato nel corpus)"
+    )
+
+    prompt = _PROMPT_TEMPLATE.format(motivazione=motivazione, contesto_normativo=contesto_normativo)
+    risposta = genera(prompt)
+    giudizio, spiegazione_llm = _estrai_giudizio(risposta)
+    stato = _STATO_PER_GIUDIZIO[giudizio]
+
+    inizio = atto.testo.find(motivazione)
+    citazioni: list[Citazione] = []
+    if inizio >= 0:
+        fine = inizio + len(motivazione)
+        citazioni.append(
+            Citazione(
+                testo=atto.estratto(inizio, min(fine, inizio + 200)),
+                offset_inizio=inizio,
+                offset_fine=fine,
+                pagina=atto.pagina_per_offset(inizio),
+            )
+        )
+
+    return EsitoCheck(
+        id=ID,
+        titolo=TITOLO,
+        stato=stato,
+        spiegazione=spiegazione_llm or f"Giudizio LLM: motivazione {giudizio}.",
+        citazioni=citazioni,
+        riferimenti_normativi=list(_RIFERIMENTI) + [p.fonte for p in passaggi],
+    )
+
+
+__all__ = [
+    "ID",
+    "TITOLO",
+    "SOGLIA_ASSENTE",
+    "flaggato_da_check_precedenti",
+    "valuta_motivazione",
+]
