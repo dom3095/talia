@@ -7,7 +7,7 @@ name = "talia"
 version = "0.1.0"
 description = "TALIA — Trasparenza Atti Locali: Indicatori e Analisi. Red flags negli atti delle PA siciliane."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Progetto TALIA" }]
 keywords = ["civic-tech", "trasparenza", "pubblica-amministrazione", "sicilia"]
@@ -44,7 +44,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py312"
 src = ["src", "tests"]
 exclude = ["notebooks"]
 

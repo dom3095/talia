@@ -91,6 +91,46 @@ def test_rileva_revoca_in_catena_da_cig(db, ente_id):
     assert any(a["ruolo"] == "revoca" for a in r.atti)
 
 
+def test_rileva_revoca_in_catena_data_atto_null_usa_data_pub(db, ente_id):
+    """Regressione: su jCityGov (76% degli atti nel DB reale) data_atto è
+    sempre NULL, solo data_pub è popolato — sia nell'engine catena (data_avvio/
+    data_chiusura del procedimento) sia in questo modulo (giorni_elapsed)."""
+    inserisci_atto(
+        db,
+        _atto(
+            "http://albo.ag/bando_jcg",
+            tipo="bando",
+            cig="AB1234567E",
+            oggetto="Concorso pubblico 7 operatori esperti",
+            data_atto=None,
+            data_pub="2025-07-01",
+            testo_estratto="Bando di concorso pubblico per operatori esperti",
+        ),
+    )
+    inserisci_atto(
+        db,
+        _atto(
+            "http://albo.ag/revoca_jcg",
+            tipo="determina",
+            cig="AB1234567E",
+            oggetto="Revoca concorso operatori",
+            data_atto=None,
+            data_pub="2025-12-22",
+            testo_estratto="Si revoca il bando di concorso pubblico per operatori esperti",
+        ),
+    )
+
+    ricostruisci_catene(db)
+    revoche = rileva_revoche_in_catena(db)
+
+    riga = [r for r in revoche if r.cig == "AB1234567E"]
+    assert len(riga) == 1
+    r = riga[0]
+    assert r.data_avvio == "2025-07-01"
+    assert r.data_revoca == "2025-12-22"
+    assert r.giorni_elapsed == 174
+
+
 def test_rileva_annullamento_in_catena(db, ente_id):
     inserisci_atto(
         db,

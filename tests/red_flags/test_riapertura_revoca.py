@@ -274,6 +274,55 @@ class TestRilevaRiaperturaRivoca:
         # Confermiamo che la logica anti-periodicità è presente
         assert isinstance(risultati, list)
 
+    def test_data_atto_null_usa_data_pub_jcitygov(self, db_test):
+        """Regressione: su jCityGov (piattaforma dominante nel DB reale) `data_atto`
+        è sempre NULL — solo `data_pub` è popolato. Prima del fix, il filtro sia sulla
+        chiusura (`data_chiusura` derivato da `data_atto`) sia sulla ricerca dei
+        candidati (`data_atto > ...`) escludeva SEMPRE questi casi: 0 rilevazioni
+        sul DB reale nonostante i 3 casi noti fossero tutti jCityGov."""
+        ente_id = 4
+
+        sql = (
+            "INSERT INTO procedimenti "
+            "(id, ente_id, cig, oggetto, stato_finale, data_avvio, "
+            "data_chiusura, metodo_individuazione) "
+            "VALUES (2000, ?, NULL, 'Affidamento diretto servizio pulizie', "
+            "'revocato', NULL, NULL, 'cig')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        # Atto di revoca: data_atto NULL (come su jCityGov reale), solo data_pub
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_pub, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', NULL, '2024-01-10', "
+            "'2024-01-10T00:00:00', 'http://test/atto1', 'revoca', "
+            "'Revoca affidamento pulizie', 2000, 'jcitygov')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        # Riapertura: stesso ente, oggetto simile, dopo la revoca. Anche qui
+        # data_atto NULL, solo data_pub.
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_pub, data_accesso, "
+            "url_fonte, oggetto, fonte_scraper) VALUES (?, 'determina', NULL, "
+            "'2024-02-01', '2024-02-01T00:00:00', 'http://test/atto2', "
+            "'Affidamento diretto servizio pulizie', 'jcitygov')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        db_test.commit()
+
+        risultati = rileva_riapertura_dopo_revoca(db_test)
+
+        riaper = [r for r in risultati if r.procedimento_revocato_id == 2000]
+        assert len(riaper) == 1
+        r = riaper[0]
+        assert r.data_revoca == "2024-01-10"
+        assert r.data_riapertura == "2024-02-01"
+        assert r.giorni_tra_revoca_e_riapertura == 22
+        assert r.similarita_jaccard == 1.0
+
     def test_nessuna_riapertura_se_no_procedure_revocate(self, db_test):
         """Se non ci sono procedure revocate, nessun flag."""
         ente_id = 1

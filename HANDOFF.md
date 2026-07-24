@@ -1,25 +1,155 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-12 (Merge `feat/E3-province-palermo-trapani` → `main`, dopo che
-> `main` ha ricevuto il refactor "Registro unificato scraper" — PR #11; primo run reale
-> del health-check su GH Actions, trovato blocco WAF su portalepa — vedi sotto)
+> Aggiornato: 2026-07-21 (TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
+> motore catena + 3 red flag, integrazione pdf_download per le riaperture, backfill date
+> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. Poi
+> TAL-12: 8 nuovi fascicoli candidati preparati (download + report Modulo 1) da catene
+> problematiche. **PR #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per
+> review/merge. Vedi sezioni sotto.)
 
 ---
 
-## Branch attivo (priorità)
+## TAL-12: 8 fascicoli candidati preparati da catene problematiche (2026-07-21)
 
-`feat/E3-province-palermo-trapani` — **in fase di riconciliazione con `main` per la PR
-finale (TAL-50)**. Il branch era rimasto indietro rispetto a `main`, che nel frattempo ha
-ricevuto (PR #11) un refactor architetturale dello scraping: le liste hardcoded
+Nuovo `scripts/prepara_fascicoli_candidati.py`: combina `procedimenti_da_riapertura()` +
+`procedimenti_critici()` (TAL-47/48, con dedup — una catena già coperta da una riapertura
+non è anche "critica"), scarica i PDF, li copia in `data/samples/<id>/` e lancia il
+Modulo 1 (`talia analizza`) per un report automatico. Eseguito su `talia.db`: 9 candidati
+selezionati (tutti riaperture — più narrabili delle catene critiche semplici), 8 con
+report completo (`data/samples/3,6,7,8,9,10,12,13`), 1 (`data/samples/11`, 63 PDF) senza
+report — OCR troppo lento su un documento scansionato grande, interrotto dopo 15+ min.
+Include **Palma proc. 692→703** (`data/samples/7`), uno dei 3 casi noti della card TAL-48.
+Dettaglio completo, incluso l'esito automatico di ciascuno, in
+[TAL-12.md](docs/cards/TAL-12.md#-fascicoli-2-9--preparati-in-attesa-di-lettura-lex-2026-07-21).
+Resta da fare: lettura umana ⚖️ LEX su ciascuno (non automatizzabile).
+
+**Fix collaterale:** `.gitignore` escludeva solo `*.pdf` sotto `data/samples/`, non i
+`report.json`/`report.md`/`fonte.json` generati qui — che contengono dati reali estratti
+dai PDF (firmatari, oggetti), stesso livello di sensibilità dei PDF. Aggiunta
+`data/samples/[0-9]*/` all'ignore (i campioni sintetici con nome non numerico, es.
+`fascicolo_coerente/`, restano tracciati come prima).
+
+**Anomalia non spiegata:** `data/samples/2/` (2 PDF preesistenti, materiale di test
+isolato non legato a nessuna card) è sparito dal filesystem durante la sessione. Nessun
+comando eseguito lo cancella (verificato: nessun comando di cancellazione nel codice
+toccato); causa non identificata. Dati non sensibili (PIAO + determina generici), ma
+segnalato per trasparenza — da tenere d'occhio se ricapita.
+
+**Tesseract installato in locale** (`brew install tesseract tesseract-lang`, lingua
+`ita` disponibile) — prima mancava, necessario per l'OCR dei PDF scansionati.
+
+493 test verdi (erano 490), lint pulito. Tutto committato e pushato su PR #13.
+
+## TAL-48: bugfix data_atto (esteso a tutto il motore) + pdf_download + backfill (2026-07-20/21)
+
+**PR #13 aperta:** https://github.com/dom3095/talia/pull/13 (branch `feat/TAL-48-pdf-riaperture`).
+
+**Aggiornamento 2026-07-21 rispetto a quanto scritto sotto (Tentativo 2, 20/07):** il bug
+non era isolato a `riapertura_revoca.py`. `grep data_atto` su tutto `src/talia/` ha trovato
+lo stesso problema in `engine/catena.py` (5 punti: calcolo `data_avvio`/`data_chiusura` di
+**tutti** i procedimenti) e in `concentrazione.py`/`frazionamento.py`/`catena_revoca.py`,
+che con `WHERE data_atto IS NOT NULL` escludevano in silenzio l'**80% degli atti del DB**
+(non solo jCityGov: anche catania, urbi, hspromila, ribera al 100%, halley al 12%). Stesso
+fix `COALESCE(data_atto, data_pub)` applicato ovunque, 5 nuovi test di regressione.
+
+**Poi backfill** (`scripts/backfill_date_procedimenti.py`, nessuna richiesta HTTP, solo
+dati già in DB, idempotente, backup di `talia.db` preso prima): eseguito sui 28.523
+procedimenti esistenti. `data_avvio` NULL: 22.893 → 278 (i residui sono procedimenti senza
+alcun atto con data disponibile — non un bug). `data_chiusura` NULL: 25.021 → 11.094 (i
+residui sono procedimenti con un solo atto datato — nessuna "chiusura" distinta
+dall'avvio, per design). 490 test verdi totali.
+
+**Python allineato a 3.12 ovunque** (`pyproject.toml`, ruff, CI, wiki, CLAUDE.md) — la 3.14
+non è ancora la versione su cui si lavora davvero; vedi nota sotto per il perché.
+
+Dettagli completi (4 Tentativi) in [TAL-48.md](docs/cards/TAL-48.md). Candidati nuovi per
+TAL-12 in [TAL-12.md](docs/cards/TAL-12.md#-candidati-per-i-prossimi-fascicoli-da-tal-48-2026-07-20).
+
+**Nota permanente:** `talia.db.bak-pre-backfill-20260721` (133 MB, non versionato) resta in
+root — da eliminare quando il backfill è verificato stabile.
+
+### Sessione 2026-07-20 (dettaglio originale)
+
+Branch `feat/TAL-48-pdf-riaperture` (il vecchio `feat/TAL-48-riapertura-dopo-revoca`
+locale era rimasto indietro di 5 commit rispetto a `main` — il suo MVP era già mergiato
+via PR #9 il 2026-07-10, il branch stesso non serviva più).
+
+**Bug trovato e corretto:** `rileva_riapertura_dopo_revoca` filtrava su `atti.data_atto`,
+che è **NULL per il 100% degli atti jCityGov** (79.462 su 104.812 atti totali, piattaforma
+dominante — inclusi tutti e 3 i casi reali documentati nella card). Risultato: 0
+rilevazioni su `talia.db` reale nonostante 449 catene revocate/annullate disponibili; i 12
+test esistenti non lo prendevano perché le fixture impostano sempre `data_atto` a mano.
+Fix in `red_flags/riapertura_revoca.py`: query riscritte con `COALESCE(data_atto,
+data_pub)`, senza toccare l'engine catena condiviso. Da 0 → **78 riaperture rilevate**.
+
+**Integrazione `pdf_download.py` (TAL-47):** nuove `scarica_pdf_atto()` (atto singolo
+senza catena), `procedimenti_da_riapertura()` + `scarica_pdf_riapertura()` (scarica
+entrambi i bandi di una riapertura + un `motivo_riapertura.json` esplicativo), flag CLI
+`--riaperture`. Validato end-to-end su `talia.db` reale: PDF scaricati per Ragusa proc.
+11306 e **Palma proc. 692→703** (uno dei 3 casi noti della card, confermato dal vivo).
+
+**Trovato anche:** `run_scrapers.py` calcolava `riapertura_dopo_revoca` nel report red
+flags ma non lo stampava mai — riga aggiunta.
+
+**Esito:** 480 test verdi (erano 473), lint pulito. Dettagli/Tentativi completi in
+[TAL-48.md](docs/cards/TAL-48.md). Candidati nuovi per TAL-12 annotati in
+[TAL-12.md](docs/cards/TAL-12.md#-candidati-per-i-prossimi-fascicoli-da-tal-48-2026-07-20).
+
+**⚠️ Attenzione locale/CI:** durante questa sessione `ruff format` su questo venv locale
+(Python 3.12.3) ha riscritto `except (urllib.error.URLError, TimeoutError):` in
+`pdf_download.py` nella forma senza parentesi (`except urllib.error.URLError,
+TimeoutError:`) — **sintassi valida solo da Python 3.14 (PEP 758)**, quindi un
+`SyntaxError` su questo venv. Il progetto dichiara `requires-python = ">=3.14"` e CI usa
+3.14 (`ci.yml`), ma il venv locale (`.venv`) è su 3.12.3: **`ruff format` locale può
+produrre codice che non gira in locale.** Ripristinato manualmente alle parentesi (valide
+su entrambe le versioni). Non ancora deciso se aggiornare il venv locale a 3.14 o
+convivere con la cautela su `ruff format`.
+
+**Prossimo passo (stato al 20/07, superato — vedi sopra):** ~~aprire PR per
+`feat/TAL-48-pdf-riaperture`~~ fatto, PR #13.
+
+---
+
+## Run scraper 2026-07-20
+
+Lanciato `python3 scripts/run_scrapers.py` su `talia.db` locale (nessun flag, quindi i 204
+scraper `attivo` di default + red flags + catene). Ultimo run precedente: 2026-07-14.
+
+**Esito:** 204/204 scraper eseguiti, **6 falliti** (~3%, in linea col rumore storico) —
+6071 atti nuovi (10382 trovati, resto duplicati). DB ora: **238 enti | 104.812 atti |
+163 red flags**. Nuovi red flags calcolati in questo run: concentrazione 139, tempi
+anomali 1, revoche in catena 43 (frazionamento 0).
+
+Scraper falliti in questo run (non bloccanti, riprovare al prossimo run):
+- **halley** (2): `brolo`, `sortino`
+- **portalepa** (4): `castellammare_golfo`, `cefalù`, `corleone`, `partanna_tp`
+
+Nota: i 4 falliti portalepa sono sulla stessa piattaforma già segnalata per il blocco WAF
+Akamai da GH Actions (vedi sezione sotto) — ma questo run era **locale**, non da CI, quindi
+non è lo stesso blocco per IP/ASN Azure. Da tenere d'occhio se si ripete sistematicamente;
+per ora trattato come rumore di rete (log completo in `/tmp/talia_scraper_run_20260720_130806.log`,
+non committato).
+
+Il run in sé non ha prodotto commit — ha solo scritto su `talia.db` locale (gitignored).
+I commit di questa sessione sono la sincronizzazione doc (vedi sopra) + il lavoro TAL-48.
+Resta **non committato** un cambio preesistente (non fatto in questa sessione, trovato già
+nel working tree) a `.github/workflows/health-check.yml`
+che commenta il trigger `schedule:` — coerente con la decisione del 2026-07-12 di non
+attivare il cron per via del blocco Akamai, ma non risulta mai committato. Da chiedere a
+Dom se va committato via branch+PR o scartato.
+
+## Stato branch (storico, entrambe le PR ora mergiate)
+
+`feat/E3-province-palermo-trapani` (PR #12) e `feat/config-scraper-registro` (PR #11) sono
+**mergiate in `main`** dal 2026-07-12. `main` è attivo e aggiornato (`git status`: pulito a
+parte una modifica locale non committata a `.github/workflows/health-check.yml`, vedi sotto).
+
+Riepilogo di cosa è cambiato (per chi riprende in mano il progetto): le liste hardcoded
 `_JCITYGOV_COMUNI`/`_PORTALEPA_COMUNI`/`_URBI_COMUNI`/`_SCRAPERS` in `scripts/run_scrapers.py`
-sono state sostituite da un registro CSV (`data/registro_scraper.csv`) letto da
-`registry.py` via `_FACTORY_PER_MODULO`. Eseguito `git merge origin/main`: conflitti in
-`scripts/run_scrapers.py`, `docs/cards/BOARD.md`, `docs/wiki/14-censimento-albi.md` risolti
-adottando l'architettura di `main` — verificato che tutti i 9 comuni TIER 0 aggiunti da
-TAL-50 (Termini Imerese, Campofelice di Roccella, Partinico, Cefalù, Castellammare del
-Golfo, Corleone, Capaci, Partanna, Caccamo) sono già presenti nel CSV consolidato (recuperati
-durante la code review del 2026-07-11 sul refactor, vedi sezione sotto), quindi nessun dato
-perso nel merge.
+sono state sostituite da un registro CSV (`data/registro_scraper.csv`, 245 righe) letto da
+`registry.py` via `_FACTORY_PER_MODULO`. I 9 comuni TIER 0 di TAL-50 (Termini Imerese,
+Campofelice di Roccella, Partinico, Cefalù, Castellammare del Golfo, Corleone, Capaci,
+Partanna, Caccamo) sono nel registro consolidato.
 
 **Nota (decisione presa, non un problema da risolvere):** il CSV ha due comuni registrati due
 volte su piattaforme diverse con lo stesso `codice_istat` — Campofelice di Roccella
@@ -33,8 +163,8 @@ per via del `COALESCE`) ed eventuali atti duplicati se le due fonti espongono lo
 con URL diversi — non osservato finora. Tracciato in **[TAL-52](docs/cards/TAL-52.md)**
 (backlog, P3): dedup atti tra scraper ridondanti sullo stesso comune.
 
-**Fatto:** test (473 verdi) + lint puliti, push del branch, aperta **PR #12** verso `main`.
-Prossimo passo: review di Dom.
+**Fatto:** test (473 verdi) + lint puliti, push del branch, **PR #12 mergiata in `main`
+il 2026-07-12.**
 
 ### Health-check: trovato blocco WAF Akamai su portalepa (2026-07-12)
 

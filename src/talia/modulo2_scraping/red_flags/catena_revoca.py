@@ -53,7 +53,8 @@ def rileva_revoche_in_catena(conn: sqlite3.Connection) -> list[RevocaInCatenaRil
     for p in procedimenti:
         atti = conn.execute(
             """
-            SELECT id, url_fonte, ruolo_in_catena, data_atto, oggetto
+            SELECT id, url_fonte, ruolo_in_catena,
+                   COALESCE(data_atto, data_pub) AS data_atto, oggetto
             FROM   atti
             WHERE  procedimento_id = ?
             ORDER  BY data_atto ASC NULLS LAST

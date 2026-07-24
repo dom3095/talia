@@ -773,6 +773,7 @@ def main() -> int:
                 f"  concentrazione: {report.concentrazione}\n"
                 f"  tempi anomali:  {report.tempi_anomali}\n"
                 f"  revoche catena: {report.revoche_catena}\n"
+                f"  riaperture:     {report.riapertura_dopo_revoca}\n"
                 f"  totale flag:    {report.totale_flag}"
             )
         except Exception:

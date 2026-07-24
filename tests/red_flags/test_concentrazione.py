@@ -122,6 +122,40 @@ def test_concentrazione_senza_filtro_anno(db: sqlite3.Connection, ente_ct: int) 
 # ---------------------------------------------------------------------------
 
 
+def test_data_atto_null_usa_data_pub_jcitygov(db: sqlite3.Connection, ente_ct: int) -> None:
+    """Regressione: su jCityGov (76% degli atti nel DB reale) data_atto è
+    sempre NULL, solo data_pub è popolato. Prima del fix questi atti erano
+    invisibili al check (WHERE a.data_atto IS NOT NULL escludeva tutto)."""
+    for i in range(9):
+        at = AttoMetadato(
+            ente_codice_istat="087015",
+            tipo="determina",
+            url_fonte=f"http://albo.ct.it/jcg{i}",
+            fonte_scraper="jcitygov",
+            data_accesso="2026-06-01T10:00:00",
+            data_pub="2026-03-15",
+            importo_euro=10_000.0,
+        )
+        inserisci_atto(db, at)
+    inserisci_atto(
+        db,
+        AttoMetadato(
+            ente_codice_istat="087015",
+            tipo="bando",
+            url_fonte="http://albo.ct.it/jcg_bando",
+            fonte_scraper="jcitygov",
+            data_accesso="2026-06-01T10:00:00",
+            data_pub="2026-03-20",
+            importo_euro=10_000.0,
+        ),
+    )
+
+    risultati = rileva_concentrazione(db, anno=2026)
+    assert len(risultati) == 1
+    assert risultati[0].n_totale == 10
+    assert risultati[0].n_diretti == 9
+
+
 def test_atti_senza_data_ignorati(db: sqlite3.Connection, ente_ct: int) -> None:
     # Inserisce atti senza data: non devono contribuire al conteggio
     for i in range(10):

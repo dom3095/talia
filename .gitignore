@@ -4,6 +4,12 @@
 data/raw/
 *.pdf
 
+# Fascicoli reali in data/samples/<id numerico>/ (PDF scaricati + report generati:
+# quest'ultimi contengono dati estratti dai PDF — firmatari, oggetti — quindi non
+# meno sensibili dei PDF stessi). I campioni sintetici/anonimizzati per i test
+# restano tracciati (nomi non numerici, es. fascicolo_coerente/, fascicolo_critico/).
+data/samples/[0-9]*/
+
 # Log delle run di analisi (contengono dati personali)
 logs/
 # (i campioni anonimizzati in data/samples/ vanno aggiunti a mano con `git add -f`)
