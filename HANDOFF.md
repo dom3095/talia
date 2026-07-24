@@ -1,11 +1,62 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-21 (TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
-> motore catena + 3 red flag, integrazione pdf_download per le riaperture, backfill date
-> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. Poi
-> TAL-12: 8 nuovi fascicoli candidati preparati (download + report Modulo 1) da catene
-> problematiche. **PR #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per
-> review/merge. Vedi sezioni sotto.)
+> Aggiornato: 2026-07-24 (branch `feat/TAL-11-check3-motivazione` riconciliato con `main`
+> dopo il merge di **PR #13** — TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
+> motore catena, integrazione pdf_download per le riaperture, backfill date, 8 fascicoli
+> candidati TAL-12 preparati. Su questo branch: TAL-11, check-3 qualità motivazione via
+> LLM+RAG, **PR #14 aperta**, pronta per review/merge. Vedi sezioni sotto.)
+
+---
+
+## Sessione 2026-07-21 — TAL-11: check-3 qualità motivazione (LLM + RAG)
+
+**Contesto:** dopo la sessione precedente (TAL-48/TAL-12, PR #13, poi mergiata il 24/07 — vedi
+quella sezione per lo stato dei fascicoli TAL-12 e il bugfix `data_atto`/`data_pub`), Dom ha
+chiesto di procedere con l'unico check della checklist che richiede un LLM: TAL-11 aveva già
+una spec quasi completa ma 3 "Domande aperte" non barrate. Risolte con Dom prima di scrivere
+codice (modello LLM, soglia motivazione, scope RAG — vedi `docs/cards/TAL-11.md`).
+
+**Branch:** `feat/TAL-11-check3-motivazione`, da `main` (non da PR #13: le due PR erano
+indipendenti; riconciliato con `main` il 24/07 dopo il merge di PR #13, conflitti solo su
+`HANDOFF.md`/`BOARD.md`, nessun conflitto di codice).
+
+**Implementato:**
+- `src/talia/engine/rag.py` — `IndiceCorpus`: retrieval **BM25 in puro stdlib** su
+  `data/corpus_normativo/` (nessun embedding/vector store: corpus piccolo, 16 file curati —
+  decisione di Dom, evita nuove dipendenze pip).
+- `src/talia/engine/llm.py` — client minimale per **Ollama** (`genera`/`LLMNonDisponibile`),
+  `urllib` puro, opener iniettabile per i test. Nessun fallback silenzioso: LLM irraggiungibile
+  → eccezione esplicita (spec TAL-11).
+- `src/talia/engine/checklist/check3_motivazione.py` — `valuta_motivazione(contesto,
+  esiti_precedenti, indice=None)`. **Non registrato** nel registry automatico dei check
+  (richiede sia gli esiti precedenti sia una chiamata di rete): invocato esplicitamente da
+  `analizza_fascicolo/testi/pdf(..., valuta_llm=True)` o `talia analizza ... --llm`.
+  Disattivato di default.
+- Modello scelto: **qwen3:4b via Ollama** (già presente in locale, gratuito).
+
+**2 bug reali scoperti col modello vero (non dai test mockati)** — verificato end-to-end con
+`talia analizza data/samples/fascicolo_critico --llm` contro Ollama reale:
+1. Timeout di default (120s) insufficiente: qwen3 è un modello "thinking", ragiona ad alta
+   voce anche su prompt banali (~18-28s solo per un JSON di poche parole) → portato a 300s.
+2. `_estrai_giudizio` con un singolo regex greedy falliva quando il modello ripeteva lo schema
+   JSON del prompt come "esempio" prima della risposta vera (due oggetti `{...}` nella risposta
+   → cattura tutto in mezzo, JSON non valido). Fix: si prende l'ultimo oggetto JSON valido con
+   chiave `giudizio`, non il primo/unico match presunto. Test di regressione aggiunto.
+
+**Test:** 23 nuovi (`test_rag.py`, `test_llm.py`, `test_check3_motivazione.py`,
+`test_analisi_llm.py` per il wiring), 496 totali verdi, ruff pulito.
+
+**Nota di processo:** `pyproject.toml`/CI su `main` dichiarano ancora `python 3.14`/`ruff
+target-version py314` (il fix a 3.12 vive solo sulla PR #13, non ancora mergiata) — `ruff
+format .` sull'intero repo da questo branch riscrive ~30 file preesistenti non toccati da
+questa card (drift di formattazione dovuto al target py314). **Non incluso in questo PR**:
+revertiti tutti i file non pertinenti a TAL-11, mantenute solo le modifiche intenzionali.
+Verificare manualmente se lo stesso accade su altri branch aperti da `main` prima del merge
+della PR #13.
+
+**Prossimo passo naturale:** usare `--llm` sugli 8 fascicoli TAL-12 già preparati (PR #13,
+mergiata) per iniziare il ground truth falsi positivi/negativi anche sul check LLM — sbloccato
+non appena mergiata anche PR #14.
 
 ---
 

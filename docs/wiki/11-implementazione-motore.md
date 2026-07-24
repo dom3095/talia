@@ -15,10 +15,13 @@ src/talia/
 │   ├── entita.py                # TAL-4: date, importi, CIG, CUP (regex documentate)
 │   ├── firmatari.py             # TAL-5: norme citate + firmatari (euristica)
 │   ├── fascicolo.py             # AttoAnalizzato, ContestoFascicolo, RuoloAtto
+│   ├── rag.py                   # TAL-11: IndiceCorpus, retrieval BM25 su corpus_normativo/
+│   ├── llm.py                   # TAL-11: client minimale Ollama (genera/LLMNonDisponibile)
 │   └── checklist/
 │       ├── base.py              # EsitoCheck, classe Check, registry, esegui_checklist
 │       ├── check1_base_giuridica.py   # TAL-6
 │       ├── check2_termini.py          # TAL-7
+│       ├── check3_motivazione.py      # TAL-11 — LLM+RAG, non nel registry automatico
 │       ├── check5_avvio.py            # TAL-8
 │       └── check6_firmatari.py        # TAL-9
 └── modulo1_fascicolo/
@@ -40,6 +43,10 @@ src/talia/
 3. **Registry dei check.** Ogni check si auto-registra all'import
    (`checklist/__init__.py`); `esegui_checklist` li esegue tutti e include anche
    i NON_APPLICABILI nel report, per trasparenza su cosa è stato valutato.
+   **Eccezione: check-3** (TAL-11, motivazione/LLM) non è nel registry — richiede
+   sia gli esiti dei check precedenti sia una chiamata di rete, quindi va
+   invocato esplicitamente (`valuta_llm=True`), mai a sorpresa in un'analisi
+   "solo checklist deterministica".
 4. **Check conservativi.** In dubbio l'esito è 🟡 con spiegazione, mai crash né
    🔴 azzardato (es. stesso firmatario → 🟡, non 🔴, perché fisiologico nei
    piccoli comuni).
@@ -54,10 +61,13 @@ src/talia/
           → classifica_ruolo             (originario vs autotutela, euristica)
           → costruisci_contesto          (ContestoFascicolo)
           → esegui_checklist             (esiti 🟢🟡🔴⚪ con citazioni)
+          → [valuta_motivazione]         (opzionale, --llm: check-3 su fascicoli già flaggati)
           → Report                       (markdown / JSON / HTML + disclaimer)
 ```
 
 Uso: `talia analizza data/samples/fascicolo_coerente/ --formato html --out report.html`.
+Con check-3 (LLM, richiede `ollama serve` attivo e il modello scaricato):
+`talia analizza data/samples/<id>/ --llm`.
 
 ## Assunzioni da validare con ⚖️ LEX
 

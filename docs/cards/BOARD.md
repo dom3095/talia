@@ -5,8 +5,9 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 
 batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
 Modulo 3 (Dashboard Streamlit). In corso: Fase 2 pipeline (TAL-47 in Review), validazione
-fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50) e registro unificato
-scraper (#11) completati e mergiati in `main`.
+fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50), registro unificato
+scraper (#11) e riapertura dopo revoca (TAL-48) completati e mergiati in `main`. Check-3
+qualità motivazione LLM (TAL-11) in Review (PR #14).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -41,7 +42,6 @@ scraper (#11) completati e mergiati in `main`.
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | E1 | 🔤 NLP | P2 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
@@ -51,6 +51,7 @@ scraper (#11) completati e mergiati in `main`.
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; **PR #14 aperta**, in attesa di review Dom — RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test |
 | [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
 | [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
 | [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
