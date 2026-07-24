@@ -287,11 +287,45 @@ tipicamente firme digitali o copie firmate.
 
 ---
 
+## Download coppie riapertura (TAL-48, 2026-07-20)
+
+Quando il red flag `riapertura_dopo_revoca` (vedi `red_flags/riapertura_revoca.py`)
+individua un bando ripubblicato dopo una revoca/annullamento, `pdf_download.py` scarica
+**entrambi** i bandi (per il futuro confronto testuale "cosa è cambiato" — non ancora
+implementato, card separata):
+
+- `procedimenti_da_riapertura(conn, limite=20)` — seleziona i red flag
+  `riapertura_dopo_revoca` su fonti supportate, diversificati per ente (stesso pattern
+  round-robin di `procedimenti_critici`, fattorizzato in `_diversifica_per_ente`).
+- `scarica_pdf_riapertura(conn, red_flag_id)` — orchestratore: scarica la catena
+  originale (`scarica_pdf_procedimento`), poi la riapertura — la sua catena se ce l'ha,
+  altrimenti il solo atto via `scarica_pdf_atto` (nuovo: un atto non ha sempre una
+  propria catena ricostruita dall'engine) — e infine un `motivo_riapertura.json` nella
+  cartella della catena originale, che lega le due cartelle:
+
+```json
+{
+  "red_flag_id": 472,
+  "criterio_selezione": "riapertura_dopo_revoca (TAL-48): ...",
+  "descrizione": "Riapertura procedimento dopo revoca/annullamento: ...",
+  "procedimento_originale_id": 692,
+  "atto_riapertura_id": 3585,
+  "disclaimer": "Segnalazione da verificare, non accertamento."
+}
+```
+
+CLI: `python -m talia.modulo2_scraping.pdf_download --riaperture --limite N`.
+
+**Nota per chi riprende in mano `rileva_riapertura_dopo_revoca`:** il campo `atti.data_atto`
+è NULL per il 100% degli atti jCityGov (piattaforma dominante del DB) — solo `data_pub` è
+affidabile lì. Le query del modulo usano `COALESCE(data_atto, data_pub)`; qualunque nuova
+query su date degli atti dovrebbe fare lo stesso, o rischia di funzionare sui test
+(fixture con `data_atto` sempre valorizzato) e produrre zero risultati sul DB reale.
+
 ## Prossime estensioni
 
-1. **TAL-48** — OCR e estrazione testo
-   - Input: PDF in data/raw/pdf/
-   - Output: atti.testo_estratto
+1. **Confronto testuale riapertura** — "cosa è cambiato" tra bando originale e
+   riaperto (richiede prima l'estrazione testo generalizzata, vedi punto 2)
 
 2. **TAL-49+** — Red flags da testo
    - Check disponibilità bando

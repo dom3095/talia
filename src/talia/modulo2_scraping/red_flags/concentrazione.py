@@ -72,7 +72,13 @@ def rileva_concentrazione(
     Returns:
         Lista di ``ConcentrazioneRilevata`` con dettaglio per ente/anno.
     """
-    filtro_anno = "AND strftime('%Y', a.data_atto) = ?" if anno is not None else ""
+    # COALESCE: data_atto (data dell'atto) manca sempre o quasi su alcune
+    # piattaforme (jCityGov, catania, urbi, hspromila, ribera: 100% NULL —
+    # espongono solo la finestra di pubblicazione nella pagina-lista). Senza
+    # fallback su data_pub, questi enti restano invisibili al check.
+    filtro_anno = (
+        "AND strftime('%Y', COALESCE(a.data_atto, a.data_pub)) = ?" if anno is not None else ""
+    )
     # strftime('%Y') restituisce TEXT in SQLite → convertiamo a str per il confronto
     params_base: list = [str(anno)] if anno is not None else []
 
@@ -81,13 +87,13 @@ def rileva_concentrazione(
         f"""
         SELECT  a.ente_id,
                 e.codice_istat,
-                strftime('%Y', a.data_atto) AS anno,
+                strftime('%Y', COALESCE(a.data_atto, a.data_pub)) AS anno,
                 COUNT(*) AS n_totale,
                 SUM(CASE WHEN lower(a.tipo) != 'bando' THEN 1 ELSE 0 END) AS n_diretti,
                 SUM(CASE WHEN lower(a.tipo) = 'bando'  THEN 1 ELSE 0 END) AS n_bandi
         FROM    atti a
         JOIN    enti e ON e.id = a.ente_id
-        WHERE   a.data_atto IS NOT NULL
+        WHERE   COALESCE(a.data_atto, a.data_pub) IS NOT NULL
           {filtro_anno}
         GROUP   BY a.ente_id, anno
         HAVING  n_totale >= ?
@@ -109,13 +115,14 @@ def rileva_concentrazione(
         # Campione di atti diretti per l'esplicabilità
         campione = conn.execute(
             """
-            SELECT a.id, a.url_fonte, a.tipo, a.oggetto, a.importo_euro, a.data_atto
+            SELECT a.id, a.url_fonte, a.tipo, a.oggetto, a.importo_euro,
+                   COALESCE(a.data_atto, a.data_pub) AS data_atto
             FROM   atti a
             JOIN   enti e ON e.id = a.ente_id
             WHERE  a.ente_id = ?
-              AND  strftime('%Y', a.data_atto) = ?
+              AND  strftime('%Y', COALESCE(a.data_atto, a.data_pub)) = ?
               AND  lower(a.tipo) != 'bando'
-            ORDER  BY a.data_atto DESC
+            ORDER  BY COALESCE(a.data_atto, a.data_pub) DESC
             LIMIT  5
             """,
             (row["ente_id"], row["anno"]),

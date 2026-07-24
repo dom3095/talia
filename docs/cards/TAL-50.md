@@ -3,8 +3,8 @@
 - **Epica:** E3 — Censimento comuni siciliani
 - **Ruolo:** 🕷️ SCR + 🧭 TL
 - **Priorità:** P1
-- **Stato:** Review (PR #12 aperta)
-- **Branch:** `feat/E3-province-palermo-trapani`
+- **Stato:** Done (PR #12 mergiata 2026-07-12)
+- **Branch:** `feat/E3-province-palermo-trapani` (chiuso)
 
 ## 🎯 Obiettivo
 

@@ -33,7 +33,7 @@ Pipeline motore: `OCR (Tesseract) → estrazione entità (regex + spaCy) → che
 
 | Layer | Tecnologia |
 |-------|-----------|
-| Linguaggio | Python 3.14+ |
+| Linguaggio | Python 3.12+ |
 | Scraping | Scrapy / BeautifulSoup, cron su GitHub Actions |
 | OCR | Tesseract (`pytesseract`) |
 | NER / estrazione | regex + spaCy (`it_core_news_lg`) |
@@ -104,6 +104,7 @@ Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **Nessun retry su HTTPError**: `jcitygov.py` gestisce solo `TimeoutError`; errori 4xx/5xx propagano senza retry.
 - **Regex fragili sull'HTML**: `_RE_PANEL` (Trapani) e `_RE_NEXT` (jCityGov) falliscono silenziosamente a struttura cambiata.
 - **Filtri data server-side controintuitivi**: e-pal.it esclude gli atti la cui pubblicazione termina dopo `dataPubblicazioneAl` — con `al=oggi` si perdono i più recenti (era BUG-4). Non fidarsi dei default "dal/al=oggi".
+- **`atti.data_atto` spesso NULL**: molti scraper (jCityGov, catania, urbi, hspromila, ribera — 80% degli atti nel DB) leggono solo la pagina-lista dell'albo, che espone la finestra di pubblicazione (`data_pub`), non la data dell'atto vero. Qualunque nuova query su date degli atti va scritta con `COALESCE(data_atto, data_pub)`, altrimenti funziona sui test (fixture con `data_atto` sempre valorizzato) e produce zero risultati/date NULL sul DB reale (scoperto in TAL-48, 2026-07-20: bug esteso a `engine/catena.py` + 3 red flag).
 
 ### Come testare uno scraper
 

@@ -72,6 +72,10 @@ _STOPWORD = {
 }
 
 
+# Ruoli in catena che rappresentano la chiusura critica di un procedimento
+_RUOLI_CHIUSURA = ("revoca", "annullamento")
+
+
 def _tokenize_oggetto(testo: str) -> set[str]:
     """Tokenizza un oggetto atto: minuscolo, rimuovi punteggiatura, stopword."""
     if not testo:
@@ -108,9 +112,9 @@ def _ha_periodicita_ricorrente(
     try:
         atti_ente = conn.execute(
             """
-            SELECT id, oggetto, data_atto FROM atti
+            SELECT id, oggetto, COALESCE(data_atto, data_pub) AS data_evento FROM atti
             WHERE ente_id = ?
-            ORDER BY data_atto ASC
+            ORDER BY data_evento ASC
             """,
             (ente_id,),
         ).fetchall()
@@ -145,14 +149,20 @@ def rileva_riapertura_dopo_revoca(
     if not 0.0 <= soglia_similarita <= 1.0:
         raise ValueError(f"soglia_similarita must be between 0.0 and 1.0, got {soglia_similarita}")
 
+    segnaposto = ",".join("?" * len(_RUOLI_CHIUSURA))
     try:
         catene_revocate = conn.execute(
-            """
-            SELECT p.id, p.ente_id, p.oggetto, p.data_chiusura, p.metodo_individuazione
+            f"""
+            SELECT p.id, p.ente_id, p.oggetto, p.metodo_individuazione,
+                   MAX(COALESCE(a.data_atto, a.data_pub)) AS data_chiusura_eff
             FROM procedimenti p
+            JOIN atti a ON a.procedimento_id = p.id
             WHERE p.stato_finale IN ('revocato', 'annullato')
-              AND p.data_chiusura IS NOT NULL
-            """
+              AND a.ruolo_in_catena IN ({segnaposto})
+            GROUP BY p.id
+            HAVING data_chiusura_eff IS NOT NULL
+            """,
+            _RUOLI_CHIUSURA,
         ).fetchall()
     except Exception:
         # Tabella procedimenti non ancora creata
@@ -164,7 +174,7 @@ def rileva_riapertura_dopo_revoca(
         proc_id = proc_rev["id"]
         ente_id = proc_rev["ente_id"]
         oggetto_rev = proc_rev["oggetto"]
-        data_chiusura_rev = proc_rev["data_chiusura"]
+        data_chiusura_rev = proc_rev["data_chiusura_eff"]
         metodo_individuazione = proc_rev["metodo_individuazione"]
 
         tokens_rev = _tokenize_oggetto(oggetto_rev or "")
@@ -176,13 +186,15 @@ def rileva_riapertura_dopo_revoca(
             continue
 
         try:
-            # Cerca atti del MEDESIMO ente publicati DOPO la revoca
+            # Cerca atti del MEDESIMO ente publicati DOPO la revoca. COALESCE:
+            # data_atto è quasi sempre NULL su jCityGov (piattaforma dominante
+            # nel DB), data_pub è la data affidabile in quel caso.
             atti_post_revoca = conn.execute(
                 """
-                SELECT id, oggetto, data_atto FROM atti
+                SELECT id, oggetto, COALESCE(data_atto, data_pub) AS data_evento FROM atti
                 WHERE ente_id = ?
-                  AND data_atto > ?
-                ORDER BY data_atto ASC
+                  AND COALESCE(data_atto, data_pub) > ?
+                ORDER BY data_evento ASC
                 """,
                 (ente_id, data_chiusura_rev),
             ).fetchall()
@@ -200,10 +212,10 @@ def rileva_riapertura_dopo_revoca(
 
             # Calcola giorni tra revoca e riapertura
             giorni_delta = None
-            if data_chiusura_rev and atto["data_atto"]:
+            if data_chiusura_rev and atto["data_evento"]:
                 try:
                     d0 = date.fromisoformat(data_chiusura_rev[:10])
-                    d1 = date.fromisoformat(atto["data_atto"][:10])
+                    d1 = date.fromisoformat(atto["data_evento"][:10])
                     giorni_delta = (d1 - d0).days
                 except ValueError:
                     pass
@@ -216,7 +228,7 @@ def rileva_riapertura_dopo_revoca(
                     data_revoca=data_chiusura_rev,
                     atto_riapertura_id=atto["id"],
                     oggetto_riapertura=atto["oggetto"],
-                    data_riapertura=atto["data_atto"],
+                    data_riapertura=atto["data_evento"],
                     similarita_jaccard=similarita,
                     giorni_tra_revoca_e_riapertura=giorni_delta,
                     metodo_individuazione_catena=metodo_individuazione,

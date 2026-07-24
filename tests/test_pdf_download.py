@@ -17,8 +17,11 @@ from talia.modulo2_scraping.pdf_download import (
     _url_display_format,
     motivo_selezione,
     procedimenti_critici,
+    procedimenti_da_riapertura,
     scarica_pdf_allegato,
+    scarica_pdf_atto,
     scarica_pdf_procedimento,
+    scarica_pdf_riapertura,
     trova_allegati,
 )
 
@@ -297,7 +300,7 @@ def test_segnali_stesso_giorno_e_riferimento_non_riscontrato():
     # e la revoca cita "N. 33/2025" che non esiste nella catena (caso reale Palma)
     conn.execute(
         "UPDATE atti SET data_pub = '2026-06-05', "
-        "oggetto = \"REVOCA IN AUTOTUTELA DELL'AVVISO APPROVATO CON DETERMINAZIONE N. 33/2025\" "
+        'oggetto = "REVOCA IN AUTOTUTELA DELL\'AVVISO APPROVATO CON DETERMINAZIONE N. 33/2025" '
         "WHERE id = 1"
     )
     conn.execute(
@@ -324,7 +327,7 @@ def test_segnali_stesso_giorno_e_riferimento_non_riscontrato():
 
     # Se la revoca cita un numero presente in catena, nessun falso positivo
     conn.execute(
-        "UPDATE atti SET oggetto = \"REVOCA DELL'AVVISO APPROVATO CON DETERMINAZIONE N. 35/2025\" "
+        'UPDATE atti SET oggetto = "REVOCA DELL\'AVVISO APPROVATO CON DETERMINAZIONE N. 35/2025" '
         "WHERE id = 1"
     )
     conn.commit()
@@ -339,7 +342,7 @@ def test_riferimento_fuori_copertura_non_scatta():
     # Copertura ente: solo 2026. La revoca cita un atto del 2008.
     conn.execute(
         "UPDATE atti SET data_pub = '2026-06-05', "
-        "oggetto = \"REVOCA DELL'AVVISO APPROVATO CON DETERMINAZIONE N. 81/2008\" "
+        'oggetto = "REVOCA DELL\'AVVISO APPROVATO CON DETERMINAZIONE N. 81/2008" '
         "WHERE id = 1"
     )
     conn.commit()
@@ -388,3 +391,186 @@ def test_scarica_procedimento_inesistente(caplog):
         scaricati = scarica_pdf_procedimento(conn, 999, dest_dir=Path("/nonusato"), delay=0)
     assert scaricati == []
     assert any("essun atto" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# scarica_pdf_atto: atto singolo senza catena
+# ---------------------------------------------------------------------------
+
+
+def test_scarica_pdf_atto_end_to_end(tmp_path):
+    conn = _db_con_procedimento()
+    url_dettaglio = "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/9"
+    conn.execute(
+        """INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper, metadati)
+           VALUES (1, 'determina', '2026-07-05', ?, 'jcitygov', '{}')""",
+        (url_dettaglio,),
+    )
+    conn.commit()
+    atto_id = conn.execute("SELECT id FROM atti WHERE url_fonte = ?", (url_dettaglio,)).fetchone()[
+        0
+    ]
+
+    opener = _OpenerFinto(
+        {
+            url_dettaglio: _RispostaFinta(_HTML_DETTAGLIO.encode()),
+            _URL_PDF_1: _RispostaFinta(_PDF_BYTES, 'attachment; filename="determina.pdf"'),
+            _URL_PDF_2: _RispostaFinta(_P7M_BYTES, 'attachment; filename="firma.p7m"'),
+        }
+    )
+
+    scaricati = scarica_pdf_atto(conn, atto_id, dest_dir=tmp_path, opener=opener, delay=0)
+
+    assert len(scaricati) == 2
+    meta = json.loads((tmp_path / "meta.json").read_text())
+    assert len(meta) == 2
+    # Un atto singolo non ha una catena: nessun motivo_selezione.json
+    assert not (tmp_path / "motivo_selezione.json").exists()
+
+    row = conn.execute("SELECT url_pdf FROM atti WHERE id = ?", (atto_id,)).fetchone()
+    assert row["url_pdf"] == _URL_PDF_1
+
+
+def test_scarica_pdf_atto_inesistente(caplog):
+    conn = _db_con_procedimento()
+    with caplog.at_level("WARNING"):
+        scaricati = scarica_pdf_atto(conn, 999, dest_dir=Path("/nonusato"), delay=0)
+    assert scaricati == []
+    assert any("non trovato" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# procedimenti_da_riapertura + scarica_pdf_riapertura (TAL-48)
+# ---------------------------------------------------------------------------
+
+_URL_DETTAGLIO_RIAP = (
+    "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/42"
+)
+_URL_PDF_RIAP = "https://esempio.trasparenza-valutazione-merito.it/dl?id=333"
+_PDF_RIAP_BYTES = b"%PDF-1.4 bando riaperto"
+
+_HTML_DETTAGLIO_RIAP = f"""
+<tr data-chiave-allegato="333" data-mimetype="application/pdf">
+  <td>bando_riaperto.pdf</td>
+  <td><a onclick="window.open(atob('{_b64(_URL_PDF_RIAP)}'))">scarica</a></td>
+</tr>
+"""
+
+
+def _db_con_riapertura(atto_riapertura_ha_procedimento: bool = False):
+    """DB con proc. 653 (revocato, ente 1, vedi ``_db_con_procedimento``) + un
+    red_flag 'riapertura_dopo_revoca' che referenzia un nuovo atto di riapertura.
+
+    Ritorna (conn, atto_riapertura_id, red_flag_id).
+    """
+    conn = _db_con_procedimento()
+
+    if atto_riapertura_ha_procedimento:
+        conn.execute(
+            """INSERT INTO procedimenti (id, ente_id, oggetto, stato_finale,
+                                          metodo_individuazione, creato_a)
+               VALUES (654, 1, 'SELEZIONE DI ESEMPIO RIAPERTA', 'aggiudicato',
+                       'oggetto_simile_da_verificare', '2026-07-06')"""
+        )
+        proc_riap = 654
+    else:
+        proc_riap = None
+
+    conn.execute(
+        """INSERT INTO atti (ente_id, tipo, data_accesso, url_fonte, fonte_scraper,
+                             metadati, procedimento_id)
+           VALUES (1, 'determina', '2026-07-06', ?, 'jcitygov', '{}', ?)""",
+        (_URL_DETTAGLIO_RIAP, proc_riap),
+    )
+    conn.commit()
+    atto_riapertura_id = conn.execute(
+        "SELECT id FROM atti WHERE url_fonte = ?", (_URL_DETTAGLIO_RIAP,)
+    ).fetchone()[0]
+
+    cur = conn.execute(
+        """INSERT INTO red_flags (ente_id, tipo_flag, severita, descrizione,
+                                   atti_cig, data_rilevazione)
+           VALUES (1, 'riapertura_dopo_revoca', 'media', 'riapertura di test',
+                   ?, '2026-07-20T00:00:00')""",
+        (
+            json.dumps(
+                [
+                    {
+                        "id_catena_revocata": 653,
+                        "atto_revocato_id": None,
+                        "atto_riapertura_id": atto_riapertura_id,
+                        "similarita": 0.8,
+                    }
+                ]
+            ),
+        ),
+    )
+    conn.commit()
+    return conn, atto_riapertura_id, cur.lastrowid
+
+
+def _opener_riapertura():
+    url_dettaglio_653 = (
+        "https://esempio.trasparenza-valutazione-merito.it/web/trasparenza/papca-g/-/papca/display/1"
+    )
+    return _OpenerFinto(
+        {
+            url_dettaglio_653: _RispostaFinta(_HTML_DETTAGLIO.encode()),
+            _URL_PDF_1: _RispostaFinta(_PDF_BYTES, 'attachment; filename="determina.pdf"'),
+            _URL_PDF_2: _RispostaFinta(_P7M_BYTES, 'attachment; filename="firma.p7m"'),
+            _URL_DETTAGLIO_RIAP: _RispostaFinta(_HTML_DETTAGLIO_RIAP.encode()),
+            _URL_PDF_RIAP: _RispostaFinta(
+                _PDF_RIAP_BYTES, 'attachment; filename="bando_riaperto.pdf"'
+            ),
+        }
+    )
+
+
+def test_procedimenti_da_riapertura_seleziona_solo_fonti_supportate():
+    conn, _atto_id, _flag_id = _db_con_riapertura()
+    assert procedimenti_da_riapertura(conn) == [_flag_id]
+    assert procedimenti_da_riapertura(conn, fonti=("portalepa",)) == []
+
+
+def test_scarica_pdf_riapertura_atto_orfano(tmp_path, monkeypatch):
+    """L'atto di riapertura non ha ancora una propria catena (procedimento_id NULL):
+    scarica_pdf_riapertura deve usare scarica_pdf_atto come fallback."""
+    conn, atto_riapertura_id, flag_id = _db_con_riapertura(atto_riapertura_ha_procedimento=False)
+    monkeypatch.chdir(tmp_path)
+
+    scaricati = scarica_pdf_riapertura(conn, flag_id, opener=_opener_riapertura(), delay=0)
+
+    # 2 allegati della catena originale (653) + 1 dell'atto di riapertura orfano
+    assert len(scaricati) == 3
+
+    dest_originale = tmp_path / "data/raw/pdf/comune_di_esempio/653"
+    assert (dest_originale / "motivo_selezione.json").exists()
+    motivo_riap = json.loads((dest_originale / "motivo_riapertura.json").read_text())
+    assert motivo_riap["red_flag_id"] == flag_id
+    assert motivo_riap["procedimento_originale_id"] == 653
+    assert motivo_riap["atto_riapertura_id"] == atto_riapertura_id
+
+    dest_riapertura = tmp_path / f"data/raw/pdf/comune_di_esempio/atto_{atto_riapertura_id}"
+    assert (dest_riapertura / "meta.json").exists()
+
+
+def test_scarica_pdf_riapertura_con_propria_catena(tmp_path, monkeypatch):
+    """L'atto di riapertura è già agganciato a una propria catena (654): va
+    scaricata l'intera catena 654, non il solo atto."""
+    conn, atto_riapertura_id, flag_id = _db_con_riapertura(atto_riapertura_ha_procedimento=True)
+    monkeypatch.chdir(tmp_path)
+
+    scaricati = scarica_pdf_riapertura(conn, flag_id, opener=_opener_riapertura(), delay=0)
+
+    assert len(scaricati) == 3
+    dest_riapertura = tmp_path / "data/raw/pdf/comune_di_esempio/654"
+    assert (dest_riapertura / "motivo_selezione.json").exists()  # scaricata come catena
+    assert not (tmp_path / f"data/raw/pdf/comune_di_esempio/atto_{atto_riapertura_id}").exists()
+
+
+def test_scarica_pdf_riapertura_flag_inesistente(caplog):
+    conn = _db_con_procedimento()
+    with caplog.at_level("WARNING"):
+        scaricati = scarica_pdf_riapertura(conn, 999, delay=0)
+    assert scaricati == []
+    assert any("non trovato" in r.message for r in caplog.records)

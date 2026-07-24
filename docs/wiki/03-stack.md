@@ -10,7 +10,7 @@ Tutto gratuito/open source. Nessuna dipendenza a pagamento di default. L'LLM gir
 
 | Componente | Scelta | Costo |
 |------------|--------|-------|
-| Linguaggio | Python 3.14+ | 0 |
+| Linguaggio | Python 3.12+ | 0 |
 | Scraping | Scrapy / BeautifulSoup, cron su GitHub Actions | 0 |
 | Storage | SQLite (dev) → Postgres free tier (Supabase/Neon) | 0 |
 | OCR | Tesseract (`pytesseract`) — molti atti sono scansioni | 0 |
