@@ -3,8 +3,8 @@
 > Aggiornato: 2026-07-25 (branch `feat/TAL-11-check3-motivazione`: 9 findings da
 > `/code-review` corretti su PR #14, pronta per merge — CI verde, `mergeable: MERGEABLE`,
 > in attesa solo dell'approvazione di Dom. Ripulita `BOARD.md`: 11 card ferme in Review da
-> sessioni passate verificate e spostate in Done. Run scraper di aggiornamento lanciato su
-> `talia.db` (ultimo run: 21/07). Vedi sezioni sotto.)
+> sessioni passate verificate e spostate in Done. Run scraper completato: 197/204
+> riusciti, +6.427 atti (111.239 totali), 575 red flags. Vedi sezioni sotto.)
 
 ---
 
@@ -45,9 +45,29 @@ la famiglia jCityGov/portalepa/halley/urbi/hspromila/ribera. Marcato Done come p
 completato, non come modulo attivo in produzione (nota esplicita in BOARD.md per non
 generare confusione futura).
 
-**Run scraper:** lanciato `python3 scripts/run_scrapers.py` in background (default: 204
-scraper attivi + red flags + catene) per recuperare gli atti pubblicati dal 21/07 (ultimo
-run) ad oggi. Esito da riportare al completamento.
+**Run scraper (completato):** `python3 scripts/run_scrapers.py`, 204 scraper di default,
+per recuperare gli atti pubblicati dal 21/07 (ultimo run) ad oggi. **197/204 riusciti.**
+DB: 104.812 → **111.239 atti** (+6.427), 163 → **575 red flags** (concentrazione 428,
+tempi anomali 1, revoche in catena 46, riaperture 75 rilevati in questo passaggio — il
+runner ricalcola su tutto il DB ad ogni run, quindi il delta netto è inferiore al
+"rilevati" per via di flag già esistenti ririlevati).
+
+**7 scraper falliti** (exit code 1 dello script è per convenzione — non un crash, vedi
+`return 1 if errori else 0` in `run_scrapers.py`):
+- **`castellammare_golfo`, `cefalù`, `corleone`, `partanna_tp`** (tutti portalepa) — stessi
+  4 comuni già falliti nel run locale del 20/07 (vedi sessione sotto): non sembra rumore
+  di rete casuale ma un problema specifico e persistente di questi 4 tenant portalepa,
+  riproducibile anche da rete locale (non solo dal blocco Akamai IP/ASN di GH Actions già
+  documentato). Da investigare se si ripete ancora al prossimo run.
+- **`brolo`, `pozzallo`, `sortino`** (halley) — `pozzallo` con un errore SSL insolito
+  (*hostname mismatch*, il certificato ricevuto è per `comune.pozzallo.rg.it` ma la
+  richiesta arriva da un contesto taggato "Partanna" nel log: da verificare se è solo un
+  problema di interleaving nell'output o un'anomalia reale nel registro).
+- **Nessuna perdita di copertura**: sia Racalmuto (4 errori 404 sulla riga portalepa
+  `racalmuto`, ma `racalmuto_halley` ha coperto il comune con 55 atti nuovi) sia Partanna
+  hanno un secondo scraper registrato sulla stessa piattaforma-famiglia — tranne
+  `partanna_tp`/`partanna` (halley), che **questo run hanno fallito entrambi**: Partanna
+  non ha ricevuto atti nuovi in questo passaggio (unico comune con 0 copertura effettiva).
 
 ---
 
