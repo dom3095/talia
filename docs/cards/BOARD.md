@@ -4,10 +4,13 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
-Modulo 3 (Dashboard Streamlit). In corso: Fase 2 pipeline (TAL-47 in Review), validazione
-fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50), registro unificato
-scraper (#11) e riapertura dopo revoca (TAL-48) completati e mergiati in `main`. Check-3
-qualità motivazione LLM (TAL-11) in Review (PR #14).
+Modulo 3 (Dashboard Streamlit). In corso: validazione fascicoli reali (TAL-12). Censimento
+Palermo/Trapani (TAL-50), registro unificato scraper (#11), download PDF on-demand
+(TAL-47) e riapertura dopo revoca (TAL-48) completati e mergiati in `main`. Check-3
+qualità motivazione LLM (TAL-11) in Review (PR #14). Ripulita la colonna Review
+(2026-07-25): 11 card verificate e spostate in Done, 3 lasciate aperte con un gap
+specifico ancora documentato nella card (TAL-3 OCR, TAL-5 associazione nome↔ruolo, TAL-9
+incrocio tempistica graduatoria).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -51,25 +54,25 @@ qualità motivazione LLM (TAL-11) in Review (PR #14).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; **PR #14 aperta**, in attesa di review Dom — RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test |
-| [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
-| [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
-| [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
-| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca scansione campione per test OCR reale |
-| [TAL-4](TAL-4.md) | Estrazione entità: date, importi, CIG | 🔤 NLP | |
-| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica) |
-| [TAL-6](TAL-6.md) | Check 1: base giuridica revoca/annullamento | 🔤 NLP | parole spia da validare con ⚖️ LEX |
-| [TAL-7](TAL-7.md) | Check 2: termini autotutela (12 mesi) | 🔤 NLP | assunzione sulle date da validare con ⚖️ LEX |
-| [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | 🔤 NLP | |
-| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | senza incrocio tempistica graduatoria |
-| [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | 📊 FE | formato scelto: HTML statico + JSON + CLI |
-| [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | 🔤 NLP | NER sm rumoroso: resta discovery, non in motore |
-| [TAL-14](TAL-14.md) | Check 7: data breach GDPR non notificato | ⚖️ LEX + 🔤 NLP | check-8 DPO conflict rimandato a TAL-25 |
-| [TAL-47](TAL-47.md) | Download PDF on-demand da catene (Fase 2, MVP jCityGov) | 🕷️ SCR | branch `feat/TAL-47-pdf-on-demand`; validato hash 4/4 su fascicolo Palma; 10 test |
+| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; **PR #14 aperta**, in attesa di review Dom — RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test; 9 findings da code review corretti |
+| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
+| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo esplicitamente rinviata (vedi Consuntivo) |
+| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria ancora aperto, da card dedicata (vedi Consuntivo) |
 
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| [TAL-1](TAL-1.md) | Setup progetto Python + tooling | branch `feat/TAL-1-modulo1-prototipo` |
+| [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | verde su decine di PR successive (verificato non solo al primo) |
+| [TAL-4](TAL-4.md) | Estrazione entità: date, importi, CIG | `engine/entita.py`, usato da `fascicolo.py` |
+| [TAL-6](TAL-6.md) | Check 1: base giuridica revoca/annullamento | `checklist/check1_base_giuridica.py`, registrato in produzione |
+| [TAL-7](TAL-7.md) | Check 2: termini autotutela (12 mesi) | `checklist/check2_termini.py`, registrato in produzione |
+| [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | `checklist/check5_avvio.py`, registrato in produzione ("preavviso" escluso deliberatamente, vedi Consuntivo) |
+| [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | `modulo1_fascicolo/report.py`: HTML statico + JSON + CLI |
+| [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | `engine/attori.py`: NER spaCy rumoroso → resta discovery deliberatamente, non nel motore |
+| [TAL-14](TAL-14.md) | Check 7: data breach GDPR non notificato | `checklist/check7_gdpr.py`, registrato in produzione |
+| [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | `icity.py` + 32 test; pilota Tappa 2, non nel registro scraper di produzione (superato dalla famiglia jCityGov/portalepa/halley) |
+| [TAL-47](TAL-47.md) | Download PDF on-demand da catene (Fase 2, MVP jCityGov) | validato hash 4/4 su fascicolo Palma; poi esteso e usato in produzione da TAL-48 |
 | [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | MVP + integrazione pdf_download (branch `feat/TAL-48-pdf-riaperture`); bugfix critico (data_atto NULL su jCityGov → 0 rilevazioni reali, ora 78); 480 test verdi |
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | PR #12 mergiata (2026-07-12): 9 comuni TIER 0 nel registro, riconciliato con refactor registro scraper (#11) |
 | — | Refactor: registro unificato scraper + health-check (#11) | `data/registro_scraper.csv` + `registry.py` + `_FACTORY_PER_MODULO`; health-check settimanale CI; 39 comuni censiti recuperati (1 attivato — Altavilla Milicia) |

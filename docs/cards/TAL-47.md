@@ -3,7 +3,7 @@
 - **Epica:** E2 — Fase 2 pipeline: PDF on-demand → analisi → red flags
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1
-- **Stato:** Review
+- **Stato:** Done
 - **Branch:** `feat/TAL-47-pdf-on-demand`
 
 ---

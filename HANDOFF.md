@@ -1,10 +1,53 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-24 (branch `feat/TAL-11-check3-motivazione` riconciliato con `main`
-> dopo il merge di **PR #13** — TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
-> motore catena, integrazione pdf_download per le riaperture, backfill date, 8 fascicoli
-> candidati TAL-12 preparati. Su questo branch: TAL-11, check-3 qualità motivazione via
-> LLM+RAG, **PR #14 aperta**, pronta per review/merge. Vedi sezioni sotto.)
+> Aggiornato: 2026-07-25 (branch `feat/TAL-11-check3-motivazione`: 9 findings da
+> `/code-review` corretti su PR #14, pronta per merge — CI verde, `mergeable: MERGEABLE`,
+> in attesa solo dell'approvazione di Dom. Ripulita `BOARD.md`: 11 card ferme in Review da
+> sessioni passate verificate e spostate in Done. Run scraper di aggiornamento lanciato su
+> `talia.db` (ultimo run: 21/07). Vedi sezioni sotto.)
+
+---
+
+## Sessione 2026-07-25 — Riconciliazione PR #14, code review, pulizia BOARD.md
+
+**PR #14 (TAL-11):** il merge di `main` fatto in sessione precedente aveva prodotto un
+commit rotto (`git stash` a metà merge aveva perso `MERGE_HEAD`, quindi non era un vero
+merge a 2 parent) — rifatto correttamente, poi ripulita una duplicazione silenziosa di 3
+righe in `BOARD.md` che il merge automatico aveva introdotto. `/code-review` su tutto il
+diff ha trovato 9 findings reali (verificati, non solo plausibili), tutti corretti in
+`0117852`: offset↔testo dei chunk RAG non allineato (bug riprodotto), offset della
+citazione al corpus non coerente col troncamento, `carenza_istruttoria` non mostrata per
+giudizio "incerta", parsing JSON fragile su graffe letterali, client Ollama duplicato tra
+`engine/llm.py` e `engine/catena.py` (unificato in `chiama_ollama()`), `LLMNonDisponibile`
+non catturata in `cli.py --llm`, `IndiceCorpus` ricostruito ad ogni chiamata senza cache,
+conteggio test sbagliato in HANDOFF. 531 test verdi (erano 526), ruff pulito. Dettagli in
+[TAL-11.md](docs/cards/TAL-11.md), sezione Tentativi.
+
+**Pulizia BOARD.md:** su richiesta di Dom, verificate una per una le card ferme in
+"Review" da sessioni vecchie (alcune da giugno). Per ciascuna: controllato che il file/
+funzione esista, sia effettivamente importato nel percorso di produzione (non solo
+scritto e mai collegato), e che tutti i criteri di accettazione della card siano
+spuntati. Spostate in Done: TAL-1, TAL-2, TAL-4, TAL-6, TAL-7, TAL-8, TAL-10, TAL-13,
+TAL-14, TAL-20, TAL-47. **Lasciate deliberatamente in Review** (gap reale ancora aperto,
+documentato nella card stessa, non solo checkbox stantia):
+- TAL-3 — manca un PDF scansionato campione in `data/samples/` per un test OCR
+  automatizzato (l'OCR funziona ed è stato validato ad-hoc su fascicoli reali TAL-12/48,
+  ma non c'è un test di regressione permanente).
+- TAL-5 — associazione nome↔ruolo dei firmatari esplicitamente rinviata (deviazione
+  documentata: euristica deterministica sì, spaCy no, per scelta).
+- TAL-9 — incrocio con la tempistica della graduatoria non implementato, la card stessa
+  rimanda a "eventuale card dedicata" mai creata.
+
+TAL-20 (spider iCity) è un caso particolare: tutti i criteri sono soddisfatti (32 test),
+ma il modulo non è nel registro scraper di produzione (`data/registro_scraper.csv`) — era
+un pilota "Tappa 2" per validare il pattern, poi la copertura reale è stata raggiunta con
+la famiglia jCityGov/portalepa/halley/urbi/hspromila/ribera. Marcato Done come pilota
+completato, non come modulo attivo in produzione (nota esplicita in BOARD.md per non
+generare confusione futura).
+
+**Run scraper:** lanciato `python3 scripts/run_scrapers.py` in background (default: 204
+scraper attivi + red flags + catene) per recuperare gli atti pubblicati dal 21/07 (ultimo
+run) ad oggi. Esito da riportare al completamento.
 
 ---
 
