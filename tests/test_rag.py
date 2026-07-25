@@ -82,6 +82,22 @@ def test_chunk_su_piu_paragrafi_ha_offset_del_primo_e_ultimo(tmp_path):
     assert contenuto_file[passaggio.offset_inizio : passaggio.offset_fine] == passaggio.testo
 
 
+def test_chunk_con_riga_vuota_extra_tra_paragrafi_rispetta_offset_esatto(tmp_path):
+    # Regressione code review: il testo del chunk veniva ricostruito unendo i
+    # paragrafi con un separatore hardcoded "\n\n", che non corrisponde al gap
+    # reale nel file quando c'è una riga vuota in più (o \r\n, o spazi finali)
+    # tra due paragrafi — rompendo l'invariante contenuto[a:b] == passaggio.testo.
+    cartella = tmp_path / "corpus"
+    cartella.mkdir()
+    contenuto = "# Titolo\n\n\nPrimo paragrafo di contenuto normativo rilevante qui."
+    (cartella / "norma.md").write_text(contenuto, encoding="utf-8")
+
+    indice = IndiceCorpus(cartella)
+    assert len(indice) == 1
+    passaggio = indice._passaggi[0]
+    assert contenuto[passaggio.offset_inizio : passaggio.offset_fine] == passaggio.testo
+
+
 def test_paragrafo_gigante_senza_righe_vuote_viene_comunque_spezzato(tmp_path):
     # Regressione: il corpus reale (scaricato da Normattiva/EUR-Lex) è spesso
     # un unico blocco di ~100k caratteri senza "\n\n". Senza lo split di

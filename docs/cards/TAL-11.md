@@ -135,6 +135,46 @@ spiegazione "non ha verificato autonomamente la presunta violazione, basandosi s
 segnalazione del sindaco senza accertamenti interni" — coerente con l'osservazione di Dom. Il
 giudizio del LLM resta un dato da verificare (⚖️ LEX), non un accertamento.
 
+### 2026-07-25 — Tentativo: /code-review su PR #14, 9 findings corretti
+**Approccio:** review multi-angolo (reuse/semplificazione, efficienza, convenzioni
+cross-file) sull'intero diff `main...HEAD`, con verifica diretta (script di riproduzione
+per il bug di offset) prima di applicare i fix.
+**Esito:** ✅ tutti e 9 corretti, 531 test verdi (erano 526), ruff pulito.
+**Appreso:**
+1. `rag.py::_chunk_file` ricostruiva `testo` unendo i paragrafi con un separatore
+   hardcoded `"\n\n"` invece di uno slice reale del file: coincideva con l'offset solo
+   perché il gap nella fixture di test era sempre di esattamente 2 caratteri. Fix:
+   `testo` è ora sempre `contenuto[offset_inizio:offset_fine]`. Bug non preso dai test
+   esistenti perché nessuna fixture aveva una riga vuota "atipica" tra paragrafi.
+2. `_cita_passaggio` troncava la resa a schermo a 220 caratteri ma riportava comunque
+   l'`offset_fine` dell'intero chunk — stesso bug già corretto altrove nel file (citazione
+   dell'atto) ma non applicato qui. Fix: tronca il testo *grezzo* prima di normalizzare
+   gli spazi, così l'offset corrisponde sempre a quanto realmente citato.
+3. `carenza_istruttoria` veniva riportato in `spiegazione` solo per `giudizio="specifica"`,
+   non per `"incerta"` — un segnale del LLM silenziosamente perso in un caso comunque
+   rilevante.
+4. `_estrai_giudizio` usava un regex piatto (`\{[^{}]*\}`) che fallisce se un valore
+   contiene una graffa letterale. Sostituito con uno scanner a conteggio di profondità
+   che ignora le graffe dentro le stringhe JSON.
+5. `engine/llm.py` duplicava la chiamata HTTP a Ollama già presente in
+   `engine/catena.py::classifica_ruolo_llm` — i due client erano già andati alla deriva
+   (temperatura, gestione errori). Estratto un helper condiviso `chiama_ollama()`;
+   `catena.py` ora lo riusa mantenendo il proprio fallback silenzioso (opt-in, Strategia 4).
+   Come effetto collaterale, `json.JSONDecodeError` è ora coperto dallo stesso
+   `except` che gestisce gli errori di rete (prima si propagava non gestito).
+6. `cli.py`: la chiamata a `analizza_testi(..., valuta_llm=True)` era fuori dal blocco
+   `try/except RuntimeError` che gestisce già gli altri errori di estrazione — `--llm`
+   senza Ollama attivo usciva con un traceback grezzo invece del percorso "Errore: ..."
+   già esistente. Spostata dentro lo stesso blocco (`LLMNonDisponibile` è una
+   `RuntimeError`, nessun except nuovo necessario).
+7. `IndiceCorpus()` veniva ricostruito da zero a ogni chiamata quando il chiamante non
+   inietta un `indice` (unico caller di produzione, `analizza_fascicolo`, non lo fa):
+   innocuo oggi (un fascicolo per processo), ma O(corpus × N) in un futuro uso batch.
+   Fix minimale: `functools.lru_cache` sul costruttore di default — i test non ne
+   risentono perché iniettano sempre un indice proprio.
+8. `HANDOFF.md` riportava "23 nuovi" test per questa card, corretto a "33" (il numero
+   giusto era già in `BOARD.md`, mai riconciliato).
+
 ## 📝 Note
 Determinismo prima: questa card non sblocca il prototipo, segue la validazione iniziale
 (TAL-12). Prossimo passo naturale: usare questo check sugli 8 fascicoli TAL-12 già preparati

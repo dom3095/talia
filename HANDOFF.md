@@ -43,7 +43,7 @@ indipendenti; riconciliato con `main` il 24/07 dopo il merge di PR #13, conflitt
    → cattura tutto in mezzo, JSON non valido). Fix: si prende l'ultimo oggetto JSON valido con
    chiave `giudizio`, non il primo/unico match presunto. Test di regressione aggiunto.
 
-**Test:** 23 nuovi (`test_rag.py`, `test_llm.py`, `test_check3_motivazione.py`,
+**Test:** 33 nuovi (`test_rag.py`, `test_llm.py`, `test_check3_motivazione.py`,
 `test_analisi_llm.py` per il wiring), 496 totali verdi, ruff pulito.
 
 **Nota di processo:** `pyproject.toml`/CI su `main` dichiarano ancora `python 3.14`/`ruff

@@ -207,6 +207,57 @@ def test_estrai_giudizio_risposta_senza_json_ritorna_incerta():
     assert "non interpretabile" in spiegazione
 
 
+def test_estrai_giudizio_gestisce_graffe_letterali_nella_spiegazione():
+    # Regressione code review: un regex piatto \{[^{}]*\} spezza il parsing se
+    # un valore (qui "spiegazione") contiene una graffa letterale, perché la
+    # trova come chiusura prematura dell'oggetto. Serve un conteggio di
+    # profondità che ignori le graffe dentro le stringhe JSON.
+    risposta = (
+        '{"giudizio": "generica", "carenza_istruttoria": false, '
+        '"spiegazione": "richiama solo {ripristino della legalità} senza altro"}'
+    )
+    giudizio, carenza_istruttoria, spiegazione = _estrai_giudizio(risposta)
+    assert giudizio == "generica"
+    assert carenza_istruttoria is False
+    assert spiegazione == "richiama solo {ripristino della legalità} senza altro"
+
+
+def test_giallo_su_incerta_con_carenza_istruttoria_include_nota(monkeypatch):
+    # Regressione code review: la nota di carenza istruttoria veniva aggiunta
+    # solo per giudizio == "specifica", non per "incerta" — pur essendo un
+    # segnale del LLM comunque rilevante da mostrare.
+    monkeypatch.setattr(
+        mod,
+        "genera",
+        lambda prompt: (
+            '{"giudizio": "incerta", "carenza_istruttoria": true, '
+            '"spiegazione": "non è chiaro se la motivazione sia specifica"}'
+        ),
+    )
+    contesto = _contesto(_MOTIVAZIONE_LUNGA)
+    esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
+    assert esito.stato is Stato.GIALLO
+    assert "non è un giudizio pieno" in esito.spiegazione
+
+
+def test_cita_passaggio_troncato_ha_offset_coerente_col_testo():
+    # Regressione code review: l'estratto del passaggio era troncato a 220
+    # caratteri per la resa a schermo, ma offset_fine riportava comunque la
+    # fine dell'intero chunk — un intervallo più ampio di quanto citato tra
+    # virgolette (stesso principio già corretto per la citazione dell'atto).
+    testo_lungo = "articolo di legge rilevante " * 20  # ben oltre 220 caratteri
+    passaggio = Passaggio(
+        testo=testo_lungo,
+        fonte="nazionale/x.md",
+        offset_inizio=100,
+        offset_fine=100 + len(testo_lungo),
+    )
+    rif_corpus = mod._cita_passaggio(passaggio)
+    assert "100-320" in rif_corpus  # 100 + 220
+    estratto = rif_corpus.split("«")[1].rstrip("»")
+    assert estratto.endswith("…")
+
+
 def test_giudizio_sconosciuto_trattato_come_incerta(monkeypatch):
     monkeypatch.setattr(
         mod, "genera", lambda prompt: '{"giudizio": "boh", "spiegazione": "non chiaro"}'

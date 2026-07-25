@@ -23,16 +23,16 @@ che opera in-memory sul testo già estratto.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 import re
 import sqlite3
 import unicodedata
-import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from .llm import chiama_ollama
 
 _log = logging.getLogger(__name__)
 
@@ -648,23 +648,14 @@ def classifica_ruolo_llm(
 
     Restituisce 'altro' se Ollama non risponde o la risposta non è nel vocabolario.
     """
-    payload = json.dumps(
-        {
-            "model": modello,
-            "prompt": _PROMPT_CLASSIFICA.format(oggetto=oggetto[:300]),
-            "stream": False,
-            "options": {"temperature": 0},
-        }
-    ).encode()
     try:
-        req = urllib.request.Request(
-            f"{base_url}/api/generate",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        data = chiama_ollama(
+            _PROMPT_CLASSIFICA.format(oggetto=oggetto[:300]),
+            modello,
+            base_url=base_url,
+            timeout=timeout,
+            opzioni={"temperature": 0},
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
         testo = (data.get("response") or "").strip().lower()
         prima_parola = testo.split()[0] if testo else "altro"
         return prima_parola if prima_parola in _RUOLI_VALIDI else "altro"

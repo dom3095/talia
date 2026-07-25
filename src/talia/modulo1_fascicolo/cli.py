@@ -69,11 +69,12 @@ def _comando_analizza(args: argparse.Namespace) -> int:
 
     try:
         testi = [_carica_testo(f) for f in file]
-    except RuntimeError as exc:  # es. extra [pdf] non installati
+        report = analizza_testi(testi, valuta_llm=args.llm)
+    except RuntimeError as exc:
+        # RuntimeError copre sia l'estrazione PDF (extra [pdf] non installati)
+        # sia LLMNonDisponibile (--llm senza Ollama raggiungibile, TAL-11).
         print(f"Errore: {exc}", file=sys.stderr)
         return 2
-
-    report = analizza_testi(testi, valuta_llm=args.llm)
     contenuto = _rendi(report, args.formato)
 
     if args.out:

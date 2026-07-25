@@ -168,34 +168,42 @@ def _dividi_paragrafi(testo: str) -> list[tuple[str, int]]:
 
 
 def _chunk_file(path: Path, radice: Path) -> list[Passaggio]:
-    """Divide un file markdown in chunk per paragrafo (accorpati fino a una dimensione massima)."""
+    """Divide un file markdown in chunk per paragrafo (accorpati fino a una dimensione massima).
+
+    `testo` è sempre uno slice esatto di `contenuto[offset_inizio:offset_fine]`, non una
+    ricostruzione per concatenazione: unire i paragrafi con un separatore hardcoded
+    ("\\n\\n") produrrebbe un testo diverso dallo slice reale ogni volta che il gap
+    effettivo nel file (riga vuota in più, spazi finali, `\\r\\n`) non è esattamente di
+    due caratteri, rompendo l'invariante offset↔testo su cui si basa la citazione
+    puntuale (bug trovato in code review, riprodotto su un file con una riga vuota extra).
+    """
     fonte = str(path.relative_to(radice))
-    paragrafi = _dividi_paragrafi(path.read_text(encoding="utf-8"))
+    contenuto = path.read_text(encoding="utf-8")
+    paragrafi = _dividi_paragrafi(contenuto)
     chunk: list[Passaggio] = []
-    corrente = ""
     inizio_corrente = 0
     fine_corrente = 0
+    aperto = False
     for paragrafo, offset in paragrafi:
-        if corrente and len(corrente) + len(paragrafo) > _DIMENSIONE_CHUNK_MAX:
+        fine_paragrafo = offset + len(paragrafo)
+        if aperto and (fine_paragrafo - inizio_corrente) > _DIMENSIONE_CHUNK_MAX:
             chunk.append(
                 Passaggio(
-                    testo=corrente,
+                    testo=contenuto[inizio_corrente:fine_corrente],
                     fonte=fonte,
                     offset_inizio=inizio_corrente,
                     offset_fine=fine_corrente,
                 )
             )
-            corrente = paragrafo
+            aperto = False
+        if not aperto:
             inizio_corrente = offset
-        else:
-            if not corrente:
-                inizio_corrente = offset
-            corrente = f"{corrente}\n\n{paragrafo}" if corrente else paragrafo
-        fine_corrente = offset + len(paragrafo)
-    if corrente:
+            aperto = True
+        fine_corrente = fine_paragrafo
+    if aperto:
         chunk.append(
             Passaggio(
-                testo=corrente,
+                testo=contenuto[inizio_corrente:fine_corrente],
                 fonte=fonte,
                 offset_inizio=inizio_corrente,
                 offset_fine=fine_corrente,

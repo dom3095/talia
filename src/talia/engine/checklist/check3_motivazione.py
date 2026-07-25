@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 
 from ..fascicolo import ContestoFascicolo
 from ..llm import genera
@@ -131,18 +132,54 @@ def _isola_motivazione(testo: str) -> str:
 _GIUDIZI_VALIDI = frozenset({"specifica", "generica", "incerta"})
 
 
+def _estrai_oggetti_json(testo: str) -> list[str]:
+    """Trova tutte le sottostringhe che sono oggetti JSON bilanciati di primo livello.
+
+    Un regex piatto (`\\{[^{}]*\\}`) fallisce se un valore contiene una graffa
+    letterale (es. una `spiegazione` che cita testo tra parentesi graffe): qui
+    si conta la profondità carattere per carattere, ignorando le graffe che
+    compaiono dentro una stringa JSON (comprese le sequenze di escape), per
+    isolare correttamente ogni oggetto `{...}` anche con contenuto annidato.
+    """
+    oggetti: list[str] = []
+    profondita = 0
+    inizio = 0
+    in_stringa = False
+    escape = False
+    for i, ch in enumerate(testo):
+        if in_stringa:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_stringa = False
+            continue
+        if ch == '"':
+            in_stringa = True
+        elif ch == "{":
+            if profondita == 0:
+                inizio = i
+            profondita += 1
+        elif ch == "}" and profondita > 0:
+            profondita -= 1
+            if profondita == 0:
+                oggetti.append(testo[inizio : i + 1])
+    return oggetti
+
+
 def _estrai_giudizio(risposta: str) -> tuple[str, bool, str]:
     """Estrae {giudizio, carenza_istruttoria, spiegazione} dal JSON nella risposta del LLM.
 
     I modelli "thinking" locali (es. qwen3) spesso ragionano ad alta voce prima
     della risposta finale, ripetendo talvolta l'esempio di formato del prompt
     (con lo stesso schema di chiavi) prima di dare la risposta vera: si cercano
-    tutti gli oggetti JSON non annidati nella risposta e si prende l'**ultimo**
-    che contiene la chiave "giudizio" (verificato empiricamente contro qwen3:4b
-    via Ollama — un singolo regex greedy `\\{.*\\}` cattura tutto tra la prima
-    e l'ultima graffa e fallisce il parsing quando compaiono più oggetti).
+    tutti gli oggetti JSON nella risposta e si prende l'**ultimo** che contiene
+    la chiave "giudizio" (verificato empiricamente contro qwen3:4b via Ollama —
+    un singolo regex greedy `\\{.*\\}` cattura tutto tra la prima e l'ultima
+    graffa e fallisce il parsing quando compaiono più oggetti).
     """
-    candidati = re.findall(r"\{[^{}]*\}", risposta, re.DOTALL)
+    candidati = _estrai_oggetti_json(risposta)
     for candidato in reversed(candidati):
         try:
             dati = json.loads(candidato)
@@ -160,19 +197,43 @@ def _estrai_giudizio(risposta: str) -> tuple[str, bool, str]:
     return "incerta", False, f"Risposta LLM non interpretabile come JSON: {risposta[:200]!r}"
 
 
+_LIMITE_ESTRATTO_CORPUS = 220
+
+
 def _cita_passaggio(passaggio: Passaggio) -> str:
     """Riferimento puntuale a un passaggio del corpus normativo.
 
     Un bare filename non è un riferimento verificabile: come per le citazioni
     dell'atto, serve il testo esatto e un locatore (qui: offset di carattere
     nel file sorgente) — principio di esplicabilità (CLAUDE.md).
+
+    Il troncamento avviene sul testo **grezzo** (prima della normalizzazione
+    degli spazi bianchi usata solo per la resa a schermo): `offset_fine`
+    corrisponde così esattamente a dove finisce il testo citato, non alla fine
+    dell'intero passaggio — stesso bug/principio già corretto per la citazione
+    dell'atto (altrimenti l'offset dichiarerebbe un intervallo più ampio di
+    quanto effettivamente riportato tra virgolette).
     """
-    estratto = " ".join(passaggio.testo.split())
-    if len(estratto) > 220:
-        estratto = estratto[:220].rstrip() + "…"
-    return (
-        f"{passaggio.fonte} (car. {passaggio.offset_inizio}-{passaggio.offset_fine}): «{estratto}»"
-    )
+    grezzo = passaggio.testo
+    if len(grezzo) > _LIMITE_ESTRATTO_CORPUS:
+        offset_fine = passaggio.offset_inizio + _LIMITE_ESTRATTO_CORPUS
+        estratto = " ".join(grezzo[:_LIMITE_ESTRATTO_CORPUS].split()) + "…"
+    else:
+        offset_fine = passaggio.offset_fine
+        estratto = " ".join(grezzo.split())
+    return f"{passaggio.fonte} (car. {passaggio.offset_inizio}-{offset_fine}): «{estratto}»"
+
+
+@lru_cache(maxsize=1)
+def _indice_corpus_default() -> IndiceCorpus:
+    """Indice BM25 di default, costruito una sola volta per processo.
+
+    `valuta_motivazione` non riceve un `indice` esplicito dall'unico chiamante
+    di produzione (`analizza_fascicolo`): senza cache, ogni chiamata
+    ripeterebbe la scansione/tokenizzazione dell'intero corpus da zero. I test
+    non toccano mai questo percorso: iniettano sempre un `indice` proprio.
+    """
+    return IndiceCorpus()
 
 
 def _esito_non_applicabile(spiegazione: str) -> EsitoCheck:
@@ -219,7 +280,7 @@ def valuta_motivazione(
             riferimenti_normativi=list(_RIFERIMENTI),
         )
 
-    indice = indice if indice is not None else IndiceCorpus()
+    indice = indice if indice is not None else _indice_corpus_default()
     passaggi = indice.cerca(motivazione, k=5)
     contesto_normativo = "\n\n".join(f"[{p.fonte}]\n{p.testo}" for p in passaggi) or (
         "(nessun passaggio pertinente trovato nel corpus)"
@@ -229,7 +290,7 @@ def valuta_motivazione(
     risposta = genera(prompt)
     giudizio, carenza_istruttoria, spiegazione_llm = _estrai_giudizio(risposta)
     stato = _calcola_stato(giudizio, carenza_istruttoria)
-    if giudizio == "specifica" and carenza_istruttoria:
+    if carenza_istruttoria and giudizio in ("specifica", "incerta"):
         spiegazione_llm = _unisci_frasi(spiegazione_llm, _NOTA_CARENZA_ISTRUTTORIA)
 
     inizio = atto.testo.find(motivazione)
