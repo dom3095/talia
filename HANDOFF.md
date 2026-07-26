@@ -1,10 +1,49 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-25 (branch `feat/TAL-11-check3-motivazione`: 9 findings da
-> `/code-review` corretti su PR #14, pronta per merge — CI verde, `mergeable: MERGEABLE`,
-> in attesa solo dell'approvazione di Dom. Ripulita `BOARD.md`: 11 card ferme in Review da
-> sessioni passate verificate e spostate in Done. Run scraper completato: 197/204
-> riusciti, +6.427 atti (111.239 totali), 575 red flags. Vedi sezioni sotto.)
+> Aggiornato: 2026-07-26 (PR #14 pronta per merge — vedi sessione 2026-07-25 sotto per i
+> 9 findings corretti. **Nuova PR #15** su branch `fix/scraper-registro-cert-url`: 4 dei 7
+> scraper falliti nel run del 25/07 diagnosticati e corretti — vedi sezione sotto.)
+
+---
+
+## Sessione 2026-07-26 — Diagnosi scraper falliti, PR #15
+
+Su richiesta di Dom ("possiamo fare qualcosa sugli scraper che non funzionano"),
+diagnosticati dal vivo (curl + client Python diretto, non assumendo rumore di rete) i 7
+scraper falliti nel run del 25/07. **4 corretti, PR #15 aperta** (branch
+`fix/scraper-registro-cert-url`, da `main` — non da questo branch, fix indipendente dal
+check LLM):
+
+- **`brolo`, `pozzallo`, `sortino`** (Halley EG): catena certificato SSL incompleta lato
+  server, stesso pattern già noto per Siculiana/Joppolo Giancaxio (non un certificato
+  scaduto). Verificato che il contenuto con `skip_ssl=True` è genuino (titolo pagina +
+  markup Halley coerenti col comune, non un dominio sbagliato) prima di applicare il fix.
+  `skip_ssl=true` impostato nel registro.
+- **`castellammare_golfo`** (portalepa): `base_url` in registro puntava a una pagina del
+  sito comunale invece che al portale portalepa reale (probabile artefatto del censimento
+  originale) — corretto a `castellammare.soluzionipa.it`, stesso pattern
+  `<slug>.soluzionipa.it` degli altri tenant.
+
+Tutti e 4 verificati end-to-end con `run_scrapers.py --scrapers <slug> --max-pagine 2` su
+DB isolato prima del commit.
+
+**Restano non risolti** (richiedono lavoro vero, non un fix di registro):
+- `corleone` (portalepa): l'albo reale è su un layout HTML diverso
+  (`openweb/messi/public/albo.php`, su IP diretto con una home page "demo/cms"), non
+  compatibile col parser attuale di `portalepa.py` (`openweb/albo/albo_pretorio.php`) —
+  serve una variante di parser dedicata.
+- `cefalù`, `partanna_tp` (portalepa): `base_url` reale non individuato con una ricerca
+  rapida (nessun sottodominio `soluzionipa.it` plausibile risponde via DNS, nessun link
+  "albo"/"pretorio"/"soluzionipa" nella homepage del sito comunale) — serve
+  investigazione più approfondita (ricerca manuale o web).
+
+**Copertura scraper — quadro completo** (richiesto da Dom, non ancora in nessuna doc):
+su 391 comuni siciliani (5.001.690 abitanti), 198 hanno uno scraper attivo (74%
+popolazione). Il resto si divide in: Agrigento (funzionante, escluso dal run *default* per
+tempo — va lanciato esplicitamente), Messina (bloccato, FortiGate+cert scaduto), 38
+comuni `pending` (piattaforma già identificata, scraper da scrivere — backlog TAL-51), e
+**153 comuni mai censiti** (non hanno mai superato lo sweep di dominio delle piattaforme
+note) — il gap più grande e meno esplorato.
 
 ---
 
