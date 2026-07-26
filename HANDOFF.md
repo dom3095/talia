@@ -1,11 +1,68 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-21 (TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
-> motore catena + 3 red flag, integrazione pdf_download per le riaperture, backfill date
-> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. Poi
-> TAL-12: 8 nuovi fascicoli candidati preparati (download + report Modulo 1) da catene
-> problematiche. **PR #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per
-> review/merge. Vedi sezioni sotto.)
+> Aggiornato: 2026-07-26 (branch `feat/sweep-comuni-mancanti`: sweep di dominio sui 153
+> comuni siciliani mai censiti, 40 attivati con atti verificati, +189.921 abitanti
+> (74,0%→77,8% popolazione). Pronto per PR. Vedi sezione sotto per dettagli e per lo
+> storico TAL-48/TAL-12 del 21/07.)
+
+---
+
+## Sessione 2026-07-26 — Sweep comuni mai censiti + fix scraper (PR #15 + questo branch)
+
+**Contesto:** su richiesta di Dom ("possiamo fare qualcosa sugli scraper che non
+funzionano o su quelli mancanti"), prima diagnosticati e corretti 4 dei 7 scraper falliti
+nel run del 25/07 — **PR #15** (`fix/scraper-registro-cert-url`, branch separato da
+questo): `brolo`/`pozzallo`/`sortino` (Halley, catena certificato incompleta →
+`skip_ssl=true`) e `castellammare_golfo` (portalepa, `base_url` sbagliato in registro,
+corretto a `castellammare.soluzionipa.it`); restano aperti `corleone` (layout HTML
+diverso, serve parser dedicato) e `cefalù`/`partanna_tp` (base_url reale non trovato).
+Poi, su richiesta esplicita di continuare con gli scraper mancanti: primo conteggio
+sistematico di quanti comuni siciliani non avessero **nessuna**
+riga nel registro (né attivo né pending) → **153 comuni, 1.072.324 abitanti**, un gap
+più grande di quanto la documentazione esistente (TAL-49/50/51) suggerisse.
+
+**Sweep di dominio** (stessa metodologia 2026-07-07: pattern noti jCityGov/Halley
+EG/portalepa + fingerprint, più **Halley HSPromila** mai sweepato sistematicamente
+prima): script one-off in scratchpad, lanciato sotto `caffeinate` (branch dedicato
+`feat/sweep-comuni-mancanti`, indipendente da PR #14/#15). **47 hit** su 153 (34
+HSPromila, 11 Halley, 2 jCityGov).
+
+**A differenza degli sweep precedenti, ogni hit verificato con una vera chiamata a
+`scarica_atti()`** (moduli di produzione), non solo il fingerprint HTTP:
+- **40 confermati con atti reali** (contenuto controllato a campione: titoli di atti
+  plausibili, es. "ESTATE RIESINA 2026 PRIMA PARTE - IMPEGNO DI SPESA") → attivati
+- **7 con fingerprint corretto ma 0 atti estratti** (Cianciana, San Michele di Ganzaria,
+  Oliveri, Monterosso Almo, Acquaviva Platani, Novara di Sicilia, Floresta) → lasciati
+  `pending` con nota — non abbastanza per attivarli senza capire se l'albo è
+  genuinamente vuoto o la struttura HTML è diversa (principio "mai attivare uno scraper
+  a 0 atti silenzioso", CLAUDE.md)
+
+**2 bug reali trovati durante l'integrazione (non dai test, dal test end-to-end):**
+1. **Codice ISTAT di Messina sbagliato nel registro** (083053 — in realtà **Moio
+   Alcantara**, mai testato per questo conflitto silenzioso). Corretto a 083048.
+   Verificato che Moio Alcantara non è comunque raggiungibile sui pattern noti.
+2. **Timeout sistemico su HSPromila**: un primo run reale con `run_scrapers.py` sui 40
+   nuovi comuni ha dato 16/40 falliti per timeout — non un problema per singolo tenant,
+   ma l'host condiviso `hspromilaprod.hypersicapp.net` (34 tenant in più sullo stesso
+   dominio, prima solo 6) che non regge richieste sequenziali ravvicinate per comuni
+   diversi. Verificato isolando una richiesta fallita: risponde 200 pulito se non
+   preceduta da altre richieste ravvicinate — non un fallimento persistente. Fix: retry
+   con backoff 2s in `hspromila.py::scarica_atti` (stesso pattern già in `jcitygov.py`),
+   2 nuovi test di regressione (mock su `urllib.request.urlopen`). Dopo il fix: **37/40**
+   al secondo run (3 falliti, in linea col rumore di rete storico ~3-7%).
+
+**Copertura risultante: 238 comuni attivi (era 198), 3.889.697 abitanti (77,8%, era
+74,0%)**, +7 pending verificati. Restano **106 comuni mai censiti da nessuno sweep**
+(624.607 abitanti) — candidati per un prossimo giro, probabilmente su piattaforme non
+ancora coperte da TALIA (nessun hit sui pattern jCityGov/Halley/portalepa/HSPromila).
+
+**495 test verdi (erano 493), ruff pulito.** Dettagli completi in
+[14-censimento-albi.md](docs/wiki/14-censimento-albi.md). Script di sweep non
+committato (one-off in scratchpad, stessa convenzione degli sweep precedenti).
+
+**Prossimo passo:** aprire PR per `feat/sweep-comuni-mancanti` (indipendente da PR
+#14/#15). Poi considerare un giro di reverse-engineering manuale sui 106 comuni residui
+(prossima estensione naturale di TAL-51, finora limitato a Palermo/Trapani).
 
 ---
 

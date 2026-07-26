@@ -69,6 +69,7 @@ scraper (#11) completati e mergiati in `main`.
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| — | Sweep di dominio comuni mai censiti (2026-07-26) | branch `feat/sweep-comuni-mancanti`; 153 comuni mai censiti individuati, 47 hit (jCityGov/Halley/HSPromila), 40 verificati con atti reali e attivati (+189.921 abitanti, copertura 74,0%→77,8%), 7 pending (fingerprint ok ma 0 atti); bugfix retry HSPromila (host condiviso in timeout su richieste ravvicinate) + fix codice ISTAT Messina; 495 test verdi |
 | [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | MVP + integrazione pdf_download (branch `feat/TAL-48-pdf-riaperture`); bugfix critico (data_atto NULL su jCityGov → 0 rilevazioni reali, ora 78); 480 test verdi |
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | PR #12 mergiata (2026-07-12): 9 comuni TIER 0 nel registro, riconciliato con refactor registro scraper (#11) |
 | — | Refactor: registro unificato scraper + health-check (#11) | `data/registro_scraper.csv` + `registry.py` + `_FACTORY_PER_MODULO`; health-check settimanale CI; 39 comuni censiti recuperati (1 attivato — Altavilla Milicia) |

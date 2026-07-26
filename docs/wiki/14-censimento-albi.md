@@ -1,12 +1,56 @@
 # 14 — Censimento albi pretori dei comuni siciliani (TAL-49 + TAL-50)
 
-Aggiornato: 2026-07-10 (registro unificato `data/registro_scraper.csv`, TAL-51).
-Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+Aggiornato: 2026-07-26 (sweep di dominio sui comuni mai censiti). Fonte lista comuni:
+`data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
 
 Configurazione scraper: **`data/registro_scraper.csv`** è l'unica fonte di verità
 (sostituisce le vecchie liste hardcoded in `run_scrapers.py` e i CSV di censimento
 `censimento_albi_pa_tp[_COMPLETO].csv`, rimossi). Vedi `registry.py` per il loader.
 Le sezioni sotto restano come narrativa storica di come ogni comune è stato scoperto.
+
+### Sweep di dominio sui comuni mai censiti (2026-07-26)
+
+Dopo il run scraper del 25/07, calcolato per la prima volta quanti comuni siciliani non
+avevano **nessuna** riga nel registro (né `attivo` né `pending`): **153 comuni**
+(1.072.324 abitanti) su 391, mai censiti da nessun sweep precedente — un gap più grande
+di quanto documentato finora (le sessioni TAL-49/50/51 avevano coperto PA/TP e i
+capoluoghi, non l'intera regione in modo sistematico).
+
+Stessa metodologia degli sweep del 2026-07-07 (jCityGov, Halley EG, portalepa): pattern
+di dominio noti + fingerprint sulla risposta HTTP, applicati anche a **Halley HSPromila**
+(`<slug>.hspromilaprod.hypersicapp.net`, non ancora sweepato sistematicamente prima).
+Script one-off non committato (stessa convenzione degli sweep precedenti).
+
+**47 hit** (34 HSPromila, 11 Halley EG, 2 jCityGov) su 153 comuni testati. A differenza
+degli sweep precedenti, ogni hit è stato **verificato con una vera chiamata a
+`scarica_atti()`** (i moduli di produzione, non solo il fingerprint) prima di attivarlo:
+- **40 verificati con atti reali** → attivati (`stato=attivo`)
+- **7 con fingerprint di piattaforma corretto ma 0 atti estratti** (Cianciana, San
+  Michele di Ganzaria, Oliveri, Monterosso Almo, Acquaviva Platani, Novara di Sicilia,
+  Floresta) → lasciati `pending` con nota esplicita: non abbastanza per attivarli come
+  scraper affidabili senza capire se l'albo è davvero vuoto o la struttura HTML diversa
+  (principio "fallimento silenzioso a 0 atti" di CLAUDE.md).
+
+**Bug trovato durante l'integrazione:** il codice ISTAT di Messina nel registro era
+sbagliato (083053, in realtà **Moio Alcantara** — mai testato per colpa di questo
+conflitto). Corretto a 083048.
+
+**Bug trovato e corretto durante il test di integrazione end-to-end:** un primo run
+completo con `run_scrapers.py` sui 40 nuovi comuni ha rivelato che 16/40 fallivano per
+timeout — non un problema dei singoli tenant, ma l'host condiviso
+`hspromilaprod.hypersicapp.net` (ora con 34 tenant invece di 6) che non regge bene
+richieste sequenziali ravvicinate per comuni diversi. Verificato isolando una singola
+richiesta fallita: risponde 200 senza problemi se non è preceduta da altre richieste
+ravvicinate. Fix: retry con backoff di 2s in `hspromila.py::scarica_atti` (stesso
+pattern già usato in `jcitygov.py`). Dopo il fix: **37/40 riusciti** al secondo run
+(3 falliti, in linea col rumore di rete storico del progetto, ~3-7%).
+
+**Copertura dopo questo sweep: 238 comuni attivi** (era 198), **3.889.697 abitanti
+(77,8% della popolazione siciliana, era 74,0%)**, +7 `pending` verificati (0 atti).
+Restano comuni mai censiti da nessuno sweep (né attivi né pending): **106**
+(624.607 abitanti).
+
+Dettagli completi (script, log, verifica) in HANDOFF.md, sessione 2026-07-26.
 
 ### Recupero 39 comuni censiti (code review 2026-07-11)
 
