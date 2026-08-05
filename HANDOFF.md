@@ -1,9 +1,57 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-26 (branch `feat/sweep-comuni-mancanti`: sweep di dominio sui 153
-> comuni siciliani mai censiti, 40 attivati con atti verificati, +189.921 abitanti
-> (74,0%→77,8% popolazione). Pronto per PR. Vedi sezione sotto per dettagli e per lo
-> storico TAL-48/TAL-12 del 21/07.)
+> Aggiornato: 2026-08-05 (branch `feat/sweep-comuni-mancanti`, PR #16: riconciliato con
+> `main` dopo merge di PR #14/#15; run completa scraper (234/244 OK); fix retry
+> `halley.py`; 3 comuni con piattaforma migrata identificati, non ancora risolti. Vedi
+> sezione sotto.)
+
+---
+
+## Sessione 2026-08-05 — Riconciliazione PR #16 + run completa scraper + fix halley.py
+
+**Contesto:** Dom aveva già mergiato PR #14 (TAL-11 check-3 LLM) e PR #15 (fix
+skip_ssl/base_url) direttamente su `main` senza notifica in sessione. `feat/sweep-comuni-mancanti`
+(PR #16) risultava quindi `CONFLICTING`/`DIRTY`. Riconciliato con `git merge origin/main`
+(merge a 2 parent verificato con `git cat-file -p`, nessun duplicato residuo in
+BOARD.md/HANDOFF.md/registro — controllato esplicitamente dopo l'incidente di stash
+della sessione precedente). 533 test verdi, `ruff check` pulito, `registry.py::valida_registro`
+senza errori. Push riuscito, **PR #16 ora `MERGEABLE`**.
+
+**Run completa scraper** (`caffeinate -i python scripts/run_scrapers.py`, su `talia.db`
+reale, 244 scraper attivi): **234/244 OK (95,9%)** → DB: 286 enti, 128.050 atti, 631 red
+flags. 10 falliti al primo giro, tutti errori di rete (nessun parsing rotto). Analisi
+dei 10 via query diretta su `scraper_runs` (più affidabile del parsing log — stdout
+bufferizzato e stderr non bufferizzato si interlacciano nel file quando redirect
+combinato `2>&1`, l'ordine delle righe non riflette l'ordine reale degli eventi):
+- **7 flaky Halley** (`calatafimisegesta`, `maletto`, `mussomeli`, `sancipirello`,
+  `sangiuseppejato`, `grammichele`, `altavillamilicia`): `ConnectionRefusedError`
+  transitorio, confermato con retry manuale/`curl` a distanza di secondi — stesso
+  pattern host-condiviso-sovraccarico già risolto per `hspromila.py` il 26/07, ma su
+  un IP Halley diverso (`195.231.11.215`, condiviso da almeno 3 dei falliti).
+  **Fix: retry con backoff 2s in `halley.py::scarica_atti`** (stesso pattern
+  `jcitygov.py`/`hspromila.py`, cattura `TimeoutError` + `urllib.error.URLError`; prima
+  non aveva *nessun* retry). 2 nuovi test di regressione. Dopo il fix, recuperati 5/7 al
+  retry immediato (`maletto`, `altavillamilicia`, `calatafimisegesta`, `sancipirello`,
+  `mussomeli`); `sangiuseppejato`/`grammichele` ancora giù al terzo tentativo — confermato
+  con `curl` diretto che il server è genuinamente irraggiungibile in questo momento, non
+  un bug: da ritentare in un run successivo.
+- **3 non recuperabili col retry — piattaforma migrata** (bug reale, non transitorio):
+  `cefalù` (spostato a `egov.comune.cefalu.pa.it`, piattaforma Zucchetti "zf", diversa da
+  portalepa), `corleone` (path `/openweb/messi/public/albo.php` su IP diretto, layout
+  diverso), `partanna_tp` (usa Gazzetta Amministrativa, piattaforma terza generica,
+  non portalepa/halley). Già segnalati come aperti nella sessione PR #15 del 26/07 con
+  la stessa causa sospettata ("base_url reale non trovato" / "layout HTML diverso") —
+  confermato oggi con verifica diretta del sito. Richiedono un nuovo scraper dedicato o
+  un adattamento del parser portalepa, non ancora fatto.
+
+**535 test verdi (erano 533), ruff pulito.**
+
+**Prossimo passo:** decidere se investire in scraper dedicati per `cefalù`/`corleone`/`partanna_tp`
+(3 comuni, piattaforme diverse tra loro → 2-3 spider separati) o lasciarli `pending`
+finché non emerge un pattern riusabile con altri comuni sulla stessa piattaforma.
+Considerare anche se il fix retry di `halley.py` va esteso con un secondo retry (backoff
+più lungo) dato che l'host condiviso `195.231.11.215` è rimasto giù per minuti, non
+secondi, in questa sessione.
 
 ---
 

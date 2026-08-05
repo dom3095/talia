@@ -89,7 +89,7 @@ Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov,
 
 Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
-- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **93 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana, Joppolo Giancaxio)
+- **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **93 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana, Joppolo Giancaxio); retry con backoff 2s su timeout/connessione rifiutata (2026-08-05, host condiviso a volte sovraccarico, stesso pattern di `jcitygov.py`/`hspromila.py`)
 - **`urbi.py`** (stessa piattaforma di `catania.py`, parametrizzata su base_url/DB_NAME/ente_mittente): **8 comuni** (provincia di Agrigento)
 - **`hspromila.py`** (Halley variante ASP.NET, diversa da `halley.py`): **5 comuni**
 - **`ribera.py`** (WordPress, scraper dedicato): 1 comune

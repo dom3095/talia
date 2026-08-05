@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterable, Iterator
 from html import unescape
@@ -45,7 +47,7 @@ _HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com
 _RE_TAG = re.compile(r"<[^>]+>")
 _RE_ROW = re.compile(r"<tr>(.*?)</tr>", re.DOTALL)
 _RE_FIELD = re.compile(
-    r'<strong>([^<]+)</strong>(?:\s*<br>)?(?:\s*<a[^>]*>)?\s*<div[^>]*>(.*?)</div>',
+    r"<strong>([^<]+)</strong>(?:\s*<br>)?(?:\s*<a[^>]*>)?\s*<div[^>]*>(.*?)</div>",
     re.DOTALL,
 )
 _RE_LINK = re.compile(r'href="[^"]*id_pubbl=(\d+)"')
@@ -86,18 +88,20 @@ def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetad
         tipo = _campo(campi, "Tipo")
         oggetto = _campo(campi, "Oggetto")
 
-        atti.append(AttoMetadato(
-            ente_codice_istat=codice_istat,
-            tipo=(tipo or "atto").lower(),
-            url_fonte=url,
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=ora_utc(),
-            numero=_campo(campi, "Numero atto"),
-            oggetto=oggetto,
-            data_atto=parse_data_iso(_campo(campi, "Data atto")),
-            data_scadenza=parse_data_iso(_campo(campi, "Data fine")),
-            cig=estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=codice_istat,
+                tipo=(tipo or "atto").lower(),
+                url_fonte=url,
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=ora_utc(),
+                numero=_campo(campi, "Numero atto"),
+                oggetto=oggetto,
+                data_atto=parse_data_iso(_campo(campi, "Data atto")),
+                data_scadenza=parse_data_iso(_campo(campi, "Data fine")),
+                cig=estrai_cig(oggetto),
+            )
+        )
     return atti
 
 
@@ -112,6 +116,7 @@ def scarica_atti(
     *,
     max_pagine: int = 100,
     skip_ssl: bool = False,
+    _retry: int = 1,
 ) -> Iterator[AttoMetadato]:
     """Scarica atti da un albo pretorio Halley EG.
 
@@ -124,6 +129,13 @@ def scarica_atti(
         skip_ssl:     True per ignorare errori di verifica del certificato
                       (es. Siculiana: catena incompleta lato server, cert
                       valido ma senza intermedio — non è un cert scaduto).
+
+    Un retry con backoff di 2s su timeout/connessione rifiutata (stesso
+    pattern di `jcitygov.py`/`hspromila.py`): alcuni tenant condividono un
+    host Halley che va sporadicamente in `ConnectionRefusedError` sotto
+    carico, non un fallimento persistente per singolo comune (scoperto
+    2026-08-05: 4 comuni su un unico IP condiviso, tutti tornati
+    raggiungibili a distanza di secondi).
     """
     base = base_url.rstrip("/")
     ctx = None
@@ -136,8 +148,15 @@ def scarica_atti(
     for pagina in range(max_pagine):
         url = f"{base}{_RICERCA_PATH}" + (f"?pag={pagina}" if pagina else "")
         req = urllib.request.Request(url, headers=_HEADERS)
-        with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
-            html = r.read().decode("utf-8", errors="replace")
+        for tentativo in range(_retry + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
+                    html = r.read().decode("utf-8", errors="replace")
+                break
+            except (TimeoutError, urllib.error.URLError):
+                if tentativo == _retry:
+                    raise
+                time.sleep(2)
         atti = _parse_pagina(html, base, codice_istat)
         if not atti:
             break
