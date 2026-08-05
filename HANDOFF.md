@@ -1,9 +1,10 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-05 (branch `feat/sweep-comuni-mancanti`, PR #16: riconciliato con
-> `main` dopo merge di PR #14/#15; run completa scraper (234/244 OK); fix retry
-> `halley.py`; 3 comuni con piattaforma migrata identificati, non ancora risolti. Vedi
-> sezione sotto.)
+> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: riconciliato con
+> `main`; run completa scraper (234/244 OK); fix retry `halley.py`; dei 3 comuni con
+> piattaforma migrata, 2 risolti (Cefalù, Partanna — erano già su Halley EG, solo
+> `base_url` sbagliata) e 1 scartato (Corleone — nessun registro atti reale trovato).
+> Trovato e rimosso 1 duplicato di registro (`partanna_tp`). Vedi sezione sotto.)
 
 ---
 
@@ -52,6 +53,34 @@ finché non emerge un pattern riusabile con altri comuni sulla stessa piattaform
 Considerare anche se il fix retry di `halley.py` va esteso con un secondo retry (backoff
 più lungo) dato che l'host condiviso `195.231.11.215` è rimasto giù per minuti, non
 secondi, in questa sessione.
+
+**Seguito stesso giorno — indagine sui 3 comuni "piattaforma migrata":**
+- **Cefalù**: non serviva un nuovo scraper. Il vero portale trasparenza è
+  `egov.comune.cefalu.pa.it/cefalu` (link "Albo pretorio" nel menu del sito puntava a
+  `mc/mc_p_ricerca.php`, lo stesso endpoint standard di `halley.py`) — solo la `base_url`
+  in registro era sbagliata (puntava al sito istituzionale `comune.cefalu.pa.it`, non al
+  portale trasparenza). Corretta. **440 atti storici recuperati** (2017→2026).
+- **Partanna**: stessa causa — vero portale `servizi.comune.partanna.tp.it` (Halley EG
+  standard). **Ma esisteva già una riga di registro corretta e attiva per lo stesso
+  comune sotto lo slug `partanna`** (non `partanna_tp`), con 570 atti già raccolti
+  regolarmente: `partanna_tp` era un **duplicato di registro** con URL sbagliata, non un
+  comune scoperto. Rimossa la riga `partanna_tp` invece di "fixarla" (avrebbe fatto
+  girare lo stesso scraper due volte sullo stesso server). Verificato con
+  `awk`/`uniq -d` sul CSV che **non ci sono altri duplicati per errore**: gli altri 5
+  codici ISTAT doppi nel registro (Favignana, Campofelice di Roccella, Villabate,
+  Racalmuto, San Giovanni la Punta) sono intenzionali — stesso comune su **due
+  piattaforme diverse** (jCityGov + Halley/portalepa), già coperto dal backlog
+  **TAL-52** (deduplicazione atti tra scraper ridondanti).
+- **Corleone**: **non risolto, deliberatamente scartato**. Il sito è WordPress con un
+  custom post type `documento_pubblico` ("Albo Pretorio"), ma il sitemap XML
+  (`wp-sitemap-posts-documento_pubblico-1.xml`) rivela **solo 12 documenti totali**,
+  quasi tutti caricati lo stesso giorno (2024-08-05, probabile migrazione una-tantum:
+  giuramento sindaco, nomine settori) — non un registro atti attivo. Nessun sottodominio
+  Halley (`servizi.comune.corleone.pa.it` esiste ma è una pagina Plesk di default, non
+  Halley) né altra piattaforma nota trovata. Lasciato `bloccato` in registro con nota
+  esplicita, per il principio "mai attivare uno scraper a 0 atti reali" (CLAUDE.md).
+
+**535 test verdi (nessun nuovo test: solo correzioni di registro, nessun codice nuovo), ruff pulito, registro validato (291 righe).**
 
 ---
 

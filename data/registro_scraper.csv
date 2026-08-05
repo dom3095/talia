@@ -215,8 +215,8 @@ campobellodimazara,Comune di Campobello di Mazara,081004,,portalepa,PortalePA / 
 capaci,Comune di Capaci,082020,,portalepa,PortalePA / SoluzioniPA,https://capaci.soluzionipa.it,,,,attivo,
 caronia,Comune di Caronia,083011,,portalepa,PortalePA / SoluzioniPA,https://caronia.soluzionipa.it,,,,attivo,
 castellammare_golfo,Comune di Castellammare del Golfo,081005,,portalepa,PortalePA / SoluzioniPA,https://castellammare.soluzionipa.it,,,,attivo,"base_url corretto 2026-07-26: quello censito puntava alla pagina del sito comunale, non al portale portalepa reale (soluzionipa.it)"
-cefalù,Comune di Cefalù,082027,,portalepa,PortalePA / SoluzioniPA,https://comune.cefalu.pa.it,,,,attivo,
-corleone,Comune di Corleone,082034,,portalepa,PortalePA / SoluzioniPA,https://comune.corleone.pa.it/albo-pretorio-on-line/,,,,attivo,
+cefalù,Comune di Cefalù,082027,,halley,Halley EG,https://egov.comune.cefalu.pa.it/cefalu,,,,attivo,Piattaforma reale trovata 2026-08-05: portale trasparenza su egov.comune.cefalu.pa.it (stesso vendor Halley EG di halley.py), base_url in registro puntava al sito istituzionale sbagliato
+corleone,Comune di Corleone,082034,,portalepa,PortalePA / SoluzioniPA,https://comune.corleone.pa.it/albo-pretorio-on-line/,,,,bloccato,"Verificato 2026-08-06: non su portalepa, sito WordPress con CPT 'documento_pubblico' ma solo 12 documenti totali (quasi tutti migrati lo stesso giorno 2024-08-05, contenuti cerimoniali) — non un registro atti attivo. Nessun sottodominio Halley/jCityGov trovato. Link 'albo' in homepage (openweb/messi su IP diretto) non risponde (timeout)."
 gela,Comune di Gela,085007,,portalepa,PortalePA / SoluzioniPA,https://portale.comune.gela.cl.it,,,,attivo,
 gibellina,Comune di Gibellina,081010,,portalepa,PortalePA / SoluzioniPA,https://gibellina.soluzionipa.it,,,,attivo,
 grotte,Comune di Grotte,084018,,portalepa,PortalePA / SoluzioniPA,https://grotte.soluzionipa.it,,,,attivo,
@@ -224,7 +224,6 @@ isoladellefemmine,Comune di Isola delle Femmine,082043,,portalepa,PortalePA / So
 lercarafriddi,Comune di Lercara Friddi,082045,,portalepa,PortalePA / SoluzioniPA,https://lercarafriddi.soluzionipa.it,,,,attivo,
 misiliscemi,Comune di Misiliscemi,081025,,portalepa,PortalePA / SoluzioniPA,https://misiliscemi.soluzionipa.it,,,,attivo,
 monreale,Comune di Monreale,082049,,portalepa,PortalePA / SoluzioniPA,https://monreale.soluzionipa.it,,,,attivo,
-partanna_tp,Comune di Partanna,081015,,portalepa,PortalePA / SoluzioniPA,https://www.comune.partanna.tp.it/amministrazione/uffici/ufficio_10.html,,,,attivo,
 partinico,Comune di Partinico,082054,,portalepa,PortalePA / SoluzioniPA,https://partinico.soluzionipa.it,,,,attivo,
 roccavaldina,Comune di Roccavaldina,083073,,portalepa,PortalePA / SoluzioniPA,https://roccavaldina.soluzionipa.it,,,,attivo,
 santangelodibrolo,Comune di Sant'Angelo di Brolo,083088,,portalepa,PortalePA / SoluzioniPA,https://santangelodibrolo.soluzionipa.it,,,,attivo,
