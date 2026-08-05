@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1
-- **Stato:** Review
+- **Stato:** Done
 - **Branch:** `feat/sprint3`
 
 ## 🎯 Obiettivo

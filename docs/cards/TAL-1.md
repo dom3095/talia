@@ -3,7 +3,7 @@
 - **Epica:** E0 — Fondamenta repo
 - **Ruolo:** ⚙️ OPS
 - **Priorità:** P0
-- **Stato:** Review
+- **Stato:** Done
 - **Branch:** `feat/TAL-1-modulo1-prototipo` (sviluppo congiunto Sprint 1)
 
 ## 🎯 Obiettivo

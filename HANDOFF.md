@@ -1,11 +1,164 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-21 (TAL-48 completo: bugfix data_atto/data_pub esteso a tutto il
-> motore catena + 3 red flag, integrazione pdf_download per le riaperture, backfill date
-> sui procedimenti già esistenti in `talia.db`, progetto riallineato a Python 3.12. Poi
-> TAL-12: 8 nuovi fascicoli candidati preparati (download + report Modulo 1) da catene
-> problematiche. **PR #13 aperta** su `feat/TAL-48-pdf-riaperture`, pronta per
-> review/merge. Vedi sezioni sotto.)
+> Aggiornato: 2026-07-26 (PR #14 pronta per merge — vedi sessione 2026-07-25 sotto per i
+> 9 findings corretti. **Nuova PR #15** su branch `fix/scraper-registro-cert-url`: 4 dei 7
+> scraper falliti nel run del 25/07 diagnosticati e corretti — vedi sezione sotto.)
+
+---
+
+## Sessione 2026-07-26 — Diagnosi scraper falliti, PR #15
+
+Su richiesta di Dom ("possiamo fare qualcosa sugli scraper che non funzionano"),
+diagnosticati dal vivo (curl + client Python diretto, non assumendo rumore di rete) i 7
+scraper falliti nel run del 25/07. **4 corretti, PR #15 aperta** (branch
+`fix/scraper-registro-cert-url`, da `main` — non da questo branch, fix indipendente dal
+check LLM):
+
+- **`brolo`, `pozzallo`, `sortino`** (Halley EG): catena certificato SSL incompleta lato
+  server, stesso pattern già noto per Siculiana/Joppolo Giancaxio (non un certificato
+  scaduto). Verificato che il contenuto con `skip_ssl=True` è genuino (titolo pagina +
+  markup Halley coerenti col comune, non un dominio sbagliato) prima di applicare il fix.
+  `skip_ssl=true` impostato nel registro.
+- **`castellammare_golfo`** (portalepa): `base_url` in registro puntava a una pagina del
+  sito comunale invece che al portale portalepa reale (probabile artefatto del censimento
+  originale) — corretto a `castellammare.soluzionipa.it`, stesso pattern
+  `<slug>.soluzionipa.it` degli altri tenant.
+
+Tutti e 4 verificati end-to-end con `run_scrapers.py --scrapers <slug> --max-pagine 2` su
+DB isolato prima del commit.
+
+**Restano non risolti** (richiedono lavoro vero, non un fix di registro):
+- `corleone` (portalepa): l'albo reale è su un layout HTML diverso
+  (`openweb/messi/public/albo.php`, su IP diretto con una home page "demo/cms"), non
+  compatibile col parser attuale di `portalepa.py` (`openweb/albo/albo_pretorio.php`) —
+  serve una variante di parser dedicata.
+- `cefalù`, `partanna_tp` (portalepa): `base_url` reale non individuato con una ricerca
+  rapida (nessun sottodominio `soluzionipa.it` plausibile risponde via DNS, nessun link
+  "albo"/"pretorio"/"soluzionipa" nella homepage del sito comunale) — serve
+  investigazione più approfondita (ricerca manuale o web).
+
+**Copertura scraper — quadro completo** (richiesto da Dom, non ancora in nessuna doc):
+su 391 comuni siciliani (5.001.690 abitanti), 198 hanno uno scraper attivo (74%
+popolazione). Il resto si divide in: Agrigento (funzionante, escluso dal run *default* per
+tempo — va lanciato esplicitamente), Messina (bloccato, FortiGate+cert scaduto), 38
+comuni `pending` (piattaforma già identificata, scraper da scrivere — backlog TAL-51), e
+**153 comuni mai censiti** (non hanno mai superato lo sweep di dominio delle piattaforme
+note) — il gap più grande e meno esplorato.
+
+---
+
+## Sessione 2026-07-25 — Riconciliazione PR #14, code review, pulizia BOARD.md
+
+**PR #14 (TAL-11):** il merge di `main` fatto in sessione precedente aveva prodotto un
+commit rotto (`git stash` a metà merge aveva perso `MERGE_HEAD`, quindi non era un vero
+merge a 2 parent) — rifatto correttamente, poi ripulita una duplicazione silenziosa di 3
+righe in `BOARD.md` che il merge automatico aveva introdotto. `/code-review` su tutto il
+diff ha trovato 9 findings reali (verificati, non solo plausibili), tutti corretti in
+`0117852`: offset↔testo dei chunk RAG non allineato (bug riprodotto), offset della
+citazione al corpus non coerente col troncamento, `carenza_istruttoria` non mostrata per
+giudizio "incerta", parsing JSON fragile su graffe letterali, client Ollama duplicato tra
+`engine/llm.py` e `engine/catena.py` (unificato in `chiama_ollama()`), `LLMNonDisponibile`
+non catturata in `cli.py --llm`, `IndiceCorpus` ricostruito ad ogni chiamata senza cache,
+conteggio test sbagliato in HANDOFF. 531 test verdi (erano 526), ruff pulito. Dettagli in
+[TAL-11.md](docs/cards/TAL-11.md), sezione Tentativi.
+
+**Pulizia BOARD.md:** su richiesta di Dom, verificate una per una le card ferme in
+"Review" da sessioni vecchie (alcune da giugno). Per ciascuna: controllato che il file/
+funzione esista, sia effettivamente importato nel percorso di produzione (non solo
+scritto e mai collegato), e che tutti i criteri di accettazione della card siano
+spuntati. Spostate in Done: TAL-1, TAL-2, TAL-4, TAL-6, TAL-7, TAL-8, TAL-10, TAL-13,
+TAL-14, TAL-20, TAL-47. **Lasciate deliberatamente in Review** (gap reale ancora aperto,
+documentato nella card stessa, non solo checkbox stantia):
+- TAL-3 — manca un PDF scansionato campione in `data/samples/` per un test OCR
+  automatizzato (l'OCR funziona ed è stato validato ad-hoc su fascicoli reali TAL-12/48,
+  ma non c'è un test di regressione permanente).
+- TAL-5 — associazione nome↔ruolo dei firmatari esplicitamente rinviata (deviazione
+  documentata: euristica deterministica sì, spaCy no, per scelta).
+- TAL-9 — incrocio con la tempistica della graduatoria non implementato, la card stessa
+  rimanda a "eventuale card dedicata" mai creata.
+
+TAL-20 (spider iCity) è un caso particolare: tutti i criteri sono soddisfatti (32 test),
+ma il modulo non è nel registro scraper di produzione (`data/registro_scraper.csv`) — era
+un pilota "Tappa 2" per validare il pattern, poi la copertura reale è stata raggiunta con
+la famiglia jCityGov/portalepa/halley/urbi/hspromila/ribera. Marcato Done come pilota
+completato, non come modulo attivo in produzione (nota esplicita in BOARD.md per non
+generare confusione futura).
+
+**Run scraper (completato):** `python3 scripts/run_scrapers.py`, 204 scraper di default,
+per recuperare gli atti pubblicati dal 21/07 (ultimo run) ad oggi. **197/204 riusciti.**
+DB: 104.812 → **111.239 atti** (+6.427), 163 → **575 red flags** (concentrazione 428,
+tempi anomali 1, revoche in catena 46, riaperture 75 rilevati in questo passaggio — il
+runner ricalcola su tutto il DB ad ogni run, quindi il delta netto è inferiore al
+"rilevati" per via di flag già esistenti ririlevati).
+
+**7 scraper falliti** (exit code 1 dello script è per convenzione — non un crash, vedi
+`return 1 if errori else 0` in `run_scrapers.py`):
+- **`castellammare_golfo`, `cefalù`, `corleone`, `partanna_tp`** (tutti portalepa) — stessi
+  4 comuni già falliti nel run locale del 20/07 (vedi sessione sotto): non sembra rumore
+  di rete casuale ma un problema specifico e persistente di questi 4 tenant portalepa,
+  riproducibile anche da rete locale (non solo dal blocco Akamai IP/ASN di GH Actions già
+  documentato). Da investigare se si ripete ancora al prossimo run.
+- **`brolo`, `pozzallo`, `sortino`** (halley) — `pozzallo` con un errore SSL insolito
+  (*hostname mismatch*, il certificato ricevuto è per `comune.pozzallo.rg.it` ma la
+  richiesta arriva da un contesto taggato "Partanna" nel log: da verificare se è solo un
+  problema di interleaving nell'output o un'anomalia reale nel registro).
+- **Nessuna perdita di copertura**: sia Racalmuto (4 errori 404 sulla riga portalepa
+  `racalmuto`, ma `racalmuto_halley` ha coperto il comune con 55 atti nuovi) sia Partanna
+  hanno un secondo scraper registrato sulla stessa piattaforma-famiglia — tranne
+  `partanna_tp`/`partanna` (halley), che **questo run hanno fallito entrambi**: Partanna
+  non ha ricevuto atti nuovi in questo passaggio (unico comune con 0 copertura effettiva).
+
+---
+
+## Sessione 2026-07-21 — TAL-11: check-3 qualità motivazione (LLM + RAG)
+
+**Contesto:** dopo la sessione precedente (TAL-48/TAL-12, PR #13, poi mergiata il 24/07 — vedi
+quella sezione per lo stato dei fascicoli TAL-12 e il bugfix `data_atto`/`data_pub`), Dom ha
+chiesto di procedere con l'unico check della checklist che richiede un LLM: TAL-11 aveva già
+una spec quasi completa ma 3 "Domande aperte" non barrate. Risolte con Dom prima di scrivere
+codice (modello LLM, soglia motivazione, scope RAG — vedi `docs/cards/TAL-11.md`).
+
+**Branch:** `feat/TAL-11-check3-motivazione`, da `main` (non da PR #13: le due PR erano
+indipendenti; riconciliato con `main` il 24/07 dopo il merge di PR #13, conflitti solo su
+`HANDOFF.md`/`BOARD.md`, nessun conflitto di codice).
+
+**Implementato:**
+- `src/talia/engine/rag.py` — `IndiceCorpus`: retrieval **BM25 in puro stdlib** su
+  `data/corpus_normativo/` (nessun embedding/vector store: corpus piccolo, 16 file curati —
+  decisione di Dom, evita nuove dipendenze pip).
+- `src/talia/engine/llm.py` — client minimale per **Ollama** (`genera`/`LLMNonDisponibile`),
+  `urllib` puro, opener iniettabile per i test. Nessun fallback silenzioso: LLM irraggiungibile
+  → eccezione esplicita (spec TAL-11).
+- `src/talia/engine/checklist/check3_motivazione.py` — `valuta_motivazione(contesto,
+  esiti_precedenti, indice=None)`. **Non registrato** nel registry automatico dei check
+  (richiede sia gli esiti precedenti sia una chiamata di rete): invocato esplicitamente da
+  `analizza_fascicolo/testi/pdf(..., valuta_llm=True)` o `talia analizza ... --llm`.
+  Disattivato di default.
+- Modello scelto: **qwen3:4b via Ollama** (già presente in locale, gratuito).
+
+**2 bug reali scoperti col modello vero (non dai test mockati)** — verificato end-to-end con
+`talia analizza data/samples/fascicolo_critico --llm` contro Ollama reale:
+1. Timeout di default (120s) insufficiente: qwen3 è un modello "thinking", ragiona ad alta
+   voce anche su prompt banali (~18-28s solo per un JSON di poche parole) → portato a 300s.
+2. `_estrai_giudizio` con un singolo regex greedy falliva quando il modello ripeteva lo schema
+   JSON del prompt come "esempio" prima della risposta vera (due oggetti `{...}` nella risposta
+   → cattura tutto in mezzo, JSON non valido). Fix: si prende l'ultimo oggetto JSON valido con
+   chiave `giudizio`, non il primo/unico match presunto. Test di regressione aggiunto.
+
+**Test:** 33 nuovi (`test_rag.py`, `test_llm.py`, `test_check3_motivazione.py`,
+`test_analisi_llm.py` per il wiring), 496 totali verdi, ruff pulito.
+
+**Nota di processo:** `pyproject.toml`/CI su `main` dichiarano ancora `python 3.14`/`ruff
+target-version py314` (il fix a 3.12 vive solo sulla PR #13, non ancora mergiata) — `ruff
+format .` sull'intero repo da questo branch riscrive ~30 file preesistenti non toccati da
+questa card (drift di formattazione dovuto al target py314). **Non incluso in questo PR**:
+revertiti tutti i file non pertinenti a TAL-11, mantenute solo le modifiche intenzionali.
+Verificare manualmente se lo stesso accade su altri branch aperti da `main` prima del merge
+della PR #13.
+
+**Prossimo passo naturale:** usare `--llm` sugli 8 fascicoli TAL-12 già preparati (PR #13,
+mergiata) per iniziare il ground truth falsi positivi/negativi anche sul check LLM — sbloccato
+non appena mergiata anche PR #14.
 
 ---
 

@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from ..engine.checklist import esegui_checklist
+from ..engine.checklist.check3_motivazione import valuta_motivazione
 from ..engine.fascicolo import AttoAnalizzato, ContestoFascicolo, RuoloAtto
 from ..engine.models import TestoAtto
 from ..engine.pdf_text import estrai_testo
@@ -90,42 +91,42 @@ def costruisci_contesto(atti: list[AttoAnalizzato]) -> ContestoFascicolo:
 
     candidati_aut = [a for a in atti if a.ruolo is RuoloAtto.AUTOTUTELA]
     autotutela = (
-        max(candidati_aut, key=lambda a: punteggi_ruolo(a.testo)[0])
-        if candidati_aut
-        else atti[-1]
+        max(candidati_aut, key=lambda a: punteggi_ruolo(a.testo)[0]) if candidati_aut else atti[-1]
     )
 
-    candidati_orig = [
-        a for a in atti if a.ruolo is RuoloAtto.ORIGINARIO and a is not autotutela
-    ]
+    candidati_orig = [a for a in atti if a.ruolo is RuoloAtto.ORIGINARIO and a is not autotutela]
     originario = (
-        max(candidati_orig, key=lambda a: punteggi_ruolo(a.testo)[1])
-        if candidati_orig
-        else None
+        max(candidati_orig, key=lambda a: punteggi_ruolo(a.testo)[1]) if candidati_orig else None
     )
     return ContestoFascicolo(atto_autotutela=autotutela, atto_originario=originario)
 
 
-def analizza_fascicolo(atti: list[AttoAnalizzato]) -> Report:
-    """Esegue la checklist sul fascicolo e produce il report."""
+def analizza_fascicolo(atti: list[AttoAnalizzato], *, valuta_llm: bool = False) -> Report:
+    """Esegue la checklist sul fascicolo e produce il report.
+
+    `valuta_llm` abilita il check 3 (TAL-11, qualità motivazione): richiede un
+    LLM locale raggiungibile (Ollama) e viene eseguito solo se un altro check
+    ha già flaggato il fascicolo. Disattivato di default: è l'unico check non
+    deterministico e non deve girare a sorpresa in un'analisi "solo checklist".
+    """
     contesto = costruisci_contesto(atti)
     esiti = esegui_checklist(contesto)
+    if valuta_llm:
+        esiti = [*esiti, valuta_motivazione(contesto, esiti)]
     meta = [_meta(a, contesto) for a in atti]
     return Report(esiti=esiti, atti=meta)
 
 
-def analizza_testi(testi: list[TestoAtto]) -> Report:
+def analizza_testi(testi: list[TestoAtto], *, valuta_llm: bool = False) -> Report:
     """Come `analizza_fascicolo` ma classifica da sé il ruolo di ogni testo."""
-    atti = [
-        AttoAnalizzato.da_testo(t, ruolo=classifica_ruolo(t)) for t in testi
-    ]
-    return analizza_fascicolo(atti)
+    atti = [AttoAnalizzato.da_testo(t, ruolo=classifica_ruolo(t)) for t in testi]
+    return analizza_fascicolo(atti, valuta_llm=valuta_llm)
 
 
-def analizza_pdf(percorsi: list[str | Path]) -> Report:
+def analizza_pdf(percorsi: list[str | Path], *, valuta_llm: bool = False) -> Report:
     """Analizza un fascicolo a partire dai PDF (richiede gli extra `[pdf]`)."""
     testi = [estrai_testo(p) for p in percorsi]
-    return analizza_testi(testi)
+    return analizza_testi(testi, valuta_llm=valuta_llm)
 
 
 def _meta(atto: AttoAnalizzato, contesto: ContestoFascicolo) -> AttoMeta:
