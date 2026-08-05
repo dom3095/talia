@@ -4,9 +4,13 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
-Modulo 3 (Dashboard Streamlit). In corso: Fase 2 pipeline (TAL-47 in Review), validazione
-fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50) e registro unificato
-scraper (#11) completati e mergiati in `main`.
+Modulo 3 (Dashboard Streamlit). In corso: validazione fascicoli reali (TAL-12). Censimento
+Palermo/Trapani (TAL-50), registro unificato scraper (#11), download PDF on-demand
+(TAL-47) e riapertura dopo revoca (TAL-48) completati e mergiati in `main`. Check-3
+qualità motivazione LLM (TAL-11) in Review (PR #14). Ripulita la colonna Review
+(2026-07-25): 11 card verificate e spostate in Done, 3 lasciate aperte con un gap
+specifico ancora documentato nella card (TAL-3 OCR, TAL-5 associazione nome↔ruolo, TAL-9
+incrocio tempistica graduatoria).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -41,7 +45,6 @@ scraper (#11) completati e mergiati in `main`.
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | E1 | 🔤 NLP | P2 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
@@ -51,20 +54,10 @@ scraper (#11) completati e mergiati in `main`.
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | 🕷️ SCR | `icity.py` + 31 test; branch `feat/sprint3` |
-| [TAL-1](TAL-1.md) | Setup progetto Python + tooling | ⚙️ OPS | branch `feat/TAL-1-modulo1-prototipo` |
-| [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | ⚙️ OPS | verde da confermare al primo PR |
-| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca scansione campione per test OCR reale |
-| [TAL-4](TAL-4.md) | Estrazione entità: date, importi, CIG | 🔤 NLP | |
-| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica) |
-| [TAL-6](TAL-6.md) | Check 1: base giuridica revoca/annullamento | 🔤 NLP | parole spia da validare con ⚖️ LEX |
-| [TAL-7](TAL-7.md) | Check 2: termini autotutela (12 mesi) | 🔤 NLP | assunzione sulle date da validare con ⚖️ LEX |
-| [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | 🔤 NLP | |
-| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | senza incrocio tempistica graduatoria |
-| [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | 📊 FE | formato scelto: HTML statico + JSON + CLI |
-| [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | 🔤 NLP | NER sm rumoroso: resta discovery, non in motore |
-| [TAL-14](TAL-14.md) | Check 7: data breach GDPR non notificato | ⚖️ LEX + 🔤 NLP | check-8 DPO conflict rimandato a TAL-25 |
-| [TAL-47](TAL-47.md) | Download PDF on-demand da catene (Fase 2, MVP jCityGov) | 🕷️ SCR | branch `feat/TAL-47-pdf-on-demand`; validato hash 4/4 su fascicolo Palma; 10 test |
+| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; **PR #14 aperta**, in attesa di review Dom — RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test; 9 findings da code review corretti |
+| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
+| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo esplicitamente rinviata (vedi Consuntivo) |
+| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria ancora aperto, da card dedicata (vedi Consuntivo) |
 
 ### ✅ Done
 | ID | Titolo | Note |

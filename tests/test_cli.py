@@ -34,3 +34,19 @@ def test_cli_scrive_html_su_file(tmp_path, capsys):
 def test_cli_percorso_senza_file(tmp_path):
     # Cartella vuota → nessun file analizzabile → codice di errore.
     assert main(["analizza", str(tmp_path)]) == 1
+
+
+def test_cli_llm_non_disponibile_da_errore_pulito(monkeypatch, capsys):
+    # Regressione code review: LLMNonDisponibile (--llm senza Ollama attivo)
+    # non era catturata attorno ad analizza_testi e usciva come traceback grezzo
+    # invece di seguire lo stesso percorso "Errore: ..." / codice 2 usato sopra.
+    from talia.engine import llm as llm_mod
+    from talia.engine.checklist import check3_motivazione as check3_mod
+
+    def _fallisce(*_args, **_kwargs):
+        raise llm_mod.LLMNonDisponibile("Ollama non raggiungibile (test)")
+
+    monkeypatch.setattr(check3_mod, "genera", _fallisce)
+    codice = main(["analizza", str(_SAMPLES / "fascicolo_critico"), "--llm"])
+    assert codice == 2
+    assert "Errore" in capsys.readouterr().err

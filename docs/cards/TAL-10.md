@@ -3,7 +3,7 @@
 - **Epica:** E1 — Motore + Modulo 1
 - **Ruolo:** 📊 FE
 - **Priorità:** P1
-- **Stato:** Review
+- **Stato:** Done
 - **Branch:** `feat/TAL-1-modulo1-prototipo` (sviluppo congiunto Sprint 1)
 
 ## 🎯 Obiettivo

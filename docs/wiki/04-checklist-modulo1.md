@@ -19,7 +19,11 @@ verde/giallo/rosso con citazione testuale e riferimento normativo.
 
 - **Check 1, 2, 5, 6** → deterministici (regex + estrazione date/firmatari). Prioritari, facili da testare.
   ✅ **Implementati** in `src/talia/engine/checklist/` (vedi [11 — Implementazione](11-implementazione-motore.md)).
-- **Check 3** → unico che richiede LLM. Da fare per ultimo, solo sui flaggati (TAL-11).
+- **Check 3** → unico che richiede LLM. ✅ **Implementato** (TAL-11) in
+  `src/talia/engine/checklist/check3_motivazione.py`. A differenza degli altri, **non** è
+  registrato nel registry automatico (richiede sia gli esiti dei check precedenti sia una
+  chiamata di rete al LLM locale): va abilitato esplicitamente con
+  `analizza_testi(..., valuta_llm=True)` o `talia analizza ... --llm`. Disattivato di default.
 - **Check 4** → estrazione/classificazione, alimenta statistiche, **non** è una red flag.
 - **Check 7** → dipende dal Modulo 2 (scraping). Inizialmente stub.
 
@@ -29,6 +33,7 @@ verde/giallo/rosso con citazione testuale e riferimento normativo.
 |-------|--------|-----------------|------|
 | 1 base giuridica | `check1_base_giuridica.py` | 🟢🟡🔴 | coerenza via parole spia, da validare con ⚖️ LEX |
 | 2 termini 12 mesi | `check2_termini.py` | 🟢🟡🔴⚪ | solo annullamenti; date mancanti → 🟡, mai crash |
+| 3 qualità motivazione | `check3_motivazione.py` | 🟢🟡🔴⚪ | LLM (qwen3:4b/Ollama) + RAG (BM25, `engine/rag.py`); solo se un altro check ha già flaggato; ⚪ altrimenti |
 | 5 avvio art. 7 | `check5_avvio.py` | 🟢🔴 | assenza di menzione ≠ omissione provata |
 | 6 firmatari | `check6_firmatari.py` | 🟢🟡⚪ | sovrapposizione → 🟡 conservativo |
 

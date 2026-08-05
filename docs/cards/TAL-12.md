@@ -46,6 +46,13 @@ fonti pubbliche tracciate in `data/samples/1/sources.json`. **I PDF restano fuor
 - ⚪ check 2 — è una revoca, non un annullamento: correttamente non applicato.
 - 🔴 check 5 — nessuna comunicazione di avvio; solo "pubblicazione sul sito vale notifica".
 - 🟡 check 6 — stesso Segretario Generale firma approvazione e revoca.
+- 🟡 check 3 (LLM, TAL-11, girato 2026-07-21) — la motivazione è narrativamente specifica
+  (segnalazione del Sindaco su una fuga di notizie concorsuali) ma tratta come accertata una
+  "**presunta** divulgazione" senza descrivere alcuna verifica autonoma del Segretario
+  Generale prima di agire: carenza di istruttoria, osservazione emersa discutendo il caso con
+  Dom e ora un criterio esplicito del check ([dettagli in TAL-11](TAL-11.md)). Prima del fix
+  il check dava 🟢, mancando il problema — falso negativo corretto in corso di sviluppo, non
+  ancora ri-verificato da ⚖️ LEX.
 
 **3 bug emersi e corretti (con test di regressione):**
 1. Il boilerplate "si riserva di revocare" nei bandi li classificava come autotutela →

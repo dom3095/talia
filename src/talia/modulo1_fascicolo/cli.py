@@ -52,6 +52,12 @@ def _crea_parser() -> argparse.ArgumentParser:
         type=Path,
         help="File di destinazione; se omesso scrive su stdout.",
     )
+    analizza.add_argument(
+        "--llm",
+        action="store_true",
+        help="Abilita il check 3 (qualità motivazione, TAL-11): richiede un LLM "
+        "locale raggiungibile via Ollama (ollama serve) sui fascicoli già flaggati.",
+    )
     return parser
 
 
@@ -63,11 +69,12 @@ def _comando_analizza(args: argparse.Namespace) -> int:
 
     try:
         testi = [_carica_testo(f) for f in file]
-    except RuntimeError as exc:  # es. extra [pdf] non installati
+        report = analizza_testi(testi, valuta_llm=args.llm)
+    except RuntimeError as exc:
+        # RuntimeError copre sia l'estrazione PDF (extra [pdf] non installati)
+        # sia LLMNonDisponibile (--llm senza Ollama raggiungibile, TAL-11).
         print(f"Errore: {exc}", file=sys.stderr)
         return 2
-
-    report = analizza_testi(testi)
     contenuto = _rendi(report, args.formato)
 
     if args.out:

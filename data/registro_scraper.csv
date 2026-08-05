@@ -9,7 +9,7 @@ avola,Comune di Avola,089002,,halley,Halley EG,https://servizi.comune.avola.sr.i
 barcellonapg,Comune di Barcellona Pozzo di Gotto,083005,,halley,Halley EG,https://servizi.comune.barcellonapozzodigotto.me.it/barcellona,,,,attivo,
 baucina,Comune di Baucina,082008,,halley,Halley EG,https://comune.baucina.pa.it,,,,attivo,
 bompensiere,Comune di Bompensiere,085002,,halley,Halley EG,https://servizionline.comune.bompensiere.cl.it,,,,attivo,
-brolo,Comune di Brolo,083007,,halley,Halley EG,https://servizi.comune.brolo.me.it,,,,attivo,
+brolo,Comune di Brolo,083007,,halley,Halley EG,https://servizi.comune.brolo.me.it,,,true,attivo,"skip_ssl=true (catena cert incompleta lato server, verificato 2026-07-26 — stesso pattern di Siculiana/Joppolo Giancaxio)"
 calatafimisegesta,Comune di Calatafimi-Segesta,081003,,halley,Halley EG,https://servizi.comune.calatafimisegesta.tp.it,,,,attivo,
 caltavuturo,Comune di Caltavuturo,082015,,halley,Halley EG,https://trasparenza.comune.caltavuturo.pa.it,,,,attivo,
 camastra,Comune di Camastra,084008,,halley,Halley EG,https://trasparenza.comune.camastra.ag.it,,,,attivo,
@@ -54,7 +54,7 @@ piazzaarmerina,Comune di Piazza Armerina,086014,,halley,Halley EG,https://serviz
 piraino,Comune di Piraino,083068,,halley,Halley EG,https://servizi.comune.piraino.me.it,,,,attivo,
 poggioreale,Comune di Poggioreale,081016,,halley,Halley EG,https://trasparenza.comune.poggioreale.tp.it,,,,attivo,
 portoempedocle,Comune di Porto Empedocle,084028,,halley,Halley EG,https://servizi.comune.portoempedocle.ag.it,,,,attivo,
-pozzallo,Comune di Pozzallo,088008,,halley,Halley EG,https://comune.pozzallo.rg.it,,,,attivo,
+pozzallo,Comune di Pozzallo,088008,,halley,Halley EG,https://comune.pozzallo.rg.it,,,true,attivo,"skip_ssl=true (catena cert incompleta lato server, verificato 2026-07-26 — stesso pattern di Siculiana/Joppolo Giancaxio)"
 prizzi,Comune di Prizzi,082060,,halley,Halley EG,https://trasparenza.comune.prizzi.pa.it,,,,attivo,
 racalmuto_halley,Comune di Racalmuto,084029,,halley,Halley EG,https://trasparenza.comune.racalmuto.ag.it,,,,attivo,
 randazzo,Comune di Randazzo,087038,,halley,Halley EG,https://servizionline.comune.randazzo.ct.it,,,,attivo,
@@ -82,7 +82,7 @@ scordia,Comune di Scordia,087049,,halley,Halley EG,https://servizionline.comune.
 serradifalco,Comune di Serradifalco,085018,,halley,Halley EG,https://servizi.comune.serradifalco.cl.it,,,,attivo,
 siculiana,Comune di Siculiana,084042,,halley,Halley EG,https://trasparenza.comune.siculiana.ag.it,,,true,attivo,skip_ssl=true (catena cert incompleta)
 sommatino,Comune di Sommatino,085019,,halley,Halley EG,https://servizionline.comune.sommatino.cl.it,,,,attivo,
-sortino,Comune di Sortino,089019,,halley,Halley EG,https://servizi.comune.sortino.sr.it,,,,attivo,
+sortino,Comune di Sortino,089019,,halley,Halley EG,https://servizi.comune.sortino.sr.it,,,true,attivo,"skip_ssl=true (catena cert incompleta lato server, verificato 2026-07-26 — stesso pattern di Siculiana/Joppolo Giancaxio)"
 sperlinga,Comune di Sperlinga,086017,,halley,Halley EG,https://servizi.comune.sperlinga.en.it,,,,attivo,
 sutera,Comune di Sutera,085020,,halley,Halley EG,https://servizionline.comune.sutera.cl.it,,,,attivo,
 torretta,Comune di Torretta,082072,,halley,Halley EG,https://comune.torretta.pa.it,,,,attivo,
@@ -214,7 +214,7 @@ caltagirone,Comune di Caltagirone,087011,,portalepa,PortalePA / SoluzioniPA,http
 campobellodimazara,Comune di Campobello di Mazara,081004,,portalepa,PortalePA / SoluzioniPA,https://servizi.comune.campobellodimazara.tp.it,,,,attivo,
 capaci,Comune di Capaci,082020,,portalepa,PortalePA / SoluzioniPA,https://capaci.soluzionipa.it,,,,attivo,
 caronia,Comune di Caronia,083011,,portalepa,PortalePA / SoluzioniPA,https://caronia.soluzionipa.it,,,,attivo,
-castellammare_golfo,Comune di Castellammare del Golfo,081005,,portalepa,PortalePA / SoluzioniPA,https://www.comune.castellammare.tp.it/sito_tematico/albo-pretorio/,,,,attivo,
+castellammare_golfo,Comune di Castellammare del Golfo,081005,,portalepa,PortalePA / SoluzioniPA,https://castellammare.soluzionipa.it,,,,attivo,"base_url corretto 2026-07-26: quello censito puntava alla pagina del sito comunale, non al portale portalepa reale (soluzionipa.it)"
 cefalù,Comune di Cefalù,082027,,portalepa,PortalePA / SoluzioniPA,https://comune.cefalu.pa.it,,,,attivo,
 corleone,Comune di Corleone,082034,,portalepa,PortalePA / SoluzioniPA,https://comune.corleone.pa.it/albo-pretorio-on-line/,,,,attivo,
 gela,Comune di Gela,085007,,portalepa,PortalePA / SoluzioniPA,https://portale.comune.gela.cl.it,,,,attivo,
