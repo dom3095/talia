@@ -1,9 +1,53 @@
 # HANDOFF.md — Stato sessione
 
 > Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep
-> automatico (16 comuni, +116.978 ab.) + esplorazione manuale sui 10 residui più
-> popolosi (2 attivati: Aci Catena su jCityGov esistente, Nicosia con nuovo scraper
-> WordPress dedicato). Copertura 82,0%, 256 comuni attivi, 87 ancora mai censiti.)
+> automatico (16 comuni) + esplorazione manuale su 10 residui (Aci Catena, Nicosia) +
+> Pachino/Barrafranca via Playwright (nuovo scraper generico `serviziolinealbo.py`,
+> stessa piattaforma di Agrigento). Copertura 83,0%, 258 comuni attivi, 85 ancora mai
+> censiti.)
+
+---
+
+## Sessione 2026-08-06 (continua) — Pachino/Barrafranca con Playwright
+
+**Richiesta di Dom:** "non possiamo usare playwright?" (dopo aver segnalato Pachino e
+Barrafranca come "stessa famiglia di Agrigento, richiede Playwright, non approfondito
+per limiti di tempo"). Verificato che Playwright è già installato e funzionante
+(Chromium incluso, usato per Agrigento) — nessun ostacolo tecnico, solo non ancora fatto.
+
+Con Playwright, navigando fino a `/ServiziOnLine/AlboPretorio/AlboPretorio`, confermato
+che Pachino e Barrafranca usano la **stessa identica piattaforma DevExpress di
+Agrigento** (stesso DOM: span `text-custom p-1`, permalink `data-link`, paginazione PBN).
+Nuovo scraper **generico** `src/talia/modulo2_scraping/fonti/serviziolinealbo.py`
+(parametrico su base_url/codice_istat) invece di duplicare `agrigento.py` — che resta
+intatto e dedicato, per non introdurre rischio su uno scraper già verificato in
+produzione senza necessità concreta.
+
+Unica variazione reale tra i due tenant: il titolo a volte include un riferimento
+settoriale finale ("- NNNN/YYYY del DD/MM/YYYY", visto su Barrafranca, assente su
+Pachino) — gestito scartandolo prima della classificazione del tipo atto. Bug trovato e
+corretto durante lo sviluppo: la prima versione usava l'anno invece del numero come
+chiave del dizionario permalink→URL, causando il filtro quasi totale degli atti
+(1/178 sopravvissuto); poi riscritta seguendo lo stesso approccio più robusto già
+verificato in `agrigento.py` (permalink-first, span ancorato via `data-bs-target`)
+invece del mio primo tentativo più fragile (scan sequenziale con finestra euristica).
+
+Verificato con `scarica_atti()` reale: **178 atti Pachino, 90 atti Barrafranca**.
+Entrambi `escluso_default` nel registro (come Agrigento: Playwright più lento, non nel
+run automatico — vanno lanciati esplicitamente con `--scrapers pachino barrafranca`).
+16 nuovi test (`tests/fonti/test_serviziolinealbo.py`).
+
+Tentato anche un bypass di **Leonforte** (Cloudflare, segnalato come bloccato
+nell'esplorazione precedente) con Playwright: la sfida Cloudflare resta attiva
+indefinitamente anche con un browser reale (non un problema di rendering JS ma di
+bot-detection attiva). Non tentato un bypass più aggressivo di proposito — aggirare una
+misura anti-bot attiva non è nello spirito del progetto, stessa linea già seguita per
+il WAF ANAC e per Messina (entrambi richiedono intervento lato server, non evasione).
+
+**Copertura risultante: 258 comuni attivi (era 256), 4.132.778 abitanti (83,0%, era
+82,0%)**. Restano **85 comuni mai censiti**.
+
+**572 test verdi (erano 556), ruff pulito, registro validato (312 righe).**
 
 ---
 

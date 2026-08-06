@@ -38,16 +38,15 @@ economico):
 - **Comiso** (30.214 ab.): piattaforma "DemaPA" (`palgpi.it`), JSF/PrimeFaces con form
   stateful (ViewState) — reverse engineering più costoso degli altri pattern HTTP
   stateless già gestiti.
-- **Pachino** (22.068 ab.) e **Barrafranca** (13.977 ab.): stessa piattaforma
-  (`servizi.comune.<slug>.it/ServiziOnLine/Istanze/landingIstanza?Id=N`), ASP.NET +
-  DevExpress — stessa famiglia di Agrigento (`agrigento.py`), richiede Playwright.
 - **Bronte** (19.234 ab.): URBI (`/urbi/progs/main/index.sto`), ma la pagina di
   ingresso non espone `DB_NAME` né link diretti al modulo trasparenza (a differenza di
   Catania/Favara) — richiede lo stesso reverse engineering del flusso wizard già fatto
   per Catania, non ripetuto qui per limiti di tempo.
-- **Leonforte** (13.878 ab.): albo dietro protezione Cloudflare (bot challenge,
-  risposta 403 "Just a moment...") — richiede browser headless, stessa categoria di
-  Messina/Agrigento.
+- **Leonforte** (13.878 ab.): vera sfida Cloudflare (Turnstile, non un semplice
+  caricamento lento — verificato anche con Playwright: la pagina resta su "Just a
+  moment..." indefinitamente). Non tentato un bypass: è una misura anti-bot attiva,
+  aggirarla non è nello spirito del progetto (stessa linea già seguita per il WAF ANAC
+  e per Messina).
 - **Floridia** (22.685 ab.), **Palagonia** (16.540 ab.): nessun link "albo pretorio" né
   sottodominio noto trovato — piattaforma non identificata.
 - **Carlentini** (17.958 ab.): sottodominio `archivio.comune.carlentini.sr.it`
@@ -56,6 +55,35 @@ economico):
 
 **556 test verdi (erano 545), ruff pulito.** Copertura risultante: **256 comuni attivi
 (era 254), 4.096.733 abitanti (82,0%, era 81,0%)**. Restano **87 comuni mai censiti**.
+
+### Pachino e Barrafranca via Playwright (2026-08-06, stesso giorno)
+
+Verificato che Pachino e Barrafranca (segnalati sopra come "stessa famiglia di
+Agrigento, richiede Playwright") usano davvero la stessa piattaforma DevExpress:
+navigando con Playwright fino a `/ServiziOnLine/AlboPretorio/AlboPretorio` (via il
+pulsante "Accedi al servizio" dal catalogo servizi, oppure — verificato più tardi —
+anche direttamente) la struttura DOM combacia esattamente con quella già gestita da
+`agrigento.py` (span `text-custom p-1`, permalink `data-link`, paginazione DevExpress
+"PBN").
+
+Nuovo scraper **generico** `src/talia/modulo2_scraping/fonti/serviziolinealbo.py`
+(non un fork di `agrigento.py`, che resta intatto e dedicato) — parametrico su
+base_url/codice_istat, riusa lo stesso approccio robusto "permalink-first, poi span
+ancorato via `data-bs-target`". L'unica variazione reale tra i due tenant: il testo del
+titolo a volte include un riferimento settoriale finale ("- NNNN/YYYY del DD/MM/YYYY",
+visto su Barrafranca, assente su Pachino) — gestito con un secondo regex che lo scarta
+prima della classificazione del tipo.
+
+Entrambi `escluso_default` nel registro (come Agrigento: Playwright più lento, non nel
+run automatico). Verificato con `scarica_atti()` reale: **178 atti Pachino, 90 atti
+Barrafranca**. 16 nuovi test (`tests/fonti/test_serviziolinealbo.py`).
+
+Tentato anche un bypass di Leonforte (Cloudflare) con Playwright: la sfida resta attiva
+indefinitamente anche con un browser reale — non un problema di JS-rendering ma di
+bot-detection attiva, non aggirata di proposito (vedi sopra).
+
+**572 test verdi (erano 556), ruff pulito.** Copertura risultante: **258 comuni attivi
+(era 256), 4.132.778 abitanti (83,0%, era 82,0%)**. Restano **85 comuni mai censiti**.
 
 ### Secondo sweep sui comuni residui (2026-08-06)
 

@@ -290,6 +290,50 @@ def _make_agrigento_runner(entry: EntryRegistro):
     return _runner
 
 
+def _run_serviziolinealbo_comune(
+    conn, base_url, codice_istat, denominazione, provincia, max_pagine: int = 20, **_kwargs
+) -> dict:
+    try:
+        from talia.modulo2_scraping.fonti.serviziolinealbo import (
+            prepara_ente,
+            salva_atti,
+            scarica_atti,
+        )
+    except ImportError as exc:
+        raise RuntimeError(
+            "serviziolinealbo richiede Playwright: "
+            "pip install playwright && playwright install chromium"
+        ) from exc
+
+    prepara_ente(conn, codice_istat=codice_istat, denominazione=denominazione, provincia=provincia)
+    print(
+        f"  [{denominazione}] Scarico albo pretorio ServiziOnLine con Playwright "
+        f"(max {max_pagine} pagine)…"
+    )
+    t0 = time.monotonic()
+    atti = list(scarica_atti(base_url, codice_istat, max_pagine=max_pagine))
+    esito = salva_atti(atti, conn)
+    elapsed = time.monotonic() - t0
+    print(f"  [{denominazione}] {len(atti)} atti trovati → {esito} — {elapsed:.0f}s")
+    esito["n_trovati"] = len(atti)
+    esito["data_min"], esito["data_max"] = _date_range(atti)
+    return esito
+
+
+def _make_serviziolinealbo_runner(entry: EntryRegistro):
+    def _runner(conn, **kwargs):
+        return _run_serviziolinealbo_comune(
+            conn,
+            entry.base_url,
+            entry.codice_istat,
+            entry.denominazione,
+            entry.provincia,
+            **kwargs,
+        )
+
+    return _runner
+
+
 # jCityGov (Liferay *.trasparenza-valutazione-merito.it)
 # Messina esclusa: SSL self-signed cert — da risolvere separatamente.
 
@@ -596,6 +640,7 @@ _FACTORY_PER_MODULO = {
     "ribera": _make_ribera_runner,
     "nicosia": _make_nicosia_runner,
     "agrigento": _make_agrigento_runner,
+    "serviziolinealbo": _make_serviziolinealbo_runner,
     "anac": _make_anac_runner,
 }
 
