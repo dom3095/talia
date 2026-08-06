@@ -1,11 +1,52 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: riconciliato con
-> `main`; run completa scraper (234/244 OK); fix retry `halley.py`; dei 3 comuni con
-> piattaforma migrata, 2 risolti (Cefalù, Partanna — erano già su Halley EG, solo
-> `base_url` sbagliata) e 1 scartato (Corleone — nessun registro atti reale trovato).
-> Trovato e rimosso 1 duplicato di registro (`partanna_tp`). Aggiunte 2 tab dashboard
-> (Statistiche + Mappa copertura, TAL-30). Vedi sezioni sotto.)
+> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep sui
+> 106 comuni ancora mai censiti, 16 attivati (+116.978 abitanti, copertura
+> 79,0%→81,0%), bugfix fingerprint jCityGov (106/106 falsi positivi al primo giro — vedi
+> sezione sotto). Aggiunto allo stesso branch/PR di oggi, non un branch separato.)
+
+---
+
+## Sessione 2026-08-06 (continua) — Secondo sweep comuni residui (106 → 89 mancanti)
+
+**Richiesta di Dom:** "lavorerei a censire gli altri comuni" (i 106 rimasti dopo lo
+sweep del 26/07). Aggiunto allo stesso branch `feat/sweep-comuni-mancanti`/PR #16 già
+aperta (un branch separato creato per errore e poi riportato qui su richiesta di Dom).
+
+**Metodologia** (stessa dei sweep precedenti, con 2 estensioni): più varianti di slug
+per comune (calibrate confrontando lo slug atteso con l'host reale dei 195 comuni già
+censiti — 191/195 combaciavano con la concatenazione semplice) + pattern Halley "EGOV"
+scoperto lo stesso giorno con Cefalù.
+
+**Bug critico trovato e corretto nel proprio script di sweep** (non nel codice di
+produzione): il fingerprint jCityGov si basava sullo status HTTP, ma
+`trasparenza-valutazione-merito.it` risponde **403 con una pagina di errore generica per
+qualsiasi sottodominio, anche inesistente** — un catch-all del vendor. Risultato del
+primo giro: **106/106 "hit"**, tutti falsi. Diagnosticato testando un sottodominio
+palesemente inventato (stesso 403) e un comune jCityGov reale noto (marker
+`jcitygov-albi-theme` nel body, assente nel falso positivo). Corretto richiedendo quel
+marker; rilanciato: **17 hit reali** su 106.
+
+**Verifica end-to-end** (come da principio ormai consolidato — mai attivare dal solo
+fingerprint): tutti e 17 chiamati con le funzioni `scarica_atti()` di produzione.
+**16 con atti reali** → attivati. **1** (Valguarnera Caropepe, Halley EG) con
+fingerprint corretto ma pagina vuota (0 righe in tabella, verificato anche con una
+seconda chiamata isolata) → lasciato `pending`. **1** (Mirabella Imbaccari) richiedeva
+`skip_ssl` (stessa causa di Siculiana: certificato valido, catena incompleta).
+
+**Copertura risultante: 254 comuni attivi (era 238), 4.053.712 abitanti (81,0%, era
+79,0%)** — numeri confermati anche dalla nuova tab Mappa copertura della dashboard
+(`streamlit.testing.v1.AppTest` su `talia.db` reale). Restano **89 comuni mai censiti**
+(~500.000 abitanti), nessun pattern di piattaforma noto trovato — candidati per
+ricognizione manuale, non più sweepabili in automatico con i pattern esistenti.
+
+**545 test verdi (invariato — solo dati di registro, nessun codice nuovo), ruff pulito,
+registro validato (308 righe).** Dettagli completi in
+[14-censimento-albi.md](docs/wiki/14-censimento-albi.md). Script di sweep/verifica non
+committati (one-off in scratchpad, stessa convenzione).
+
+**Prossimo passo:** PR #16 già aggiornata con questo commit, in attesa di review/merge
+di Dom. Poi considerare una ricognizione manuale sui 89 comuni residui.
 
 ---
 

@@ -1,12 +1,48 @@
 # 14 — Censimento albi pretori dei comuni siciliani (TAL-49 + TAL-50)
 
-Aggiornato: 2026-07-26 (sweep di dominio sui comuni mai censiti). Fonte lista comuni:
-`data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+Aggiornato: 2026-08-06 (secondo sweep di dominio sui comuni ancora mai censiti). Fonte
+lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
 
 Configurazione scraper: **`data/registro_scraper.csv`** è l'unica fonte di verità
 (sostituisce le vecchie liste hardcoded in `run_scrapers.py` e i CSV di censimento
 `censimento_albi_pa_tp[_COMPLETO].csv`, rimossi). Vedi `registry.py` per il loader.
 Le sezioni sotto restano come narrativa storica di come ogni comune è stato scoperto.
+
+### Secondo sweep sui comuni residui (2026-08-06)
+
+Dopo il sweep del 26/07 restavano **106 comuni mai censiti** (624.607 abitanti, 12,5%
+della popolazione). Stessa metodologia, con due estensioni: (1) più varianti di slug per
+comune (concatenato, con trattino, solo prima parola, solo ultima parola — calibrate
+confrontando lo slug atteso con l'host reale dei 195 comuni già censiti: 191/195
+corrispondevano alla concatenazione semplice, i 4 mismatch hanno suggerito le varianti
+aggiuntive); (2) pattern Halley `egov.comune.<slug>.<prov>.it/<slug>/mc/mc_p_ricerca.php`,
+scoperto lo stesso giorno risolvendo Cefalù (piattaforma Halley "EGOV", storicamente
+diversa dallo schema `servizi./trasparenza.` già noto).
+
+**Bug trovato nel primo giro dello sweep**: il fingerprint jCityGov si basava solo sullo
+status HTTP (200/301/302/403), ma `trasparenza-valutazione-merito.it` risponde **403 con
+una pagina di errore generica per qualsiasi sottodominio, anche inesistente** (wildcard
+del vendor) — risultato: 106/106 falsi positivi al primo giro. Corretto richiedendo un
+marker reale nel body (`jcitygov-albi-theme` o `<title>Albo Pretorio</title>`, verificato
+su un tenant noto). Gli altri 3 pattern (Halley, portalepa, HSPromila) usano domini
+propri del comune o path specifici che già rispondono DNS/404 negativi per slug
+inesistenti — nessun problema analogo.
+
+Con il fingerprint corretto: **17 hit** su 106 (9 Halley EG, 3 jCityGov, 3 portalepa, 1
+HSPromila). Verificati tutti con `scarica_atti()` reale: **16 con atti reali** →
+attivati (+2.475 atti, +116.978 abitanti), **1** (Valguarnera Caropepe, Halley EG) con
+fingerprint corretto ma pagina vuota → lasciato `pending`. Un caso (Mirabella Imbaccari)
+richiedeva `skip_ssl` (stessa causa già vista per Siculiana: certificato valido ma catena
+incompleta lato server).
+
+**Copertura risultante: 254 comuni attivi (era 238), 4.053.712 abitanti (81,0%, era
+79,0%)**. Restano **89 comuni mai censiti** (~500.000 abitanti) — nessun pattern di
+piattaforma nota trovato per questi, candidati per una futura ricognizione manuale
+(fuori scope di uno sweep automatico: verosimilmente siti custom o piattaforme non
+ancora coperte da TALIA).
+
+545 test verdi (erano 535), ruff pulito. Script di sweep/verifica non committati (one-off
+in scratchpad, stessa convenzione degli sweep precedenti).
 
 ### Sweep di dominio sui comuni mai censiti (2026-07-26)
 
@@ -241,22 +277,31 @@ Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 8-10.
 Da ricontrollare periodicamente: potrebbe esporre l'albo su altro portale o attivarlo in futuro
 (come già successo per Racalmuto → "Storico atti" jCityGov, e per Ribera → WordPress).
 
-## Prossimi comuni da censire (non jCityGov, per popolazione)
+## Prossimi comuni da censire (aggiornato 2026-08-06, per popolazione)
+
+89 comuni ancora senza alcuna riga di registro, nessun hit sui pattern noti
+(jCityGov/Halley EG/Halley HSPromila/portalepa) nei due sweep automatici del 26/07 e
+6/08. Probabilmente piattaforme non ancora coperte da TALIA (URBI con `DB_NAME` opaco
+non sweepabile, e-pal, siti custom) o slug non standard.
 
 | Comune | Prov | Popolazione |
 |--------|------|------------:|
-| Partinico | PA | 31.401 |
 | Comiso | RG | 30.214 |
 | Aci Catena | CT | 28.749 |
-| Niscemi | CL | 27.975 |
-| Termini Imerese | PA | 26.201 |
-| San Cataldo | CL | 23.424 |
 | Floridia | SR | 22.685 |
 | Pachino | SR | 22.068 |
-| Rosolini | SR | 21.526 |
 | Bronte | CT | 19.234 |
 | Carlentini | SR | 17.958 |
-| Aci Sant'Antonio | CT | 17.270 |
 | Palagonia | CT | 16.540 |
+| Nicosia | EN | 14.272 |
+| Barrafranca | EN | 13.977 |
+| Leonforte | EN | 13.878 |
+| Mascali | CT | 13.792 |
+| Capo d'Orlando | ME | 13.260 |
+| Francofonte | SR | 12.923 |
+| Priolo Gargallo | SR | 12.167 |
+| Santa Croce Camerina | RG | 9.452 |
 
-Per questi serve individuare la piattaforma (URBI, Halley, portalepa, e-pal, siti custom…): stessa procedura di TAL-49, esplorazione + scraper riusabile per famiglia di piattaforma.
+Per questi serve individuare la piattaforma manualmente (esplorazione diretta del sito,
+non sweepabile in automatico) + eventualmente un nuovo scraper riusabile per famiglia di
+piattaforma, stessa procedura di TAL-49.
