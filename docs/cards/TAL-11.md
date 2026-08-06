@@ -3,7 +3,7 @@
 - **Epica:** E1 — Motore + Modulo 1
 - **Ruolo:** 🔤 NLP
 - **Priorità:** P2
-- **Stato:** Review
+- **Stato:** Done
 - **Branch:** `feat/TAL-11-check3-motivazione`
 
 ## 🎯 Obiettivo

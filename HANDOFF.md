@@ -81,12 +81,13 @@ combinato `2>&1`, l'ordine delle righe non riflette l'ordine reale degli eventi)
 
 **535 test verdi (erano 533), ruff pulito.**
 
-**Prossimo passo:** decidere se investire in scraper dedicati per `cefalù`/`corleone`/`partanna_tp`
-(3 comuni, piattaforme diverse tra loro → 2-3 spider separati) o lasciarli `pending`
-finché non emerge un pattern riusabile con altri comuni sulla stessa piattaforma.
-Considerare anche se il fix retry di `halley.py` va esteso con un secondo retry (backoff
-più lungo) dato che l'host condiviso `195.231.11.215` è rimasto giù per minuti, non
-secondi, in questa sessione.
+**Prossimo passo (superato, vedi sezione "Seguito stesso giorno" sotto):**
+~~decidere se investire in scraper dedicati per `cefalù`/`corleone`/`partanna_tp`~~ —
+risolto lo stesso giorno: Cefalù e Partanna erano solo `base_url` sbagliata (già Halley
+EG), Corleone scartato (nessun registro atti reale). Resta aperto solo: valutare se il
+retry di `halley.py` va esteso con un secondo tentativo (backoff più lungo), dato che
+l'host condiviso `195.231.11.215` è rimasto giù per minuti, non secondi, in questa
+sessione — non ancora fatto.
 
 **Seguito stesso giorno — indagine sui 3 comuni "piattaforma migrata":**
 - **Cefalù**: non serviva un nuovo scraper. Il vero portale trasparenza è

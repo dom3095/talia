@@ -4,13 +4,13 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
-Modulo 3 (Dashboard Streamlit). In corso: validazione fascicoli reali (TAL-12). Censimento
-Palermo/Trapani (TAL-50), registro unificato scraper (#11), download PDF on-demand
-(TAL-47) e riapertura dopo revoca (TAL-48) completati e mergiati in `main`. Check-3
-qualità motivazione LLM (TAL-11) in Review (PR #14). Ripulita la colonna Review
-(2026-07-25): 11 card verificate e spostate in Done, 3 lasciate aperte con un gap
-specifico ancora documentato nella card (TAL-3 OCR, TAL-5 associazione nome↔ruolo, TAL-9
-incrocio tempistica graduatoria).
+Modulo 3 (Dashboard Streamlit, +tab Statistiche/Mappa copertura). In corso: validazione
+fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50), registro unificato
+scraper (#11), download PDF on-demand (TAL-47), riapertura dopo revoca (TAL-48) e
+check-3 qualità motivazione LLM (TAL-11, PR #14) completati e mergiati in `main`.
+Ripulita la colonna Review (2026-07-25): 11 card verificate e spostate in Done, 3
+lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, TAL-5
+associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -54,7 +54,6 @@ incrocio tempistica graduatoria).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; **PR #14 aperta**, in attesa di review Dom — RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test; 9 findings da code review corretti |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
 | [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo esplicitamente rinviata (vedi Consuntivo) |
 | [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria ancora aperto, da card dedicata (vedi Consuntivo) |
@@ -62,7 +61,9 @@ incrocio tempistica graduatoria).
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
-| — | Sweep di dominio comuni mai censiti (2026-07-26) | branch `feat/sweep-comuni-mancanti` (PR #16, riconciliata con main 2026-08-05); 153 comuni mai censiti individuati, 47 hit (jCityGov/Halley/HSPromila), 40 verificati con atti reali e attivati (+189.921 abitanti, copertura 74,0%→77,8%), 7 pending (fingerprint ok ma 0 atti); bugfix retry HSPromila + fix codice ISTAT Messina; 2026-08-06: run completa 234/244 scraper OK, bugfix retry anche su `halley.py`; Cefalù (+440 atti) e Partanna sbloccati (base_url errata, in realtà già su Halley EG — rimosso anche `partanna_tp`, duplicato di registro); Corleone scartato deliberatamente (WordPress con solo 12 documenti totali, non un registro atti reale); 535 test verdi |
+| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | PR #14 mergiata (2026-08-05); RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 9 findings da code review corretti |
+| — | Fix registro: certificati SSL incompleti + base_url errato | PR #15 mergiata (2026-08-05): `brolo`/`pozzallo`/`sortino` (skip_ssl) + `castellammare_golfo` (base_url) |
+| — | Sweep di dominio comuni mai censiti (2026-07-26) | branch `feat/sweep-comuni-mancanti` (PR #16, riconciliata con main 2026-08-05); 153 comuni mai censiti individuati, 47 hit (jCityGov/Halley/HSPromila), 40 verificati con atti reali e attivati (+189.921 abitanti, copertura 74,0%→77,8%), 7 pending (fingerprint ok ma 0 atti); bugfix retry HSPromila + fix codice ISTAT Messina; 2026-08-06: run completa 234/244 scraper OK, bugfix retry anche su `halley.py`; Cefalù (+440 atti) e Partanna sbloccati (base_url errata, in realtà già su Halley EG — rimosso anche `partanna_tp`, duplicato di registro); Corleone scartato deliberatamente (WordPress con solo 12 documenti totali, non un registro atti reale); dashboard +tab Statistiche/Mappa copertura; 545 test verdi |
 | [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | MVP + integrazione pdf_download (branch `feat/TAL-48-pdf-riaperture`); bugfix critico (data_atto NULL su jCityGov → 0 rilevazioni reali, ora 78); 480 test verdi |
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | PR #12 mergiata (2026-07-12): 9 comuni TIER 0 nel registro, riconciliato con refactor registro scraper (#11) |
 | — | Refactor: registro unificato scraper + health-check (#11) | `data/registro_scraper.csv` + `registry.py` + `_FACTORY_PER_MODULO`; health-check settimanale CI; 39 comuni censiti recuperati (1 attivato — Altavilla Milicia) |
