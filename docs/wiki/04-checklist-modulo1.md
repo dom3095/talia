@@ -12,7 +12,7 @@ verde/giallo/rosso con citazione testuale e riferimento normativo.
 | 3 | Qualità della motivazione | LLM: specifica vs boilerplate; densità; requisiti giurisprudenziali (interesse pubblico concreto e attuale, comparazione con affidamenti dei privati) | motivazione generica, di poche righe, mero "ripristino di legalità" |
 | 4 | Violazione autodichiarata | LLM/NER: estrazione e classificazione dell'illegittimità dichiarata nell'atto | — (non è red flag: è dato prezioso per le statistiche) |
 | 5 | Comunicazione avvio procedimento (art. 7 L. 241) | ricerca menzione nell'atto | assente nei confronti dei partecipanti |
-| 6 | Coerenza firmatari | confronto firmatari indizione vs annullamento | stesso dirigente che si auto-annulla a ridosso della graduatoria |
+| 6 | Coerenza firmatari | confronto firmatari indizione vs annullamento, arricchito col ruolo (`attori.py`) e con la tempistica della graduatoria (`graduatoria.py`) | stesso dirigente che si auto-annulla; 🔴 se anche a ridosso (≤60gg, euristico) della graduatoria |
 | 7 | Follow-up | collegamento con atti successivi (scraping) | ribandito con requisiti modificati in modo mirato; riaffidamento a soggetto diverso dopo revoca |
 
 ## Note implementative
@@ -35,7 +35,7 @@ verde/giallo/rosso con citazione testuale e riferimento normativo.
 | 2 termini 12 mesi | `check2_termini.py` | 🟢🟡🔴⚪ | solo annullamenti; date mancanti → 🟡, mai crash |
 | 3 qualità motivazione | `check3_motivazione.py` | 🟢🟡🔴⚪ | LLM (qwen3:4b/Ollama) + RAG (BM25, `engine/rag.py`); solo se un altro check ha già flaggato; ⚪ altrimenti |
 | 5 avvio art. 7 | `check5_avvio.py` | 🟢🔴 | assenza di menzione ≠ omissione provata |
-| 6 firmatari | `check6_firmatari.py` | 🟢🟡⚪ | sovrapposizione → 🟡 conservativo |
+| 6 firmatari | `check6_firmatari.py` | 🟢🟡🔴⚪ | sovrapposizione → 🟡 conservativo, 🔴 se anche a ridosso della graduatoria (TAL-53) |
 
 ## Distinzione fondamentale: revoca ≠ annullamento
 

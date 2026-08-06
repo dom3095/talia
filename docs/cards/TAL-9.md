@@ -16,7 +16,7 @@ a ridosso della graduatoria.
 ## ✅ Task
 - [x] Confrontare firmatari dei due atti (da TAL-5)
 - [x] Rilevare se il firmatario dell'annullamento è lo stesso dell'indizione
-- [ ] Incrociare con la tempistica (vicinanza alla graduatoria) se disponibile
+- [x] Incrociare con la tempistica (vicinanza alla graduatoria) se disponibile (TAL-53)
 - [x] Esito 🟢 / 🟡 / 🔴 con spiegazione
 - [x] ⚠️ Output interno: nomi = dato personale, anonimizzare nelle viste pubbliche
 
@@ -37,5 +37,10 @@ Implementato in `engine/checklist/check6_firmatari.py`: confronto firmatari dei 
 con `nome_normalizzato` (ordine, maiuscole, titoli). Sovrapposizione → 🟡 con entrambe le
 citazioni (conservativo: nei piccoli comuni può essere fisiologico — mai 🔴 senza il dato
 temporale). Non applicabile senza atto originario o senza firmatari estratti.
-**Aperto:** incrocio con la tempistica della graduatoria (richiede estrazione dell'evento
-"approvazione graduatoria") → eventuale card dedicata.
+**Aggiornamento 2026-08-07 (TAL-53):** incrocio con la tempistica implementato in
+[TAL-53](TAL-53.md). `engine/graduatoria.py` estrae la data di approvazione della
+graduatoria quando citata nell'atto (euristica su "graduatoria" + "approvat[ao]" +
+data vicine); se la sovrapposizione dei firmatari coincide con un annullamento entro
+60 giorni dalla graduatoria, l'esito sale a 🔴 (soglia euristica di prodotto, non
+normativa — da validare con ⚖️ LEX). Il messaggio nomina anche il ruolo del firmatario
+(via `attori.py`, TAL-13) quando individuabile. Nessun task residuo qui.

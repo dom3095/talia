@@ -1,10 +1,74 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep
-> automatico (16 comuni) + esplorazione manuale su 10 residui (Aci Catena, Nicosia) +
-> Pachino/Barrafranca via Playwright (nuovo scraper generico `serviziolinealbo.py`,
-> stessa piattaforma di Agrigento). Copertura 83,0%, 258 comuni attivi, 85 ancora mai
-> censiti.)
+> Aggiornato: 2026-08-07 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
+> `feat/sweep-comuni-mancanti`: check 6 ora arricchisce il messaggio col ruolo del
+> firmatario e incrocia la sovrapposizione con la tempistica della graduatoria
+> (🔴 se ravvicinata). Nuova card TAL-53, in Review. 582 test verdi.)
+
+---
+
+## Sessione 2026-08-07 — TAL-53: check 6 nome↔ruolo + tempistica graduatoria
+
+**Richiesta di Dom:** "stacca un nuovo branch a partire da questo, comincia a
+implementare l'associazione nome-ruolo firmatari e l'incrocio con la tempistica
+graduatoria" — i due gap lasciati esplicitamente aperti nei Consuntivi di TAL-5 e TAL-9
+(colonna Review di BOARD.md dal 2026-07-25). Branch `feat/TAL-53-nome-ruolo-graduatoria`
+staccato da `feat/sweep-comuni-mancanti` (PR #16 ancora aperta, non merge-blocking:
+questo branch parte dal lavoro scraper esistente per convenzione "stacca da questo",
+non da `main`). Nuova card **TAL-53** (spec-driven, nessuna domanda bloccante — vedi
+sotto per l'unica assunzione documentata).
+
+**Scoperta preliminare:** l'associazione nome↔ruolo esisteva già come estrazione
+generale in `engine/attori.py` (TAL-13, Done da tempo) ma non era mai stata agganciata
+al check 6 — il lavoro vero non era "costruire l'associazione" ma *usarla* dentro il
+check, più costruire da zero l'estrazione della tempistica graduatoria (che non
+esisteva).
+
+**Fatto:**
+- **Refactor minimo** (`checklist/_date_utils.py`): `filtra_date_ccnl`/`data_estrema`
+  estratte da `check2_termini.py` (private, duplicate altrimenti) in un helper
+  condiviso, ora usato anche da check 6 per calcolare la data dell'annullamento.
+  Nessuna regressione (stessi test di check 2 verdi).
+- **`engine/graduatoria.py`** (nuovo): `estrai_data_graduatoria()` — euristica
+  deterministica su "graduatoria" + "approvat[ao]"/"approvazione" + data vicine.
+  Punto delicato trovato **durante lo sviluppo dei test, non dopo**: ancorare la
+  data più vicina alla parola "graduatoria" sceglieva a volte una data estranea solo
+  perché testualmente più vicina (es. la data dell'annullamento stesso, scritta prima
+  di "graduatoria" nello stesso paragrafo) invece della data che segue realmente
+  "approvat[ao]... del gg/mm/aaaa". Corretto ancorando la ricerca della data alla
+  parola di approvazione (finestra più stretta, 80 caratteri dopo), con fallback a
+  prima di "graduatoria" per il pattern raro inverso ("in data X è stata approvata la
+  graduatoria").
+- **`check6_firmatari.py`**: arricchito, non riscritto — stesso algoritmo di matching
+  firmatari di prima (`_stesso_firmatario`, sottoinsieme di token). Aggiunte: (1) il
+  messaggio nomina il ruolo (via `attori.estrai_attori`) quando individuabile, es. "il
+  Segretario Generale Mario Rossi" invece del solo nome; (2) se la sovrapposizione dei
+  firmatari coincide con un annullamento entro **60 giorni** dalla graduatoria trovata,
+  l'esito sale da 🟡 a 🔴 con la graduatoria citata in più. Degrado sempre verso il
+  comportamento precedente (🟡) se ruolo o graduatoria non sono disponibili — **nessuna
+  regressione sui 5 test di check 6 preesistenti**, verificato prima di aggiungerne di
+  nuovi.
+- **Assunzione documentata, non normativa** (come già il termine dei 12 mesi in check
+  2): la soglia dei 60 giorni per "a ridosso della graduatoria" è una scelta euristica
+  di prodotto, esplicitamente segnalata nella card TAL-53 come da validare con ⚖️ LEX
+  su fascicoli reali (nessuno dei fascicoli TAL-12 letti finora cita esplicitamente
+  l'approvazione della graduatoria nell'atto di autotutela).
+- 10 nuovi test (6 `test_graduatoria.py`, 4 in `test_checklist.py`): ruolo nel
+  messaggio, escalation 🔴, graduatoria lontana → resta 🟡, nessuna menzione →
+  comportamento invariato.
+
+**582 test verdi (erano 572), ruff pulito** (nota: `ruff format` locale su Python 3.12
+proponeva di riformattare ~30 file preesistenti non toccati in questa sessione — stesso
+scarto di versione già documentato nell'entry del 20/07 più sotto; applicato `ruff
+format` solo ai file toccati, non all'intero repo).
+
+**Non fatto:** nessuna verifica su un fascicolo reale con menzione di graduatoria (i
+fascicoli TAL-12 disponibili non ne hanno una) — resta un'euristica testata solo su
+casi sintetici, da validare al primo fascicolo reale che la contiene.
+
+**Prossimo passo:** review di Dom su TAL-53; poi PR (branch già pronto, non ancora
+pushato). Se in futuro emerge un fascicolo reale con menzione di graduatoria, verificare
+`estrai_data_graduatoria()` dal vivo prima di fidarsene in produzione.
 
 ---
 

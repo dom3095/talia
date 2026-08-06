@@ -10,7 +10,8 @@ scraper (#11), download PDF on-demand (TAL-47), riapertura dopo revoca (TAL-48) 
 check-3 qualità motivazione LLM (TAL-11, PR #14) completati e mergiati in `main`.
 Ripulita la colonna Review (2026-07-25): 11 card verificate e spostate in Done, 3
 lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, TAL-5
-associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria).
+associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria). I gap di TAL-5/TAL-9
+sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -54,9 +55,10 @@ associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-53](TAL-53.md) | Check 6: associazione nome↔ruolo + incrocio tempistica graduatoria | 🔤 NLP | branch `feat/TAL-53-nome-ruolo-graduatoria`; implementazione completa (`graduatoria.py` + wiring in check6), 582 test verdi (erano 572) — in attesa di review/merge |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
-| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo esplicitamente rinviata (vedi Consuntivo) |
-| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria ancora aperto, da card dedicata (vedi Consuntivo) |
+| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo chiusa da TAL-53 |
+| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria chiuso da TAL-53 |
 
 ### ✅ Done
 | ID | Titolo | Note |

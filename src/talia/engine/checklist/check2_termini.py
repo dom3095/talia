@@ -22,6 +22,7 @@ from datetime import date
 
 from ..fascicolo import ContestoFascicolo
 from ..models import Citazione, Entita, Stato
+from ._date_utils import data_estrema, filtra_date_ccnl
 from .base import Check, EsitoCheck, registra
 
 _RIFERIMENTI = ("Art. 21-nonies L. 241/1990 (termine di 12 mesi)",)
@@ -33,14 +34,6 @@ TOLLERANZA_GIORNI = 30
 
 # Trattino opzionale: negli atti reali si trova anche "21 nonies" / "21nonies".
 _RE_ANNULLAMENTO = re.compile(r"21\s*-?\s*nonies", re.IGNORECASE)
-
-# Date vicine a riferimenti CCNL non riguardano il procedimento di autotutela.
-_RE_CCNL = re.compile(
-    r"(CCNL|contratto\s+collettivo|accordo\s+quadro)",
-    re.IGNORECASE,
-)
-# Finestra di esclusione: ±N caratteri dal centro della data.
-_FINESTRA_CCNL = 120
 
 
 class CheckTerminiAutotutela(Check):
@@ -98,33 +91,29 @@ class CheckTerminiAutotutela(Check):
 
     # --- estrazione delle due date di riferimento ---------------------------
 
-    def _data_originario(
-        self, contesto: ContestoFascicolo
-    ) -> tuple[date | None, Entita | None]:
+    def _data_originario(self, contesto: ContestoFascicolo) -> tuple[date | None, Entita | None]:
         if contesto.atto_originario is not None:
-            date_orig = _filtra_date_ccnl(
+            date_orig = filtra_date_ccnl(
                 contesto.atto_originario.entita.date,
                 contesto.atto_originario.testo.testo,
             )
-            return _data_estrema(date_orig, piu_recente=False)
+            return data_estrema(date_orig, piu_recente=False)
         # Solo atto di autotutela: la data più antica in esso citata è il proxy
         # del riferimento all'atto annullato.
-        date_autotutela = _filtra_date_ccnl(
+        date_autotutela = filtra_date_ccnl(
             contesto.atto_autotutela.entita.date,
             contesto.atto_autotutela.testo.testo,
         )
         if len(_valori_distinti(date_autotutela)) < 2:
             return None, None
-        return _data_estrema(date_autotutela, piu_recente=False)
+        return data_estrema(date_autotutela, piu_recente=False)
 
-    def _data_annullamento(
-        self, contesto: ContestoFascicolo
-    ) -> tuple[date | None, Entita | None]:
-        date_aut = _filtra_date_ccnl(
+    def _data_annullamento(self, contesto: ContestoFascicolo) -> tuple[date | None, Entita | None]:
+        date_aut = filtra_date_ccnl(
             contesto.atto_autotutela.entita.date,
             contesto.atto_autotutela.testo.testo,
         )
-        return _data_estrema(date_aut, piu_recente=True)
+        return data_estrema(date_aut, piu_recente=True)
 
     @staticmethod
     def _mesi_approssimati(giorni: int) -> int:
@@ -132,9 +121,7 @@ class CheckTerminiAutotutela(Check):
         return round(giorni / 30.44)
 
     @staticmethod
-    def _citazioni(
-        contesto: ContestoFascicolo, entita: list[Entita | None]
-    ) -> list[Citazione]:
+    def _citazioni(contesto: ContestoFascicolo, entita: list[Entita | None]) -> list[Citazione]:
         citazioni: list[Citazione] = []
         for ent in entita:
             if ent is None:
@@ -144,41 +131,8 @@ class CheckTerminiAutotutela(Check):
         return citazioni
 
 
-def _filtra_date_ccnl(date_entita: list[Entita], testo: str) -> list[Entita]:
-    """Rimuove date che seguono immediatamente un riferimento CCNL (entro _FINESTRA_CCNL caratteri).
-
-    Il pattern ricorrente è "CCNL del 16.11.2022" o "accordo quadro del 01.03.2021":
-    la data appare alla destra del keyword. Filtrare solo in quella direzione evita di
-    scartare la data dell'annullamento che precede il riferimento CCNL nella stessa frase.
-    """
-    posizioni_ccnl = [m.start() for m in _RE_CCNL.finditer(testo)]
-    if not posizioni_ccnl:
-        return date_entita
-    filtrate = []
-    for ent in date_entita:
-        # Escludi se un keyword CCNL appare entro _FINESTRA_CCNL caratteri PRIMA della data.
-        vicino_ccnl = any(
-            0 <= ent.offset_inizio - pos <= _FINESTRA_CCNL
-            for pos in posizioni_ccnl
-        )
-        if not vicino_ccnl:
-            filtrate.append(ent)
-    return filtrate
-
-
 def _valori_distinti(date_entita: list[Entita]) -> set[date]:
     return {e.valore for e in date_entita}
-
-
-def _data_estrema(
-    date_entita: list[Entita], *, piu_recente: bool
-) -> tuple[date | None, Entita | None]:
-    """Restituisce l'entità data più recente o più antica e il suo valore."""
-    candidate = [e for e in date_entita if isinstance(e.valore, date)]
-    if not candidate:
-        return None, None
-    scelta = (max if piu_recente else min)(candidate, key=lambda e: e.valore)
-    return scelta.valore, scelta
 
 
 def _atto_di(contesto: ContestoFascicolo, ent: Entita):

@@ -186,3 +186,47 @@ def test_check6_solo_cognome_condiviso_non_match():
 def test_check6_non_applicabile_senza_originario():
     ctx = _contesto("annullamento\nF.to Dott. Mario Rossi")
     assert CheckCoerenzaFirmatari().applicabile(ctx) is False
+
+
+def test_check6_ruolo_arricchisce_messaggio():
+    # TAL-53: il ruolo (via attori.py) arricchisce la spiegazione quando individuabile.
+    ctx = _contesto(
+        "Il Segretario Generale f.to Dott. Mario Rossi",
+        originario="indizione\nF.to Dott. Mario Rossi",
+    )
+    esito = CheckCoerenzaFirmatari().valuta(ctx)
+    assert esito.stato is Stato.GIALLO
+    assert "Segretario Generale" in esito.spiegazione
+
+
+def test_check6_graduatoria_ravvicinata_rosso():
+    # TAL-53: stesso firmatario + annullamento a ridosso della graduatoria → 🔴.
+    ctx = _contesto(
+        "annullamento del 10/04/2025\nvista la graduatoria approvata con "
+        "determinazione n. 9 del 01/03/2025\nF.to Dott. Mario Rossi",
+        originario="indizione\nF.to Dott. Mario Rossi",
+    )
+    esito = CheckCoerenzaFirmatari().valuta(ctx)
+    assert esito.stato is Stato.ROSSO
+    assert "graduatoria" in esito.spiegazione.lower()
+    assert len(esito.citazioni) == 3  # firmatario orig + firmatario autt + graduatoria
+
+
+def test_check6_graduatoria_lontana_resta_giallo():
+    # Stesso firmatario, ma l'annullamento è ben oltre la soglia dalla graduatoria.
+    ctx = _contesto(
+        "annullamento del 10/04/2025\nvista la graduatoria approvata con "
+        "determinazione n. 9 del 01/01/2020\nF.to Dott. Mario Rossi",
+        originario="indizione\nF.to Dott. Mario Rossi",
+    )
+    esito = CheckCoerenzaFirmatari().valuta(ctx)
+    assert esito.stato is Stato.GIALLO
+
+
+def test_check6_senza_menzione_graduatoria_resta_giallo():
+    ctx = _contesto(
+        "annullamento\nF.to Dott. Mario Rossi",
+        originario="indizione\nF.to Dott. Mario Rossi",
+    )
+    esito = CheckCoerenzaFirmatari().valuta(ctx)
+    assert esito.stato is Stato.GIALLO
