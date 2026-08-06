@@ -1,12 +1,61 @@
 # 14 — Censimento albi pretori dei comuni siciliani (TAL-49 + TAL-50)
 
-Aggiornato: 2026-08-06 (secondo sweep di dominio sui comuni ancora mai censiti). Fonte
-lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+Aggiornato: 2026-08-06 (esplorazione manuale sui 10 comuni residui più popolosi, dopo il
+secondo sweep automatico). Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT ×
+popolazione Wikipedia).
 
 Configurazione scraper: **`data/registro_scraper.csv`** è l'unica fonte di verità
 (sostituisce le vecchie liste hardcoded in `run_scrapers.py` e i CSV di censimento
 `censimento_albi_pa_tp[_COMPLETO].csv`, rimossi). Vedi `registry.py` per il loader.
 Le sezioni sotto restano come narrativa storica di come ogni comune è stato scoperto.
+
+### Esplorazione manuale sui 10 comuni residui più popolosi (2026-08-06)
+
+Dopo il secondo sweep automatico (89 comuni ancora senza pattern noto), esplorazione
+manuale sito-per-sito dei 10 più popolosi (Comiso, Aci Catena, Floridia, Pachino,
+Bronte, Carlentini, Palagonia, Nicosia, Barrafranca, Leonforte), cercando link "albo
+pretorio" in homepage e sottodomini noti. Risultato: **2 attivati, 8 approfonditi e
+scartati o rimandati** (piattaforme reali diverse da comune a comune, nessun pattern
+riusabile emerso — a differenza degli sweep automatici, qui ogni comune è un caso a sé).
+
+**Attivati:**
+- **Aci Catena** (28.749 ab.): jCityGov standard (marker `jcitygov-albi-theme`
+  confermato), ma ospitato su `trasparenza.comune.acicatena.ct.it` — dominio proprio del
+  comune, non il vendor condiviso `trasparenza-valutazione-merito.it` che lo sweep
+  automatico controlla. **+1.000 atti** con `jcitygov.py` esistente, nessun codice nuovo.
+- **Nicosia** (14.272 ab.): WordPress "Developers Italia" (CPT `documento_pubblico` +
+  tassonomia `tipi_documento/documento-albo-pretorio/`) — nuovo scraper dedicato
+  (`src/talia/modulo2_scraping/fonti/nicosia.py`, sullo stesso schema di `ribera.py`).
+  Solo atti **in pubblicazione** (~12), stesso pattern "finestra breve" di
+  Palermo/Catania: serve scraping continuo, non è un archivio storico completo. **+12
+  atti**. Nota: il backend reale è URBI (`asp.urbi.it`, DB_NAME esposto nei link
+  "Scarica documento"), ma con un frontend più recente ("Bootstrap ITALIA") che non
+  risponde al flusso HTTP di `urbi.py` — non approfondito ora, promettente se altri
+  comuni emergono sulla stessa piattaforma.
+
+**Approfonditi e rimandati** (piattaforma identificata, non ancora scriptabile in modo
+economico):
+- **Comiso** (30.214 ab.): piattaforma "DemaPA" (`palgpi.it`), JSF/PrimeFaces con form
+  stateful (ViewState) — reverse engineering più costoso degli altri pattern HTTP
+  stateless già gestiti.
+- **Pachino** (22.068 ab.) e **Barrafranca** (13.977 ab.): stessa piattaforma
+  (`servizi.comune.<slug>.it/ServiziOnLine/Istanze/landingIstanza?Id=N`), ASP.NET +
+  DevExpress — stessa famiglia di Agrigento (`agrigento.py`), richiede Playwright.
+- **Bronte** (19.234 ab.): URBI (`/urbi/progs/main/index.sto`), ma la pagina di
+  ingresso non espone `DB_NAME` né link diretti al modulo trasparenza (a differenza di
+  Catania/Favara) — richiede lo stesso reverse engineering del flusso wizard già fatto
+  per Catania, non ripetuto qui per limiti di tempo.
+- **Leonforte** (13.878 ab.): albo dietro protezione Cloudflare (bot challenge,
+  risposta 403 "Just a moment...") — richiede browser headless, stessa categoria di
+  Messina/Agrigento.
+- **Floridia** (22.685 ab.), **Palagonia** (16.540 ab.): nessun link "albo pretorio" né
+  sottodominio noto trovato — piattaforma non identificata.
+- **Carlentini** (17.958 ab.): sottodominio `archivio.comune.carlentini.sr.it`
+  (WordPress separato dal sito principale) con riferimenti ad "albo" nel testo, ma
+  struttura non ancora chiarita.
+
+**556 test verdi (erano 545), ruff pulito.** Copertura risultante: **256 comuni attivi
+(era 254), 4.096.733 abitanti (82,0%, era 81,0%)**. Restano **87 comuni mai censiti**.
 
 ### Secondo sweep sui comuni residui (2026-08-06)
 

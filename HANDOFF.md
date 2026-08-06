@@ -1,9 +1,56 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep sui
-> 106 comuni ancora mai censiti, 16 attivati (+116.978 abitanti, copertura
-> 79,0%→81,0%), bugfix fingerprint jCityGov (106/106 falsi positivi al primo giro — vedi
-> sezione sotto). Aggiunto allo stesso branch/PR di oggi, non un branch separato.)
+> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep
+> automatico (16 comuni, +116.978 ab.) + esplorazione manuale sui 10 residui più
+> popolosi (2 attivati: Aci Catena su jCityGov esistente, Nicosia con nuovo scraper
+> WordPress dedicato). Copertura 82,0%, 256 comuni attivi, 87 ancora mai censiti.)
+
+---
+
+## Sessione 2026-08-06 (continua) — Esplorazione manuale 10 comuni residui
+
+**Richiesta di Dom:** "puoi continuare a esplorare altri 10 dei comuni mancanti? crea
+gli scraper se puoi" (dopo i due sweep automatici, sui 10 comuni residui più popolosi:
+Comiso, Aci Catena, Floridia, Pachino, Bronte, Carlentini, Palagonia, Nicosia,
+Barrafranca, Leonforte).
+
+A differenza degli sweep automatici (pattern noti su tanti comuni), qui ogni comune è
+stato esplorato singolarmente (link "albo pretorio" in homepage, sottodomini noti,
+`wp-sitemap.xml` per i siti WordPress) — nessun pattern comune tra i 10, ognuno è un
+caso a sé.
+
+**2 attivati:**
+- **Aci Catena** (28.749 ab.): jCityGov standard, ma su dominio proprio
+  (`trasparenza.comune.acicatena.ct.it`) invece del vendor condiviso
+  `trasparenza-valutazione-merito.it` — non lo intercetta lo sweep automatico, che
+  controlla solo quel dominio. **Nessun codice nuovo**: `jcitygov.py` accetta già
+  `base_url` come parametro. +1.000 atti (backfill storico completo).
+- **Nicosia** (14.272 ab.): WordPress "Developers Italia" (stesso tema di Corleone, ma
+  qui la tassonomia "Albo Pretorio" è viva). **Nuovo scraper dedicato**
+  `src/talia/modulo2_scraping/fonti/nicosia.py` (stesso schema di `ribera.py`): lista
+  paginata via tassonomia + una fetch di dettaglio per atto (data reale e descrizione
+  non sono nella pagina lista). Solo atti in pubblicazione (~12, non uno storico) —
+  serve scraping continuo, stesso pattern di Palermo/Catania. 11 nuovi test
+  (`tests/fonti/test_nicosia.py`).
+  Nota per il futuro: il backend reale di Nicosia è **URBI** (`asp.urbi.it`, DB_NAME
+  `n201401` esposto nei link "Scarica documento"), ma con un frontend più recente
+  ("Bootstrap ITALIA") che non risponde al flusso HTTP di `urbi.py` (costruito per
+  l'interfaccia di Catania/Favara/Raffadali) — non approfondito ora. Se in futuro
+  emergono altri comuni sulla stessa piattaforma nuova, conviene investire lì invece di
+  replicare scraper WordPress uno per uno.
+
+**8 approfonditi, non ancora scriptabili in modo economico** (dettagli e piattaforma
+identificata per ciascuno in
+[14-censimento-albi.md](docs/wiki/14-censimento-albi.md)): Comiso (JSF/PrimeFaces
+stateful), Pachino e Barrafranca (ASP.NET DevExpress, famiglia Agrigento → Playwright),
+Bronte (URBI ma flusso da reverse-engineerare come Catania), Leonforte (Cloudflare bot
+protection), Floridia e Palagonia (nessuna piattaforma identificata), Carlentini
+(sottodominio WordPress separato, struttura non chiarita).
+
+**Copertura risultante: 256 comuni attivi (era 254), 4.096.733 abitanti (82,0%, era
+81,0%)**. Restano **87 comuni mai censiti**.
+
+**556 test verdi (erano 545), ruff pulito, registro validato (310 righe).**
 
 ---
 
