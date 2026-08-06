@@ -4,7 +4,41 @@
 > `main`; run completa scraper (234/244 OK); fix retry `halley.py`; dei 3 comuni con
 > piattaforma migrata, 2 risolti (Cefalù, Partanna — erano già su Halley EG, solo
 > `base_url` sbagliata) e 1 scartato (Corleone — nessun registro atti reale trovato).
-> Trovato e rimosso 1 duplicato di registro (`partanna_tp`). Vedi sezione sotto.)
+> Trovato e rimosso 1 duplicato di registro (`partanna_tp`). Aggiunte 2 tab dashboard
+> (Statistiche + Mappa copertura, TAL-30). Vedi sezioni sotto.)
+
+---
+
+## Sessione 2026-08-06 (continua) — Dashboard: tab Statistiche + Mappa copertura (TAL-30)
+
+**Richiesta di Dom:** dashboard con statistiche di ingestione (documenti raccolti negli
+ultimi giorni, aggregati) + mappa interattiva della Sicilia con i comuni colorati per
+copertura scraper.
+
+**Fatto** in `src/talia/modulo3_dashboard/app.py`:
+- **Tab 📈 Statistiche**: KPI (atti totali, comuni con atti, atti ultimi 7/30gg), trend
+  atti ingeriti per giorno (`st.bar_chart`, finestra configurabile 7-90gg), aggregati per
+  provincia/tipo atto/piattaforma scraper. Tutto da query dirette su `atti`/`enti`
+  (`data_accesso`, non `data_atto` — è la data di *ingestione*, coerente con la richiesta).
+- **Tab 🗺️ Mappa copertura**: `pydeck.Layer("GeoJsonLayer")` su
+  `data/comuni_sicilia_confini.geojson` (391 comuni, già presente in repo), colorato per
+  `enti.stato_scraper` (verde=attivo/escluso_default, arancio=pending, rosso=bloccato,
+  grigio=non censito/assente da `enti`). KPI popolazione coperta incrociando
+  `data/comuni_sicilia.csv`. Nessuna dipendenza nuova: `pydeck` è già incluso in
+  Streamlit (verificato: `pip show streamlit` lo elenca in `Requires`), niente token
+  Mapbox (`map_provider="carto"`).
+- **Unica eccezione al principio "la dashboard legge solo dal DB"**: la mappa incrocia
+  anche i due file statici sopra, perché i confini geografici e l'elenco dei comuni mai
+  censiti (assenti da `enti` per definizione) non possono venire dal DB. Documentato in
+  un commento in cima alla sezione mappa di `app.py` e nella card TAL-30.
+- Verificato end-to-end con `streamlit.testing.v1.AppTest` su `talia.db` reale (nessuna
+  API browser disponibile in sessione): 0 eccezioni, metriche coerenti con lo stato noto
+  del progetto (238 comuni coperti, 79% popolazione, 128.585 atti totali).
+- 10 nuovi test (`tests/test_dashboard.py`), **545 test verdi totali**, ruff pulito.
+
+**Non fatto:** nessuna vista storica multi-run (la mappa/statistiche riflettono solo lo
+stato corrente del DB, non uno storico di run passate — coerente con la scelta del resto
+della dashboard).
 
 ---
 

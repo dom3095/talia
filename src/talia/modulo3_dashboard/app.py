@@ -1,6 +1,9 @@
 """Dashboard TALIA — Modulo 3: vista aggregata per comune.
 
-Legge esclusivamente dal DB (TAL-21). Non analizza, non scrive.
+Legge esclusivamente dal DB (TAL-21), tranne la tab mappa che incrocia anche
+i confini comunali e l'elenco di riferimento dei comuni siciliani (file
+statici in `data/`, indispensabili per mostrare anche i comuni mai censiti
+da nessuno scraper — assenti dal DB per definizione). Non analizza, non scrive.
 
 Avvio:
     streamlit run src/talia/modulo3_dashboard/app.py
@@ -11,11 +14,13 @@ Variabile d'ambiente opzionale:
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sqlite3
 from pathlib import Path
 
+import pydeck as pdk
 import streamlit as st
 
 # ---------------------------------------------------------------------------
@@ -61,6 +66,30 @@ COLORI_SEVERITA = {
     "alta": "🔴",
     "media": "🟡",
     "bassa": "🟢",
+}
+
+RADICE_REPO = Path(__file__).resolve().parents[3]
+GEOJSON_COMUNI_PATH = RADICE_REPO / "data" / "comuni_sicilia_confini.geojson"
+COMUNI_SICILIA_CSV_PATH = RADICE_REPO / "data" / "comuni_sicilia.csv"
+
+# Stati "coperti" a fini di mappa/statistiche: uno scraper esiste e funziona,
+# anche se escluso dal run automatico di default (es. Agrigento, Playwright lento).
+STATI_COPERTI = frozenset({"attivo", "escluso_default"})
+
+STATO_COLORI_MAPPA = {
+    "attivo": [46, 139, 87, 200],
+    "escluso_default": [46, 139, 87, 200],
+    "pending": [245, 166, 35, 200],
+    "bloccato": [178, 34, 34, 200],
+    "non_censito": [190, 190, 190, 140],
+}
+
+STATO_ETICHETTE_MAPPA = {
+    "attivo": "Coperto",
+    "escluso_default": "Coperto (escluso dal run automatico)",
+    "pending": "In verifica (pending)",
+    "bloccato": "Bloccato",
+    "non_censito": "Non censito",
 }
 
 # ---------------------------------------------------------------------------
@@ -118,6 +147,62 @@ def _carica_flags_detail(conn: sqlite3.Connection, ente_id: int) -> list[sqlite3
     ).fetchall()
 
 
+def _carica_statistiche_generali(conn: sqlite3.Connection) -> dict:
+    tot_atti = conn.execute("SELECT COUNT(*) FROM atti").fetchone()[0]
+    tot_enti_con_atti = conn.execute("SELECT COUNT(DISTINCT ente_id) FROM atti").fetchone()[0]
+    atti_7g = conn.execute(
+        "SELECT COUNT(*) FROM atti WHERE data_accesso >= date('now', '-7 days')"
+    ).fetchone()[0]
+    atti_30g = conn.execute(
+        "SELECT COUNT(*) FROM atti WHERE data_accesso >= date('now', '-30 days')"
+    ).fetchone()[0]
+    tot_red_flags = conn.execute("SELECT COUNT(*) FROM red_flags").fetchone()[0]
+    return {
+        "tot_atti": tot_atti,
+        "tot_enti_con_atti": tot_enti_con_atti,
+        "atti_7g": atti_7g,
+        "atti_30g": atti_30g,
+        "tot_red_flags": tot_red_flags,
+    }
+
+
+def _carica_atti_per_giorno(conn: sqlite3.Connection, giorni: int = 30) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT date(data_accesso) AS giorno, COUNT(*) AS n
+        FROM atti
+        WHERE data_accesso >= date('now', ?)
+        GROUP BY giorno
+        ORDER BY giorno
+        """,
+        (f"-{giorni} days",),
+    ).fetchall()
+
+
+def _carica_atti_per_provincia(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT COALESCE(e.provincia, 'n/d') AS provincia, COUNT(a.id) AS n
+        FROM atti a JOIN enti e ON a.ente_id = e.id
+        GROUP BY provincia
+        ORDER BY n DESC
+        """
+    ).fetchall()
+
+
+def _carica_atti_per_tipo(conn: sqlite3.Connection, limite: int = 12) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT tipo, COUNT(*) AS n FROM atti GROUP BY tipo ORDER BY n DESC LIMIT ?",
+        (limite,),
+    ).fetchall()
+
+
+def _carica_atti_per_fonte(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT fonte_scraper, COUNT(*) AS n FROM atti GROUP BY fonte_scraper ORDER BY n DESC"
+    ).fetchall()
+
+
 def _carica_atti_da_ids(conn: sqlite3.Connection, ids: list[int]) -> dict[int, sqlite3.Row]:
     if not ids:
         return {}
@@ -128,6 +213,100 @@ def _carica_atti_da_ids(conn: sqlite3.Connection, ids: list[int]) -> dict[int, s
         ids,
     ).fetchall()
     return {r["id"]: r for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Mappa di copertura: confini comunali + registro CSV, non solo DB.
+#
+# Eccezione all'unica fonte-DB del modulo: i confini geografici e l'elenco
+# completo dei 391 comuni siciliani (compresi quelli mai censiti da nessuno
+# scraper, quindi assenti da `enti`) non possono venire dal DB per
+# definizione. Lo stato di copertura per comune resta letto da
+# `enti.stato_scraper`, sincronizzato dal registro ad ogni run.
+# ---------------------------------------------------------------------------
+
+
+@st.cache_data(show_spinner="Carico i confini comunali…")
+def _carica_geojson_comuni(path: str) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@st.cache_data(show_spinner=False)
+def _carica_popolazione_sicilia(path: str) -> dict[str, int]:
+    """Popolazione per codice ISTAT, per tutti i comuni siciliani (rif. statico)."""
+    popolazione: dict[str, int] = {}
+    with open(path, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            try:
+                popolazione[row["codice_istat"]] = int(row["popolazione"])
+            except (KeyError, ValueError):
+                continue
+    return popolazione
+
+
+def _carica_stato_scraper_per_comune(conn: sqlite3.Connection) -> dict[str, dict]:
+    rows = conn.execute(
+        """
+        SELECT e.codice_istat, e.stato_scraper, e.modulo,
+               COUNT(a.id) AS n_atti
+        FROM enti e
+        LEFT JOIN atti a ON a.ente_id = e.id
+        GROUP BY e.id
+        """
+    ).fetchall()
+    return {r["codice_istat"]: dict(r) for r in rows}
+
+
+def _costruisci_geojson_copertura(geojson: dict, stato_per_comune: dict[str, dict]) -> dict:
+    """Ricostruisce il GeoJSON aggiungendo colore/etichetta/n_atti per feature.
+
+    Non muta l'oggetto originale (che è cachato da Streamlit e riusato tra i run).
+    """
+    features = []
+    for feat in geojson["features"]:
+        codice = feat["properties"].get("com_istat_code")
+        info = stato_per_comune.get(codice)
+        stato = info["stato_scraper"] if info else "non_censito"
+        n_atti = info["n_atti"] if info else 0
+        proprieta = dict(feat["properties"])
+        proprieta.update(
+            fill_color=STATO_COLORI_MAPPA.get(stato, STATO_COLORI_MAPPA["non_censito"]),
+            stato_label=STATO_ETICHETTE_MAPPA.get(stato, stato),
+            n_atti=n_atti,
+        )
+        features.append({**feat, "properties": proprieta})
+    return {"type": "FeatureCollection", "features": features}
+
+
+def _calcola_copertura_popolazione(
+    geojson: dict, stato_per_comune: dict[str, dict], popolazione_per_comune: dict[str, int]
+) -> dict:
+    tot_comuni = len(geojson["features"])
+    tot_popolazione = 0
+    coperti_comuni = 0
+    coperti_popolazione = 0
+    per_stato: dict[str, int] = {}
+
+    for feat in geojson["features"]:
+        codice = feat["properties"].get("com_istat_code")
+        info = stato_per_comune.get(codice)
+        stato = info["stato_scraper"] if info else "non_censito"
+        pop = popolazione_per_comune.get(codice, 0)
+
+        per_stato[stato] = per_stato.get(stato, 0) + 1
+        tot_popolazione += pop
+        if stato in STATI_COPERTI:
+            coperti_comuni += 1
+            coperti_popolazione += pop
+
+    return {
+        "tot_comuni": tot_comuni,
+        "tot_popolazione": tot_popolazione,
+        "coperti_comuni": coperti_comuni,
+        "coperti_popolazione": coperti_popolazione,
+        "per_stato": per_stato,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +440,7 @@ def _mostra_dettaglio_comune(
                     st.markdown(f"- {oggetto} — {dettagli_str}")
 
 
-def _carica_procedimenti_per_ente(
-    conn: sqlite3.Connection, ente_id: int
-) -> list[sqlite3.Row]:
+def _carica_procedimenti_per_ente(conn: sqlite3.Connection, ente_id: int) -> list[sqlite3.Row]:
     try:
         return conn.execute(
             """
@@ -282,9 +459,7 @@ def _carica_procedimenti_per_ente(
         return []
 
 
-def _carica_atti_procedimento(
-    conn: sqlite3.Connection, procedimento_id: int
-) -> list[sqlite3.Row]:
+def _carica_atti_procedimento(conn: sqlite3.Connection, procedimento_id: int) -> list[sqlite3.Row]:
     return conn.execute(
         """
         SELECT id, tipo, numero, oggetto, data_atto, url_fonte,
@@ -319,8 +494,10 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
     procedimenti = _carica_procedimenti_per_ente(conn, r["id"])
 
     if not procedimenti:
-        st.info("Nessun procedimento individuato per questo comune. "
-                "Esegui prima il batch di ricostruzione catene.")
+        st.info(
+            "Nessun procedimento individuato per questo comune. "
+            "Esegui prima il batch di ricostruzione catene."
+        )
         return
 
     piccolo = _is_piccolo_comune(r["popolazione"])
@@ -333,8 +510,10 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
     for proc in procedimenti:
         stato = proc["stato_finale"] or "sconosciuto"
         etichetta_stato = ETICHETTE_STATO_FINALE.get(stato, stato)
-        icona_stato = "🔴" if stato in ("revocato", "annullato") else (
-            "✅" if stato == "aggiudicato" else "🔵"
+        icona_stato = (
+            "🔴"
+            if stato in ("revocato", "annullato")
+            else ("✅" if stato == "aggiudicato" else "🔵")
         )
         metodo = proc["metodo_individuazione"] or "n/d"
         cig_label = f" | CIG: `{proc['cig']}`" if proc["cig"] else ""
@@ -344,11 +523,7 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
             if proc["data_chiusura"]:
                 periodo += f" → {proc['data_chiusura'][:10]}"
 
-        titolo = (
-            f"{icona_stato} {etichetta_stato}"
-            f"{cig_label}{periodo} "
-            f"— {proc['n_atti']} atti"
-        )
+        titolo = f"{icona_stato} {etichetta_stato}{cig_label}{periodo} — {proc['n_atti']} atti"
 
         with st.expander(titolo, expanded=(stato in ("revocato", "annullato"))):
             oggetto = proc["oggetto"] or "n/d"
@@ -372,9 +547,7 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
                 desc = atto["oggetto"] or atto["tipo"] or "n/d"
                 url = atto["url_fonte"]
                 link = f"[{desc}]({url})" if url else desc
-                importo = (
-                    f" — {atto['importo_euro']:,.0f} EUR" if atto["importo_euro"] else ""
-                )
+                importo = f" — {atto['importo_euro']:,.0f} EUR" if atto["importo_euro"] else ""
                 st.markdown(f"- {icona} **{data}** `{ruolo}` {link}{importo}")
 
             if stato in ("revocato", "annullato"):
@@ -404,6 +577,119 @@ def _mostra_comuni_virtuosi(conn: sqlite3.Connection) -> None:
     for i, r in enumerate(virtuosi):
         prov = f", {r['provincia']}" if r["provincia"] else ""
         cols[i % 3].success(f"✅ {r['denominazione']}{prov}")
+
+
+def _mostra_statistiche(conn: sqlite3.Connection) -> None:
+    st.subheader("Statistiche di ingestione")
+
+    stats = _carica_statistiche_generali(conn)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Atti totali", f"{stats['tot_atti']:,}")
+    col2.metric("Comuni con atti", stats["tot_enti_con_atti"])
+    col3.metric("Atti ultimi 7 giorni", f"{stats['atti_7g']:,}")
+    col4.metric("Atti ultimi 30 giorni", f"{stats['atti_30g']:,}")
+
+    st.markdown("#### Atti ingeriti per giorno")
+    giorni = st.slider("Finestra temporale (giorni)", min_value=7, max_value=90, value=30, step=1)
+    trend = _carica_atti_per_giorno(conn, giorni)
+    if trend:
+        st.bar_chart({r["giorno"]: r["n"] for r in trend})
+    else:
+        st.info(f"Nessun atto ingerito negli ultimi {giorni} giorni.")
+
+    col_prov, col_tipo = st.columns(2)
+    with col_prov:
+        st.markdown("#### Atti per provincia")
+        per_provincia = _carica_atti_per_provincia(conn)
+        if per_provincia:
+            st.dataframe(
+                [{"Provincia": r["provincia"], "Atti": r["n"]} for r in per_provincia],
+                width="stretch",
+                hide_index=True,
+            )
+
+    with col_tipo:
+        st.markdown("#### Atti per tipo (top 12)")
+        per_tipo = _carica_atti_per_tipo(conn)
+        if per_tipo:
+            st.dataframe(
+                [{"Tipo": r["tipo"], "Atti": r["n"]} for r in per_tipo],
+                width="stretch",
+                hide_index=True,
+            )
+
+    st.markdown("#### Atti per piattaforma scraper")
+    per_fonte = _carica_atti_per_fonte(conn)
+    if per_fonte:
+        st.dataframe(
+            [{"Scraper": r["fonte_scraper"], "Atti": r["n"]} for r in per_fonte],
+            width="stretch",
+            hide_index=True,
+        )
+
+    st.caption(f"Red flags totali nel database: {stats['tot_red_flags']:,}")
+
+
+def _mostra_mappa(conn: sqlite3.Connection) -> None:
+    st.subheader("Copertura scraper — comuni siciliani")
+    st.markdown(
+        "Colore per stato dello scraper nel registro. Il perimetro colorato indica solo "
+        "se TALIA raccoglie atti da quel comune, non la qualità o completezza dei dati."
+    )
+
+    if not GEOJSON_COMUNI_PATH.exists():
+        st.warning(f"File dei confini comunali non trovato: `{GEOJSON_COMUNI_PATH}`")
+        return
+
+    geojson = _carica_geojson_comuni(str(GEOJSON_COMUNI_PATH))
+    stato_per_comune = _carica_stato_scraper_per_comune(conn)
+    popolazione_per_comune = _carica_popolazione_sicilia(str(COMUNI_SICILIA_CSV_PATH))
+    copertura = _calcola_copertura_popolazione(geojson, stato_per_comune, popolazione_per_comune)
+
+    perc_comuni = 100 * copertura["coperti_comuni"] / copertura["tot_comuni"]
+    perc_pop = (
+        100 * copertura["coperti_popolazione"] / copertura["tot_popolazione"]
+        if copertura["tot_popolazione"]
+        else 0
+    )
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric(
+        "🟢 Comuni coperti",
+        copertura["per_stato"].get("attivo", 0) + copertura["per_stato"].get("escluso_default", 0),
+        f"{perc_comuni:.0f}% del totale",
+    )
+    col2.metric("🟠 In verifica", copertura["per_stato"].get("pending", 0))
+    col3.metric("🔴 Bloccati", copertura["per_stato"].get("bloccato", 0))
+    col4.metric(
+        "Popolazione coperta",
+        f"{perc_pop:.0f}%",
+        f"{copertura['coperti_popolazione']:,} / {copertura['tot_popolazione']:,} ab.",
+    )
+
+    geojson_colorato = _costruisci_geojson_copertura(geojson, stato_per_comune)
+    layer = pdk.Layer(
+        "GeoJsonLayer",
+        data=geojson_colorato,
+        get_fill_color="properties.fill_color",
+        get_line_color=[90, 90, 90],
+        line_width_min_pixels=0.5,
+        pickable=True,
+        auto_highlight=True,
+    )
+    view_state = pdk.ViewState(latitude=37.6, longitude=14.15, zoom=6.6, pitch=0)
+    deck = pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        map_provider="carto",
+        map_style="light",
+        tooltip={"text": "{name}\nStato: {stato_label}\nAtti raccolti: {n_atti}"},
+    )
+    st.pydeck_chart(deck, width="stretch")
+
+    st.caption(
+        "🟢 Coperto (scraper attivo) · 🟠 In verifica (pending) · "
+        "🔴 Bloccato (problema noto, vedi CLAUDE.md) · ⚪ Non censito (nessuno scraper)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -436,13 +722,21 @@ def main() -> None:
 
         st.divider()
         st.caption(
-            "TALIA è open source. "
-            "Ogni segnalazione è da verificare con l'atto ufficiale linkato."
+            "TALIA è open source. Ogni segnalazione è da verificare con l'atto ufficiale linkato."
         )
 
     # --- Tabs principali ---
-    tab_panoramica, tab_comune, tab_procedimenti, tab_virtuosi = st.tabs(
-        ["📊 Panoramica", "🔍 Dettaglio comune", "⛓️ Procedimenti", "✅ Comuni virtuosi"]
+    tab_panoramica, tab_comune, tab_procedimenti, tab_virtuosi, tab_statistiche, tab_mappa = (
+        st.tabs(
+            [
+                "📊 Panoramica",
+                "🔍 Dettaglio comune",
+                "⛓️ Procedimenti",
+                "✅ Comuni virtuosi",
+                "📈 Statistiche",
+                "🗺️ Mappa copertura",
+            ]
+        )
     )
 
     with tab_panoramica:
@@ -464,6 +758,12 @@ def main() -> None:
 
     with tab_virtuosi:
         _mostra_comuni_virtuosi(conn)
+
+    with tab_statistiche:
+        _mostra_statistiche(conn)
+
+    with tab_mappa:
+        _mostra_mappa(conn)
 
 
 if __name__ == "__main__":

@@ -186,6 +186,163 @@ def test_piccolo_comune_nel_db(conn_piccolo_comune):
 
 
 # ---------------------------------------------------------------------------
+# Test statistiche di ingestione (tab "Statistiche")
+# ---------------------------------------------------------------------------
+
+
+def test_carica_statistiche_generali(conn_popolato):
+    from talia.modulo3_dashboard.app import _carica_statistiche_generali
+
+    stats = _carica_statistiche_generali(conn_popolato)
+    assert stats["tot_atti"] == 1
+    assert stats["tot_enti_con_atti"] == 1
+    assert stats["tot_red_flags"] == 1
+    # L'atto di fixture ha data_accesso 2024-01-01: fuori dalla finestra 7/30gg "oggi".
+    assert stats["atti_7g"] == 0
+    assert stats["atti_30g"] == 0
+
+
+def test_carica_atti_per_giorno_include_atto_recente():
+    from datetime import UTC, datetime
+
+    from talia.modulo2_scraping.db import (
+        AttoMetadato,
+        EnteMetadato,
+        connetti,
+        inizializza_db,
+        inserisci_atto,
+        upsert_ente,
+    )
+    from talia.modulo3_dashboard.app import _carica_atti_per_giorno
+
+    conn = connetti(":memory:")
+    inizializza_db(conn)
+    upsert_ente(conn, EnteMetadato(denominazione="Comune di Test", codice_istat="082999"))
+
+    oggi = datetime.now(UTC).isoformat()
+    inserisci_atto(
+        conn,
+        AttoMetadato(
+            ente_codice_istat="082999",
+            tipo="determina",
+            url_fonte="https://example.com/atto/oggi",
+            fonte_scraper="test",
+            data_accesso=oggi,
+        ),
+    )
+
+    trend = _carica_atti_per_giorno(conn, giorni=1)
+    assert len(trend) == 1
+    assert trend[0]["n"] == 1
+
+
+def test_carica_atti_per_provincia(conn_popolato):
+    from talia.modulo3_dashboard.app import _carica_atti_per_provincia
+
+    righe = _carica_atti_per_provincia(conn_popolato)
+    assert len(righe) == 1
+    assert righe[0]["provincia"] == "AG"
+    assert righe[0]["n"] == 1
+
+
+def test_carica_atti_per_tipo(conn_popolato):
+    from talia.modulo3_dashboard.app import _carica_atti_per_tipo
+
+    righe = _carica_atti_per_tipo(conn_popolato)
+    assert righe[0]["tipo"] == "determina"
+    assert righe[0]["n"] == 1
+
+
+def test_carica_atti_per_fonte(conn_popolato):
+    from talia.modulo3_dashboard.app import _carica_atti_per_fonte
+
+    righe = _carica_atti_per_fonte(conn_popolato)
+    assert righe[0]["fonte_scraper"] == "test"
+    assert righe[0]["n"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Test mappa di copertura (tab "Mappa copertura")
+# ---------------------------------------------------------------------------
+
+_GEOJSON_FINTO = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"name": "Comune Coperto", "com_istat_code": "082999"},
+            "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [0, 1], [1, 1], [0, 0]]]},
+        },
+        {
+            "type": "Feature",
+            "properties": {"name": "Comune Mai Censito", "com_istat_code": "082111"},
+            "geometry": {"type": "Polygon", "coordinates": [[[1, 1], [1, 2], [2, 2], [1, 1]]]},
+        },
+    ],
+}
+
+
+def test_carica_stato_scraper_per_comune(conn_popolato):
+    from talia.modulo3_dashboard.app import _carica_stato_scraper_per_comune
+
+    stato = _carica_stato_scraper_per_comune(conn_popolato)
+    assert "082999" in stato
+    assert stato["082999"]["n_atti"] == 1
+
+
+def test_costruisci_geojson_copertura_comune_coperto_vs_non_censito():
+    from talia.modulo3_dashboard.app import _costruisci_geojson_copertura
+
+    stato_per_comune = {"082999": {"stato_scraper": "attivo", "n_atti": 5}}
+    risultato = _costruisci_geojson_copertura(_GEOJSON_FINTO, stato_per_comune)
+
+    coperto = risultato["features"][0]["properties"]
+    non_censito = risultato["features"][1]["properties"]
+
+    assert coperto["stato_label"] == "Coperto"
+    assert coperto["n_atti"] == 5
+    assert non_censito["stato_label"] == "Non censito"
+    assert non_censito["n_atti"] == 0
+    assert coperto["fill_color"] != non_censito["fill_color"]
+
+
+def test_costruisci_geojson_copertura_non_muta_originale():
+    from talia.modulo3_dashboard.app import _costruisci_geojson_copertura
+
+    originale_props_prima = dict(_GEOJSON_FINTO["features"][0]["properties"])
+    _costruisci_geojson_copertura(_GEOJSON_FINTO, {})
+    assert _GEOJSON_FINTO["features"][0]["properties"] == originale_props_prima
+
+
+def test_calcola_copertura_popolazione():
+    from talia.modulo3_dashboard.app import _calcola_copertura_popolazione
+
+    stato_per_comune = {"082999": {"stato_scraper": "attivo", "n_atti": 5}}
+    popolazione_per_comune = {"082999": 10_000, "082111": 2_000}
+
+    esito = _calcola_copertura_popolazione(_GEOJSON_FINTO, stato_per_comune, popolazione_per_comune)
+
+    assert esito["tot_comuni"] == 2
+    assert esito["tot_popolazione"] == 12_000
+    assert esito["coperti_comuni"] == 1
+    assert esito["coperti_popolazione"] == 10_000
+    assert esito["per_stato"] == {"attivo": 1, "non_censito": 1}
+
+
+def test_calcola_copertura_popolazione_escluso_default_conta_come_coperto():
+    from talia.modulo3_dashboard.app import _calcola_copertura_popolazione
+
+    stato_per_comune = {
+        "082999": {"stato_scraper": "escluso_default", "n_atti": 0},
+        "082111": {"stato_scraper": "bloccato", "n_atti": 0},
+    }
+    esito = _calcola_copertura_popolazione(_GEOJSON_FINTO, stato_per_comune, {})
+
+    assert esito["coperti_comuni"] == 1
+    assert esito["per_stato"] == {"escluso_default": 1, "bloccato": 1}
+
+
+# ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
