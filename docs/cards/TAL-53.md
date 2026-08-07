@@ -95,6 +95,25 @@ di riscriverla.
 agganciata al check 6); il grosso del lavoro nuovo è l'estrazione della data di
 graduatoria e l'escalation, non l'associazione in sé.
 
+### 2026-08-07 — Tentativo 2 (self-review post-commit)
+**Approccio:** rilettura critica del diff dopo il primo commit (nessun `/code-review`
+multi-agente lanciato: solo lettura manuale mirata delle parti nuove).
+**Esito:** ⚠️ parziale — trovato un bug reale, poi corretto nello stesso commit.
+**Appreso:** `_esito_graduatoria` ridatava l'atto di provenienza della graduatoria
+controllando `any(e is ent for e in atto.entita.entita)` — ma `estrai_data_graduatoria`
+richiama `estrai_date()` internamente su un nuovo `TestoAtto`, quindi l'entità
+restituita non è mai la stessa istanza già presente in `atto.entita.entita`: il
+controllo per identità falliva sempre, e la citazione della graduatoria finiva
+sistematicamente attribuita al testo sbagliato (offset dell'atto di autotutela letti
+sul testo dell'originario → citazione vuota o garbled, mai un crash perché
+`estratto()` clampa gli offset in silenzio). Fix: tenere esplicita la provenienza
+(quale `TestoAtto` ha prodotto il match) invece di ridedurla dopo per identità. Lezione
+generale: quando un'entità viene ricreata da una chiamata di estrazione separata,
+**mai confrontarla per identità con entità di un'altra pipeline** — o si traccia la
+provenienza esplicitamente, o si confronta per valore/offset. Aggiunto un test che
+verifica il *contenuto* della citazione (non solo il conteggio), che avrebbe
+catturato il bug da subito.
+
 ## 🔗 Dipendenze
 TAL-5, TAL-9, TAL-13.
 

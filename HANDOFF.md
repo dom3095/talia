@@ -64,10 +64,22 @@ format` solo ai file toccati, non all'intero repo).
 
 **Non fatto:** nessuna verifica su un fascicolo reale con menzione di graduatoria (i
 fascicoli TAL-12 disponibili non ne hanno una) — resta un'euristica testata solo su
-casi sintetici, da validare al primo fascicolo reale che la contiene.
+casi sintetici, da validare al primo fascicolo reale che la contiene. Nessun
+`/code-review` multi-agente lanciato (solo self-review manuale, vedi sotto).
 
-**Prossimo passo:** review di Dom su TAL-53; poi PR (branch già pronto, non ancora
-pushato). Se in futuro emerge un fascicolo reale con menzione di graduatoria, verificare
+**Self-review post-commit (stesso giorno):** rilettura mirata del diff dopo il primo
+commit ha trovato un bug reale in `_esito_graduatoria` — la citazione della graduatoria
+veniva attribuita al testo sbagliato (identità su un'entità ricreata da una chiamata di
+estrazione separata, che quindi non coincide mai con l'oggetto già presente
+nell'atto). Nessun crash (gli offset vengono clampati in silenzio da `estratto()`), ma
+una citazione vuota/sbagliata — violazione dell'esplicabilità. Corretto tenendo
+esplicita la provenienza invece di ridedurla per identità; aggiunto un test che
+verifica il *contenuto* della citazione, non solo il conteggio (dettaglio in TAL-53,
+Tentativo 2). Commit ammendato, ancora 582 test verdi.
+
+**Prossimo passo:** review di Dom su TAL-53 (idealmente anche un `/code-review` vero,
+non solo la self-review fatta qui); poi PR (branch pronto, non ancora pushato). Se in
+futuro emerge un fascicolo reale con menzione di graduatoria, verificare
 `estrai_data_graduatoria()` dal vivo prima di fidarsene in produzione.
 
 ---

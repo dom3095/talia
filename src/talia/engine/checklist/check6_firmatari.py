@@ -21,10 +21,10 @@ non è disponibile (nessuna regressione sul comportamento precedente):
 from __future__ import annotations
 
 from ..attori import Attore, estrai_attori
-from ..fascicolo import AttoAnalizzato, ContestoFascicolo
+from ..fascicolo import ContestoFascicolo
 from ..firmatari import nome_normalizzato
 from ..graduatoria import estrai_data_graduatoria
-from ..models import Entita, Stato
+from ..models import Entita, Stato, TestoAtto
 from ._date_utils import data_estrema, filtra_date_ccnl
 from .base import Check, EsitoCheck, registra
 
@@ -89,12 +89,8 @@ class CheckCoerenzaFirmatari(Check):
 
         esito_graduatoria = self._esito_graduatoria(contesto)
         if esito_graduatoria is not None:
-            giorni, ent_graduatoria = esito_graduatoria
-            citazioni.append(
-                ent_graduatoria.come_citazione(contesto.atto_autotutela.testo)
-                if _atto_contiene(contesto.atto_autotutela, ent_graduatoria)
-                else ent_graduatoria.come_citazione(contesto.atto_originario.testo)
-            )
+            giorni, ent_graduatoria, testo_graduatoria = esito_graduatoria
+            citazioni.append(ent_graduatoria.come_citazione(testo_graduatoria))
             return self._esito(
                 Stato.ROSSO,
                 f"Stesso firmatario in entrambi gli atti ({elenco}) e annullamento a "
@@ -111,11 +107,24 @@ class CheckCoerenzaFirmatari(Check):
             citazioni,
         )
 
-    def _esito_graduatoria(self, contesto: ContestoFascicolo) -> tuple[int, Entita] | None:
-        """Giorni tra approvazione graduatoria e annullamento, se entrambi noti e vicini."""
-        ent_graduatoria = estrai_data_graduatoria(
-            contesto.atto_autotutela.testo
-        ) or estrai_data_graduatoria(contesto.atto_originario.testo)
+    def _esito_graduatoria(
+        self, contesto: ContestoFascicolo
+    ) -> tuple[int, Entita, TestoAtto] | None:
+        """Giorni tra approvazione graduatoria e annullamento, se entrambi noti e vicini.
+
+        Cerca la graduatoria prima nell'atto di autotutela (dove tipicamente si
+        richiama l'atto approvato), poi nell'originario. L'atto di provenienza è
+        tenuto esplicito (non ridedotto dopo) perché `estrai_data_graduatoria`
+        richiama internamente `estrai_date` su un nuovo `TestoAtto`: l'entità
+        risultante non è la stessa istanza già presente in `atto.entita.entita`,
+        quindi un controllo di appartenenza per identità fallirebbe sempre e
+        produrrebbe una citazione con gli offset sbagliati.
+        """
+        ent_graduatoria = estrai_data_graduatoria(contesto.atto_autotutela.testo)
+        testo_graduatoria = contesto.atto_autotutela.testo
+        if ent_graduatoria is None:
+            ent_graduatoria = estrai_data_graduatoria(contesto.atto_originario.testo)
+            testo_graduatoria = contesto.atto_originario.testo
         if ent_graduatoria is None:
             return None
 
@@ -129,12 +138,8 @@ class CheckCoerenzaFirmatari(Check):
 
         delta = (data_annullamento - ent_graduatoria.valore).days
         if 0 <= delta <= SOGLIA_GIORNI_GRADUATORIA:
-            return delta, ent_graduatoria
+            return delta, ent_graduatoria, testo_graduatoria
         return None
-
-
-def _atto_contiene(atto: AttoAnalizzato, ent: Entita) -> bool:
-    return any(e is ent for e in atto.entita.entita)
 
 
 def _ruolo_di(nome: str, attori: list[Attore]) -> str | None:

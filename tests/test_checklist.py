@@ -210,6 +210,12 @@ def test_check6_graduatoria_ravvicinata_rosso():
     assert esito.stato is Stato.ROSSO
     assert "graduatoria" in esito.spiegazione.lower()
     assert len(esito.citazioni) == 3  # firmatario orig + firmatario autt + graduatoria
+    # La citazione della graduatoria deve puntare al testo giusto (atto di
+    # autotutela, dove la menzione si trova), non a offset dell'atto sbagliato
+    # (regressione: `_esito_graduatoria` in origine ridatava la provenienza per
+    # identità su un'entità ricreata da zero, fallendo sempre).
+    cit_graduatoria = esito.citazioni[-1]
+    assert "01/03/2025" in cit_graduatoria.testo
 
 
 def test_check6_graduatoria_lontana_resta_giallo():
