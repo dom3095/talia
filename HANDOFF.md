@@ -5,8 +5,9 @@
 > e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
 > ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati (TAL-54),
 > timeout LLM alzato 300s→900s e temperatura fissata a 0 per un giudizio riproducibile
-> (verificato: 2 run reali identici byte per byte post-fix). Due card in Review
-> (TAL-53, TAL-54), branch non ancora pushato. 592 test verdi.)
+> (verificato: 2 run reali identici byte per byte post-fix). `/code-review` multi-agente
+> lanciato su tutto il branch: 2 bug reali su graduatoria.py/check6 trovati e corretti.
+> Due card in Review (TAL-53, TAL-54), branch non ancora pushato. 594 test verdi.)
 
 ---
 
@@ -153,6 +154,18 @@ il pattern giusto, ma a un livello più basso). Fix: `genera()` accetta ora `opz
 check 3 chiama sempre con `temperature: 0`. Verificato con 2 run reali consecutivi
 post-fix: esito e spiegazione **identici byte per byte** (dettaglio in TAL-54,
 Tentativo 3). 592 test verdi (erano 589).
+
+**`/code-review` multi-agente (8 angoli, `main...HEAD`):** trovati 2 bug reali nel
+codice di questa card, corretti nello stesso ciclo (dettaglio in TAL-53, Tentativo 3):
+(1) `graduatoria.py` poteva scegliere la data sbagliata quando più occorrenze di
+"approvat[ao]" comparivano nella finestra attorno a "graduatoria" (ora sceglie la più
+vicina, non la prima in assoluto); (2) `check6_firmatari.py` poteva dare un 🔴 con
+`delta=0` fuorviante quando la data della graduatoria era anche l'unica/più recente
+data dell'atto (ora esclusa dal pool prima di calcolare la data di annullamento). 594
+test verdi (erano 592). Gli altri findings del code-review (duplicazione retry-logic
+tra scraper, mancato logging 0-atti in `serviziolinealbo.py`, query dashboard non
+cachate, ecc.) riguardano commit precedenti a questa sessione, non toccati: riportati
+ma non corretti qui — vedi report `/code-review` per l'elenco completo.
 
 **Prossimo passo:** review di Dom su TAL-53 **e** TAL-54 (stesso branch, non ancora
 pushato); poi PR.

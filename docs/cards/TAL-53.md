@@ -114,6 +114,30 @@ provenienza esplicitamente, o si confronta per valore/offset. Aggiunto un test c
 verifica il *contenuto* della citazione (non solo il conteggio), che avrebbe
 catturato il bug da subito.
 
+### 2026-08-08 — Tentativo 3 (`/code-review` multi-agente, 8 angoli)
+**Approccio:** lanciato `/code-review` sull'intero branch (`main...HEAD`). Due dei
+findings dell'agente "line-by-line scan" toccavano codice di questa card, non ancora
+mergiato.
+**Esito:** ⚠️ parziale — 2 bug reali confermati e corretti, stesso ciclo di lavoro.
+**Appreso:**
+1. `graduatoria.py::estrai_data_graduatoria`: con più occorrenze di "approvat[ao]" nella
+   finestra attorno a "graduatoria", `min(ma.end() for ma in match_approvata)` sceglieva
+   la prima in ordine di posizione assoluta nel testo, non quella più vicina alla
+   menzione di "graduatoria" — un "...è stata approvata il 05/01/2024[...] la
+   graduatoria[...] approvata[...] del 20/06/2024" restituiva la data sbagliata
+   (05/01/2024). Fix: `min(match_approvata, key=lambda ma: abs(ma.start() - m_grad.start()))`.
+2. `check6_firmatari.py::_esito_graduatoria`: se la data della graduatoria è anche
+   l'unica (o la più recente) data non-CCNL dell'atto di autotutela — comune, spesso è
+   l'unica data citata — `data_annullamento` collassava sulla stessa entità di
+   `ent_graduatoria`, dando `delta=0` e un 🔴 "annullamento a 0 giorni dalla
+   graduatoria" fuorviante: non misurava davvero due eventi distinti. Fix: esclusa dal
+   pool la data che coincide (per offset, non per identità — stesso principio del
+   Tentativo 2) con `ent_graduatoria`, prima di calcolare `data_annullamento`; se non
+   resta nessuna data, niente escalation (fallback corretto al comportamento 🟡).
+
+Entrambi confermati con un caso concreto prima del fix (riprodotto l'esito sbagliato),
+poi verificati corretti dopo. 2 nuovi test di regressione, 594 test verdi (erano 592).
+
 ## 🔗 Dipendenze
 TAL-5, TAL-9, TAL-13.
 

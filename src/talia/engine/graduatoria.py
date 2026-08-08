@@ -57,7 +57,16 @@ def estrai_data_graduatoria(atto: TestoAtto) -> Entita | None:
         if not match_approvata:
             continue
 
-        dopo = min(ma.end() for ma in match_approvata)
+        # La corrispondenza più vicina a "graduatoria", non la prima in ordine
+        # di posizione assoluta: con più menzioni di "approvat[ao]" nella
+        # finestra (es. l'atto originario approvato E la graduatoria
+        # approvata), la prima in assoluto può essere estranea alla
+        # graduatoria pur essendo testualmente precedente (bug trovato in
+        # code review: un "...è stata approvata il 05/01/2024[...] la
+        # graduatoria [...] approvata [...] del 20/06/2024" restituiva
+        # 05/01/2024, la data sbagliata).
+        m_approvata = min(match_approvata, key=lambda ma: abs(ma.start() - m_grad.start()))
+        dopo = m_approvata.end()
         ent = _data_in_finestra(date_entita, dopo, dopo + _FINESTRA_DATA_DOPO_APPROVATA)
         if ent is not None:
             return ent

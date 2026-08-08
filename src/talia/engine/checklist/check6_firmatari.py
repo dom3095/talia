@@ -132,6 +132,21 @@ class CheckCoerenzaFirmatari(Check):
             contesto.atto_autotutela.entita.date,
             contesto.atto_autotutela.testo.testo,
         )
+        if testo_graduatoria is contesto.atto_autotutela.testo:
+            # Escludere la stessa menzione testuale usata per ent_graduatoria:
+            # senza questo, se la data della graduatoria è anche la più
+            # recente data non-CCNL dell'atto (comune: spesso è l'unica data
+            # citata), data_annullamento collassa sulla stessa entità e delta
+            # diventa 0 — un 🔴 "annullamento a 0 giorni dalla graduatoria"
+            # fuorviante, perché non misura davvero due eventi distinti
+            # (bug trovato in code review). Confronto per offset, non per
+            # identità: stesso motivo del bug già corretto sopra.
+            date_aut = [
+                e
+                for e in date_aut
+                if (e.offset_inizio, e.offset_fine)
+                != (ent_graduatoria.offset_inizio, ent_graduatoria.offset_fine)
+            ]
         data_annullamento, _ = data_estrema(date_aut, piu_recente=True)
         if data_annullamento is None:
             return None

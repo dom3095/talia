@@ -229,6 +229,21 @@ def test_check6_graduatoria_lontana_resta_giallo():
     assert esito.stato is Stato.GIALLO
 
 
+def test_check6_graduatoria_unica_data_non_produce_delta_zero_fittizio():
+    # Regressione (code review): quando la data della graduatoria è l'unica
+    # (o la più recente) data non-CCNL dell'atto, data_annullamento collassava
+    # sulla stessa entità di ent_graduatoria, dando delta=0 e un 🔴 fuorviante
+    # ("annullamento a 0 giorni dalla graduatoria") senza che l'atto citi
+    # davvero una data di annullamento distinta.
+    ctx = _contesto(
+        "annullamento\nvista la graduatoria approvata con determinazione n. 9 del 10/04/2025\n"
+        "F.to Dott. Mario Rossi",
+        originario="indizione\nF.to Dott. Mario Rossi",
+    )
+    esito = CheckCoerenzaFirmatari().valuta(ctx)
+    assert esito.stato is Stato.GIALLO
+
+
 def test_check6_senza_menzione_graduatoria_resta_giallo():
     ctx = _contesto(
         "annullamento\nF.to Dott. Mario Rossi",
