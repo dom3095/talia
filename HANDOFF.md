@@ -3,10 +3,10 @@
 > Aggiornato: 2026-08-08 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
 > `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
 > e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
-> ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati, non solo la
-> motivazione (TAL-54); timeout LLM alzato 300s→900s (verificato insufficiente su
-> prompt reali). Due card in Review (TAL-53, TAL-54), branch non ancora pushato. 589
-> test verdi.)
+> ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati (TAL-54),
+> timeout LLM alzato 300s→900s e temperatura fissata a 0 per un giudizio riproducibile
+> (verificato: 2 run reali identici byte per byte post-fix). Due card in Review
+> (TAL-53, TAL-54), branch non ancora pushato. 592 test verdi.)
 
 ---
 
@@ -142,6 +142,17 @@ locale (gratuito, coerente con budget≈0) lo risolverebbe in generale, ma è un
 architettura proposto e non deciso in questa sessione. Il check-8 (DPO = Segretario →
 conflitto di interessi, già annotato come feature futura in memoria di progetto) resta
 fuori scope: richiede dati esterni (TAL-25).
+
+**Instabilità del giudizio scoperta rilanciando check 3 (stessa sessione, dopo richiesta
+di Dom di rieseguirlo su fascicolo 1 salvando l'output):** due run identici sullo stesso
+fascicolo hanno dato giudizi diversi (🟡 poi 🟢) — il secondo riproduceva esattamente il
+falso negativo che TAL-11 aveva già corretto (motivazione basata su un fatto "presunto"
+letto come accertato). Causa: `check3_motivazione.genera(prompt)` non fissava mai la
+temperatura di campionamento di Ollama (`engine.catena.classifica_ruolo_llm` aveva già
+il pattern giusto, ma a un livello più basso). Fix: `genera()` accetta ora `opzioni`,
+check 3 chiama sempre con `temperature: 0`. Verificato con 2 run reali consecutivi
+post-fix: esito e spiegazione **identici byte per byte** (dettaglio in TAL-54,
+Tentativo 3). 592 test verdi (erano 589).
 
 **Prossimo passo:** review di Dom su TAL-53 **e** TAL-54 (stesso branch, non ancora
 pushato); poi PR.

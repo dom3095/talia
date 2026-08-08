@@ -102,7 +102,7 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
     monkeypatch.setattr(
         mod,
         "genera",
-        lambda prompt: '{"giudizio": "specifica", "spiegazione": "motivazione concreta"}',
+        lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "motivazione concreta"}',
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     passaggi = [
@@ -119,6 +119,21 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
     assert "10-21" in rif_corpus
     assert "testo norma" in rif_corpus
     assert esito.citazioni
+
+
+def test_valuta_motivazione_chiama_genera_con_temperatura_zero(monkeypatch):
+    # TAL-54: senza temperature=0 il giudizio non è riproducibile — osservato
+    # in sessione un giudizio diverso tra due run identici sullo stesso atto.
+    chiamate = []
+
+    def _spia(prompt, **kwargs):
+        chiamate.append(kwargs)
+        return '{"giudizio": "specifica", "spiegazione": "ok"}'
+
+    monkeypatch.setattr(mod, "genera", _spia)
+    contesto = _contesto(_MOTIVAZIONE_LUNGA)
+    valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
+    assert chiamate == [{"opzioni": {"temperature": 0}}]
 
 
 def test_calcola_stato_specifica_senza_carenza_istruttoria_e_verde():
@@ -146,7 +161,7 @@ def test_giallo_su_specifica_con_carenza_istruttoria_rilevata_dal_llm(monkeypatc
     monkeypatch.setattr(
         mod,
         "genera",
-        lambda prompt: (
+        lambda prompt, **_: (
             '{"giudizio": "specifica", "carenza_istruttoria": true, '
             '"spiegazione": "cita un interesse concreto ma su un fatto solo presunto"}'
         ),
@@ -165,7 +180,7 @@ def test_carenza_istruttoria_assente_dalla_risposta_non_penalizza(monkeypatch):
     # Un modello che non usa il nuovo campo (o lo omette) non deve essere
     # penalizzato: assenza di segnalazione ≠ carenza presunta.
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "ok"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -179,7 +194,7 @@ def test_citazione_troncata_ha_offset_coerente_col_testo(monkeypatch):
     # (stesso principio dei riferimenti puntuali al corpus normativo).
     assert len(_MOTIVAZIONE_MOLTO_LUNGA) - len("considerato che ") > 200
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "ok"}'
     )
     contesto = _contesto(_MOTIVAZIONE_MOLTO_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -189,7 +204,7 @@ def test_citazione_troncata_ha_offset_coerente_col_testo(monkeypatch):
 
 def test_rosso_su_giudizio_llm_generica(monkeypatch):
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "generica", "spiegazione": "boilerplate"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "generica", "spiegazione": "boilerplate"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -197,7 +212,7 @@ def test_rosso_su_giudizio_llm_generica(monkeypatch):
 
 
 def test_giallo_su_risposta_llm_non_json(monkeypatch):
-    monkeypatch.setattr(mod, "genera", lambda prompt: "risposta senza json valido")
+    monkeypatch.setattr(mod, "genera", lambda prompt, **_: "risposta senza json valido")
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
     assert esito.stato is Stato.GIALLO
@@ -250,7 +265,7 @@ def test_giallo_su_incerta_con_carenza_istruttoria_include_nota(monkeypatch):
     monkeypatch.setattr(
         mod,
         "genera",
-        lambda prompt: (
+        lambda prompt, **_: (
             '{"giudizio": "incerta", "carenza_istruttoria": true, '
             '"spiegazione": "non è chiaro se la motivazione sia specifica"}'
         ),
@@ -281,7 +296,7 @@ def test_cita_passaggio_troncato_ha_offset_coerente_col_testo():
 
 def test_giudizio_sconosciuto_trattato_come_incerta(monkeypatch):
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "boh", "spiegazione": "non chiaro"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "boh", "spiegazione": "non chiaro"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -379,7 +394,7 @@ def test_valuta_motivazione_include_riferimento_di_check_flaggato_non_coperto_da
     monkeypatch,
 ):
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "ok"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     generico = [_passaggio("nazionale/a.md")]

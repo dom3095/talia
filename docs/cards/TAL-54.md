@@ -147,6 +147,28 @@ nell'iterazione (proprio GDPR, essendo check-7 l'ultimo check registrato). Rimos
 troncamento finale: la dimensione del prompt resta comunque limitata dal numero fisso di
 check nel registry (attualmente 4 check "flaggabili" + `k_motivazione`).
 
+### 2026-08-08 — Tentativo 3 (instabilità del giudizio, scoperta rilanciando il check)
+**Approccio:** rilanciato check 3 (Ollama reale) sul fascicolo 1 per verificare il fix del
+retrieval; poi richiesto da Dom di rieseguirlo di nuovo salvando l'output.
+**Esito:** ⚠️ trovato un secondo bug, poi corretto nello stesso ciclo di lavoro.
+**Appreso:** i due run sullo stesso identico fascicolo/prompt hanno dato **giudizi
+diversi** (`carenza_istruttoria: true` → 🟡 la prima volta; `carenza_istruttoria`
+implicitamente false → 🟢 la seconda), il secondo dei quali riproduceva esattamente il
+falso negativo che TAL-11 aveva già corretto in passato su questo stesso fascicolo
+(vedi TAL-12). Causa: `check3_motivazione.genera(prompt)` non passava mai `opzioni` a
+Ollama, quindi il campionamento restava sul default stocastico del modello — nessuna
+temperatura fissata. `engine.catena.classifica_ruolo_llm` aveva già il pattern giusto
+(`opzioni={"temperature": 0}`), ma passa da `chiama_ollama` direttamente, non dal
+wrapper `genera()` usato da check 3. Fix: `genera()` ora accetta `opzioni` e la propaga;
+check 3 chiama sempre `genera(prompt, opzioni={"temperature": 0})`. Verificato con 2 run
+reali consecutivi post-fix: **esito e spiegazione identici byte per byte**, e corretti
+(🟡, non più il falso 🟢). 3 nuovi test (2 in `test_llm.py` sul passthrough di
+`opzioni`, 1 in `test_check3_motivazione.py` che verifica la chiamata con
+`temperature: 0`). Lezione generale: un check "a giudizio" non deterministico per
+natura (LLM) va comunque reso il più riproducibile possibile a parità di input — la
+temperatura di default di un modello non va mai lasciata implicita in un check di
+produzione.
+
 ## 🔗 Dipendenze
 TAL-11, TAL-14.
 

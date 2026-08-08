@@ -337,7 +337,10 @@ def valuta_motivazione(
     )
 
     prompt = _PROMPT_TEMPLATE.format(motivazione=motivazione, contesto_normativo=contesto_normativo)
-    risposta = genera(prompt)
+    # temperature=0: un giudizio (specifica/generica, carenza istruttoria) deve
+    # essere riproducibile a parità di atto — osservato che senza fissarla due
+    # run identici su questa stessa sessione hanno dato esiti diversi (TAL-54).
+    risposta = genera(prompt, opzioni={"temperature": 0})
     giudizio, carenza_istruttoria, spiegazione_llm = _estrai_giudizio(risposta)
     stato = _calcola_stato(giudizio, carenza_istruttoria)
     if carenza_istruttoria and giudizio in ("specifica", "incerta"):

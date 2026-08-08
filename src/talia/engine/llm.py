@@ -70,16 +70,21 @@ def genera(
     modello: str = MODELLO_DEFAULT,
     timeout: int = _TIMEOUT_SECONDI,
     opener: urllib.request.OpenerDirector | None = None,
+    opzioni: dict | None = None,
 ) -> str:
     """Invoca il modello locale via Ollama e ritorna il testo generato.
 
     Solleva `LLMNonDisponibile` se Ollama non è in esecuzione, risponde con
     errore (compresa una risposta non-JSON), o la risposta non contiene testo
     generato. `opener` è iniettabile per i test (evita chiamate di rete reali
-    nella suite).
+    nella suite). `opzioni` (es. `{"temperature": 0}`) passa opzioni di
+    campionamento a Ollama — senza, il default del modello è stocastico e due
+    chiamate identiche possono produrre giudizi diversi (osservato su check 3,
+    TAL-54: stesso fascicolo, stesso prompt, giudizio "carenza_istruttoria"
+    diverso tra due run nella stessa sessione).
     """
     try:
-        corpo = chiama_ollama(prompt, modello, timeout=timeout, opener=opener)
+        corpo = chiama_ollama(prompt, modello, timeout=timeout, opener=opener, opzioni=opzioni)
     except LLMNonDisponibile as exc:
         raise LLMNonDisponibile(
             f"{exc}. Verificare che 'ollama serve' sia attivo e che il modello sia "
