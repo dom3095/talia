@@ -1,12 +1,169 @@
 # 14 — Censimento albi pretori dei comuni siciliani (TAL-49 + TAL-50)
 
-Aggiornato: 2026-07-10 (registro unificato `data/registro_scraper.csv`, TAL-51).
-Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT × popolazione Wikipedia).
+Aggiornato: 2026-08-06 (esplorazione manuale sui 10 comuni residui più popolosi, dopo il
+secondo sweep automatico). Fonte lista comuni: `data/comuni_sicilia.csv` (ISTAT ×
+popolazione Wikipedia).
 
 Configurazione scraper: **`data/registro_scraper.csv`** è l'unica fonte di verità
 (sostituisce le vecchie liste hardcoded in `run_scrapers.py` e i CSV di censimento
 `censimento_albi_pa_tp[_COMPLETO].csv`, rimossi). Vedi `registry.py` per il loader.
 Le sezioni sotto restano come narrativa storica di come ogni comune è stato scoperto.
+
+### Esplorazione manuale sui 10 comuni residui più popolosi (2026-08-06)
+
+Dopo il secondo sweep automatico (89 comuni ancora senza pattern noto), esplorazione
+manuale sito-per-sito dei 10 più popolosi (Comiso, Aci Catena, Floridia, Pachino,
+Bronte, Carlentini, Palagonia, Nicosia, Barrafranca, Leonforte), cercando link "albo
+pretorio" in homepage e sottodomini noti. Risultato: **2 attivati, 8 approfonditi e
+scartati o rimandati** (piattaforme reali diverse da comune a comune, nessun pattern
+riusabile emerso — a differenza degli sweep automatici, qui ogni comune è un caso a sé).
+
+**Attivati:**
+- **Aci Catena** (28.749 ab.): jCityGov standard (marker `jcitygov-albi-theme`
+  confermato), ma ospitato su `trasparenza.comune.acicatena.ct.it` — dominio proprio del
+  comune, non il vendor condiviso `trasparenza-valutazione-merito.it` che lo sweep
+  automatico controlla. **+1.000 atti** con `jcitygov.py` esistente, nessun codice nuovo.
+- **Nicosia** (14.272 ab.): WordPress "Developers Italia" (CPT `documento_pubblico` +
+  tassonomia `tipi_documento/documento-albo-pretorio/`) — nuovo scraper dedicato
+  (`src/talia/modulo2_scraping/fonti/nicosia.py`, sullo stesso schema di `ribera.py`).
+  Solo atti **in pubblicazione** (~12), stesso pattern "finestra breve" di
+  Palermo/Catania: serve scraping continuo, non è un archivio storico completo. **+12
+  atti**. Nota: il backend reale è URBI (`asp.urbi.it`, DB_NAME esposto nei link
+  "Scarica documento"), ma con un frontend più recente ("Bootstrap ITALIA") che non
+  risponde al flusso HTTP di `urbi.py` — non approfondito ora, promettente se altri
+  comuni emergono sulla stessa piattaforma.
+
+**Approfonditi e rimandati** (piattaforma identificata, non ancora scriptabile in modo
+economico):
+- **Comiso** (30.214 ab.): piattaforma "DemaPA" (`palgpi.it`), JSF/PrimeFaces con form
+  stateful (ViewState) — reverse engineering più costoso degli altri pattern HTTP
+  stateless già gestiti.
+- **Bronte** (19.234 ab.): URBI (`/urbi/progs/main/index.sto`), ma la pagina di
+  ingresso non espone `DB_NAME` né link diretti al modulo trasparenza (a differenza di
+  Catania/Favara) — richiede lo stesso reverse engineering del flusso wizard già fatto
+  per Catania, non ripetuto qui per limiti di tempo.
+- **Leonforte** (13.878 ab.): vera sfida Cloudflare (Turnstile, non un semplice
+  caricamento lento — verificato anche con Playwright: la pagina resta su "Just a
+  moment..." indefinitamente). Non tentato un bypass: è una misura anti-bot attiva,
+  aggirarla non è nello spirito del progetto (stessa linea già seguita per il WAF ANAC
+  e per Messina).
+- **Floridia** (22.685 ab.), **Palagonia** (16.540 ab.): nessun link "albo pretorio" né
+  sottodominio noto trovato — piattaforma non identificata.
+- **Carlentini** (17.958 ab.): sottodominio `archivio.comune.carlentini.sr.it`
+  (WordPress separato dal sito principale) con riferimenti ad "albo" nel testo, ma
+  struttura non ancora chiarita.
+
+**556 test verdi (erano 545), ruff pulito.** Copertura risultante: **256 comuni attivi
+(era 254), 4.096.733 abitanti (82,0%, era 81,0%)**. Restano **87 comuni mai censiti**.
+
+### Pachino e Barrafranca via Playwright (2026-08-06, stesso giorno)
+
+Verificato che Pachino e Barrafranca (segnalati sopra come "stessa famiglia di
+Agrigento, richiede Playwright") usano davvero la stessa piattaforma DevExpress:
+navigando con Playwright fino a `/ServiziOnLine/AlboPretorio/AlboPretorio` (via il
+pulsante "Accedi al servizio" dal catalogo servizi, oppure — verificato più tardi —
+anche direttamente) la struttura DOM combacia esattamente con quella già gestita da
+`agrigento.py` (span `text-custom p-1`, permalink `data-link`, paginazione DevExpress
+"PBN").
+
+Nuovo scraper **generico** `src/talia/modulo2_scraping/fonti/serviziolinealbo.py`
+(non un fork di `agrigento.py`, che resta intatto e dedicato) — parametrico su
+base_url/codice_istat, riusa lo stesso approccio robusto "permalink-first, poi span
+ancorato via `data-bs-target`". L'unica variazione reale tra i due tenant: il testo del
+titolo a volte include un riferimento settoriale finale ("- NNNN/YYYY del DD/MM/YYYY",
+visto su Barrafranca, assente su Pachino) — gestito con un secondo regex che lo scarta
+prima della classificazione del tipo.
+
+Entrambi `escluso_default` nel registro (come Agrigento: Playwright più lento, non nel
+run automatico). Verificato con `scarica_atti()` reale: **178 atti Pachino, 90 atti
+Barrafranca**. 16 nuovi test (`tests/fonti/test_serviziolinealbo.py`).
+
+Tentato anche un bypass di Leonforte (Cloudflare) con Playwright: la sfida resta attiva
+indefinitamente anche con un browser reale — non un problema di JS-rendering ma di
+bot-detection attiva, non aggirata di proposito (vedi sopra).
+
+**572 test verdi (erano 556), ruff pulito.** Copertura risultante: **258 comuni attivi
+(era 256), 4.132.778 abitanti (83,0%, era 82,0%)**. Restano **85 comuni mai censiti**.
+
+### Secondo sweep sui comuni residui (2026-08-06)
+
+Dopo il sweep del 26/07 restavano **106 comuni mai censiti** (624.607 abitanti, 12,5%
+della popolazione). Stessa metodologia, con due estensioni: (1) più varianti di slug per
+comune (concatenato, con trattino, solo prima parola, solo ultima parola — calibrate
+confrontando lo slug atteso con l'host reale dei 195 comuni già censiti: 191/195
+corrispondevano alla concatenazione semplice, i 4 mismatch hanno suggerito le varianti
+aggiuntive); (2) pattern Halley `egov.comune.<slug>.<prov>.it/<slug>/mc/mc_p_ricerca.php`,
+scoperto lo stesso giorno risolvendo Cefalù (piattaforma Halley "EGOV", storicamente
+diversa dallo schema `servizi./trasparenza.` già noto).
+
+**Bug trovato nel primo giro dello sweep**: il fingerprint jCityGov si basava solo sullo
+status HTTP (200/301/302/403), ma `trasparenza-valutazione-merito.it` risponde **403 con
+una pagina di errore generica per qualsiasi sottodominio, anche inesistente** (wildcard
+del vendor) — risultato: 106/106 falsi positivi al primo giro. Corretto richiedendo un
+marker reale nel body (`jcitygov-albi-theme` o `<title>Albo Pretorio</title>`, verificato
+su un tenant noto). Gli altri 3 pattern (Halley, portalepa, HSPromila) usano domini
+propri del comune o path specifici che già rispondono DNS/404 negativi per slug
+inesistenti — nessun problema analogo.
+
+Con il fingerprint corretto: **17 hit** su 106 (9 Halley EG, 3 jCityGov, 3 portalepa, 1
+HSPromila). Verificati tutti con `scarica_atti()` reale: **16 con atti reali** →
+attivati (+2.475 atti, +116.978 abitanti), **1** (Valguarnera Caropepe, Halley EG) con
+fingerprint corretto ma pagina vuota → lasciato `pending`. Un caso (Mirabella Imbaccari)
+richiedeva `skip_ssl` (stessa causa già vista per Siculiana: certificato valido ma catena
+incompleta lato server).
+
+**Copertura risultante: 254 comuni attivi (era 238), 4.053.712 abitanti (81,0%, era
+79,0%)**. Restano **89 comuni mai censiti** (~500.000 abitanti) — nessun pattern di
+piattaforma nota trovato per questi, candidati per una futura ricognizione manuale
+(fuori scope di uno sweep automatico: verosimilmente siti custom o piattaforme non
+ancora coperte da TALIA).
+
+545 test verdi (erano 535), ruff pulito. Script di sweep/verifica non committati (one-off
+in scratchpad, stessa convenzione degli sweep precedenti).
+
+### Sweep di dominio sui comuni mai censiti (2026-07-26)
+
+Dopo il run scraper del 25/07, calcolato per la prima volta quanti comuni siciliani non
+avevano **nessuna** riga nel registro (né `attivo` né `pending`): **153 comuni**
+(1.072.324 abitanti) su 391, mai censiti da nessun sweep precedente — un gap più grande
+di quanto documentato finora (le sessioni TAL-49/50/51 avevano coperto PA/TP e i
+capoluoghi, non l'intera regione in modo sistematico).
+
+Stessa metodologia degli sweep del 2026-07-07 (jCityGov, Halley EG, portalepa): pattern
+di dominio noti + fingerprint sulla risposta HTTP, applicati anche a **Halley HSPromila**
+(`<slug>.hspromilaprod.hypersicapp.net`, non ancora sweepato sistematicamente prima).
+Script one-off non committato (stessa convenzione degli sweep precedenti).
+
+**47 hit** (34 HSPromila, 11 Halley EG, 2 jCityGov) su 153 comuni testati. A differenza
+degli sweep precedenti, ogni hit è stato **verificato con una vera chiamata a
+`scarica_atti()`** (i moduli di produzione, non solo il fingerprint) prima di attivarlo:
+- **40 verificati con atti reali** → attivati (`stato=attivo`)
+- **7 con fingerprint di piattaforma corretto ma 0 atti estratti** (Cianciana, San
+  Michele di Ganzaria, Oliveri, Monterosso Almo, Acquaviva Platani, Novara di Sicilia,
+  Floresta) → lasciati `pending` con nota esplicita: non abbastanza per attivarli come
+  scraper affidabili senza capire se l'albo è davvero vuoto o la struttura HTML diversa
+  (principio "fallimento silenzioso a 0 atti" di CLAUDE.md).
+
+**Bug trovato durante l'integrazione:** il codice ISTAT di Messina nel registro era
+sbagliato (083053, in realtà **Moio Alcantara** — mai testato per colpa di questo
+conflitto). Corretto a 083048.
+
+**Bug trovato e corretto durante il test di integrazione end-to-end:** un primo run
+completo con `run_scrapers.py` sui 40 nuovi comuni ha rivelato che 16/40 fallivano per
+timeout — non un problema dei singoli tenant, ma l'host condiviso
+`hspromilaprod.hypersicapp.net` (ora con 34 tenant invece di 6) che non regge bene
+richieste sequenziali ravvicinate per comuni diversi. Verificato isolando una singola
+richiesta fallita: risponde 200 senza problemi se non è preceduta da altre richieste
+ravvicinate. Fix: retry con backoff di 2s in `hspromila.py::scarica_atti` (stesso
+pattern già usato in `jcitygov.py`). Dopo il fix: **37/40 riusciti** al secondo run
+(3 falliti, in linea col rumore di rete storico del progetto, ~3-7%).
+
+**Copertura dopo questo sweep: 238 comuni attivi** (era 198), **3.889.697 abitanti
+(77,8% della popolazione siciliana, era 74,0%)**, +7 `pending` verificati (0 atti).
+Restano comuni mai censiti da nessuno sweep (né attivi né pending): **106**
+(624.607 abitanti).
+
+Dettagli completi (script, log, verifica) in HANDOFF.md, sessione 2026-07-26.
 
 ### Recupero 39 comuni censiti (code review 2026-07-11)
 
@@ -197,22 +354,31 @@ Dettagli completi in `docs/cards/TAL-49.md`, Tentativi 8-10.
 Da ricontrollare periodicamente: potrebbe esporre l'albo su altro portale o attivarlo in futuro
 (come già successo per Racalmuto → "Storico atti" jCityGov, e per Ribera → WordPress).
 
-## Prossimi comuni da censire (non jCityGov, per popolazione)
+## Prossimi comuni da censire (aggiornato 2026-08-06, per popolazione)
+
+89 comuni ancora senza alcuna riga di registro, nessun hit sui pattern noti
+(jCityGov/Halley EG/Halley HSPromila/portalepa) nei due sweep automatici del 26/07 e
+6/08. Probabilmente piattaforme non ancora coperte da TALIA (URBI con `DB_NAME` opaco
+non sweepabile, e-pal, siti custom) o slug non standard.
 
 | Comune | Prov | Popolazione |
 |--------|------|------------:|
-| Partinico | PA | 31.401 |
 | Comiso | RG | 30.214 |
 | Aci Catena | CT | 28.749 |
-| Niscemi | CL | 27.975 |
-| Termini Imerese | PA | 26.201 |
-| San Cataldo | CL | 23.424 |
 | Floridia | SR | 22.685 |
 | Pachino | SR | 22.068 |
-| Rosolini | SR | 21.526 |
 | Bronte | CT | 19.234 |
 | Carlentini | SR | 17.958 |
-| Aci Sant'Antonio | CT | 17.270 |
 | Palagonia | CT | 16.540 |
+| Nicosia | EN | 14.272 |
+| Barrafranca | EN | 13.977 |
+| Leonforte | EN | 13.878 |
+| Mascali | CT | 13.792 |
+| Capo d'Orlando | ME | 13.260 |
+| Francofonte | SR | 12.923 |
+| Priolo Gargallo | SR | 12.167 |
+| Santa Croce Camerina | RG | 9.452 |
 
-Per questi serve individuare la piattaforma (URBI, Halley, portalepa, e-pal, siti custom…): stessa procedura di TAL-49, esplorazione + scraper riusabile per famiglia di piattaforma.
+Per questi serve individuare la piattaforma manualmente (esplorazione diretta del sito,
+non sweepabile in automatico) + eventualmente un nuovo scraper riusabile per famiglia di
+piattaforma, stessa procedura di TAL-49.

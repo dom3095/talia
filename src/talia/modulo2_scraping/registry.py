@@ -124,7 +124,9 @@ def valida_registro(entries: list[EntryRegistro]) -> list[str]:
         "trapani",
         "siracusa",
         "ribera",
+        "nicosia",
         "agrigento",
+        "serviziolinealbo",
         "anac",
         "pending",
     }

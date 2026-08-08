@@ -7,6 +7,8 @@ desktop/mobile, come emesso dal portale).
 
 from __future__ import annotations
 
+import urllib.request
+
 from talia.modulo2_scraping.db import (
     EnteMetadato,
     connetti,
@@ -14,7 +16,12 @@ from talia.modulo2_scraping.db import (
     inizializza_db,
     upsert_ente,
 )
-from talia.modulo2_scraping.fonti.halley import FONTE_SCRAPER, _parse_pagina, salva_atti
+from talia.modulo2_scraping.fonti.halley import (
+    FONTE_SCRAPER,
+    _parse_pagina,
+    salva_atti,
+    scarica_atti,
+)
 
 _BASE = "https://trasparenza.comune.vittoria.rg.it"
 _ISTAT = "088012"
@@ -215,3 +222,54 @@ def test_salva_atti_idempotente():
 def test_salva_atti_lista_vuota():
     esito = salva_atti([], _db())
     assert esito["inseriti"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test retry su timeout/connessione rifiutata (host condiviso, 2026-08-05)
+# ---------------------------------------------------------------------------
+
+_HTML_PAGINA_VUOTA = '<table class="cms-table" id="table-albo"><tbody></tbody></table>'
+
+
+class _RispostaFinta:
+    def __init__(self, html: str):
+        self._html = html.encode("utf-8")
+
+    def read(self):
+        return self._html
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_scarica_atti_riprova_dopo_un_timeout(monkeypatch):
+    chiamate = {"n": 0}
+
+    def _urlopen_finto(req, timeout=20, context=None):
+        chiamate["n"] += 1
+        if chiamate["n"] == 1:
+            raise TimeoutError("simulato")
+        if "pag=1" in req.full_url:
+            return _RispostaFinta(_HTML_PAGINA_VUOTA)
+        return _RispostaFinta(_HTML_PAGINA)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    atti = list(scarica_atti(_BASE, _ISTAT))
+    assert len(atti) == 2
+    assert chiamate["n"] == 3
+
+
+def test_scarica_atti_rilancia_dopo_retry_esaurito(monkeypatch):
+    def _urlopen_finto(*_args, **_kwargs):
+        raise TimeoutError("simulato")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    try:
+        list(scarica_atti(_BASE, _ISTAT, _retry=0))
+        raise AssertionError("doveva sollevare TimeoutError")
+    except TimeoutError:
+        pass

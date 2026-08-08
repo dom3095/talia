@@ -4,13 +4,13 @@ Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio
 `TAL-*.md` di questa cartella.
 
 batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
-Modulo 3 (Dashboard Streamlit). In corso: validazione fascicoli reali (TAL-12). Censimento
-Palermo/Trapani (TAL-50), registro unificato scraper (#11), download PDF on-demand
-(TAL-47) e riapertura dopo revoca (TAL-48) completati e mergiati in `main`. Check-3
-qualità motivazione LLM (TAL-11) in Review (PR #14). Ripulita la colonna Review
-(2026-07-25): 11 card verificate e spostate in Done, 3 lasciate aperte con un gap
-specifico ancora documentato nella card (TAL-3 OCR, TAL-5 associazione nome↔ruolo, TAL-9
-incrocio tempistica graduatoria).
+Modulo 3 (Dashboard Streamlit, +tab Statistiche/Mappa copertura). In corso: validazione
+fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50), registro unificato
+scraper (#11), download PDF on-demand (TAL-47), riapertura dopo revoca (TAL-48) e
+check-3 qualità motivazione LLM (TAL-11, PR #14) completati e mergiati in `main`.
+Ripulita la colonna Review (2026-07-25): 11 card verificate e spostate in Done, 3
+lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, TAL-5
+associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -54,7 +54,6 @@ incrocio tempistica graduatoria).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | 🔤 NLP | branch `feat/TAL-11-check3-motivazione`; **PR #14 aperta**, in attesa di review Dom — RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 33 nuovi test; 9 findings da code review corretti |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
 | [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo esplicitamente rinviata (vedi Consuntivo) |
 | [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria ancora aperto, da card dedicata (vedi Consuntivo) |
@@ -62,17 +61,12 @@ incrocio tempistica graduatoria).
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
-| [TAL-1](TAL-1.md) | Setup progetto Python + tooling | branch `feat/TAL-1-modulo1-prototipo` |
-| [TAL-2](TAL-2.md) | CI GitHub Actions (lint + test) | verde su decine di PR successive (verificato non solo al primo) |
-| [TAL-4](TAL-4.md) | Estrazione entità: date, importi, CIG | `engine/entita.py`, usato da `fascicolo.py` |
-| [TAL-6](TAL-6.md) | Check 1: base giuridica revoca/annullamento | `checklist/check1_base_giuridica.py`, registrato in produzione |
-| [TAL-7](TAL-7.md) | Check 2: termini autotutela (12 mesi) | `checklist/check2_termini.py`, registrato in produzione |
-| [TAL-8](TAL-8.md) | Check 5: comunicazione avvio (art. 7) | `checklist/check5_avvio.py`, registrato in produzione ("preavviso" escluso deliberatamente, vedi Consuntivo) |
-| [TAL-10](TAL-10.md) | Report Modulo 1 (verde/giallo/rosso) | `modulo1_fascicolo/report.py`: HTML statico + JSON + CLI |
-| [TAL-13](TAL-13.md) | Attori nominati + procedimenti (regex + NER) | `engine/attori.py`: NER spaCy rumoroso → resta discovery deliberatamente, non nel motore |
-| [TAL-14](TAL-14.md) | Check 7: data breach GDPR non notificato | `checklist/check7_gdpr.py`, registrato in produzione |
-| [TAL-20](TAL-20.md) | Spider pilota albo pretorio iCity | `icity.py` + 32 test; pilota Tappa 2, non nel registro scraper di produzione (superato dalla famiglia jCityGov/portalepa/halley) |
-| [TAL-47](TAL-47.md) | Download PDF on-demand da catene (Fase 2, MVP jCityGov) | validato hash 4/4 su fascicolo Palma; poi esteso e usato in produzione da TAL-48 |
+| — | Pachino/Barrafranca via Playwright (2026-08-06) | branch `feat/sweep-comuni-mancanti`; stessa piattaforma DevExpress di Agrigento, nuovo scraper generico `serviziolinealbo.py` (non fork di `agrigento.py`); +178 atti Pachino, +90 Barrafranca; entrambi `escluso_default` come Agrigento; Leonforte (Cloudflare) verificato ma non forzato di proposito; copertura 82,0%→83,0% (258 comuni, 85 mai censiti); 572 test verdi |
+| — | Esplorazione manuale 10 comuni residui più popolosi (2026-08-06) | branch `feat/sweep-comuni-mancanti`; 2 attivati (Aci Catena +1.000 atti su jCityGov esistente ma dominio proprio; Nicosia +12 atti, nuovo scraper dedicato WordPress `nicosia.py`, backend reale URBI non ancora supportato dal frontend nuovo), 8 approfonditi e rimandati (piattaforme diverse: JSF, ASP.NET DevExpress, URBI, Cloudflare, non identificate); copertura 81,0%→82,0% (256 comuni, 87 mai censiti); 556 test verdi |
+| — | Secondo sweep comuni residui (2026-08-06) | branch `feat/sweep-comuni-mancanti` (PR #16); 17 hit su 106 comuni mai censiti (9 Halley EG, 3 jCityGov, 3 portalepa, 1 HSPromila), 16 verificati con atti reali e attivati (+2.475 atti, +116.978 abitanti, copertura 79,0%→81,0%), 1 pending (Valguarnera Caropepe, 0 atti); bugfix critico: fingerprint jCityGov dava 106/106 falsi positivi (403 wildcard del vendor su qualsiasi sottodominio) — corretto richiedendo marker reale nel body; 545 test verdi |
+| [TAL-11](TAL-11.md) | Check 3: qualità motivazione (LLM) | PR #14 mergiata (2026-08-05); RAG BM25 stdlib (`engine/rag.py`) + client Ollama (`engine/llm.py`) + `check3_motivazione.py`, non nel registry automatico (`valuta_llm=True`/`--llm`); qwen3:4b verificato end-to-end reale; 9 findings da code review corretti |
+| — | Fix registro: certificati SSL incompleti + base_url errato | PR #15 mergiata (2026-08-05): `brolo`/`pozzallo`/`sortino` (skip_ssl) + `castellammare_golfo` (base_url) |
+| — | Sweep di dominio comuni mai censiti (2026-07-26) | branch `feat/sweep-comuni-mancanti` (PR #16, riconciliata con main 2026-08-05); 153 comuni mai censiti individuati, 47 hit (jCityGov/Halley/HSPromila), 40 verificati con atti reali e attivati (+189.921 abitanti, copertura 74,0%→77,8%), 7 pending (fingerprint ok ma 0 atti); bugfix retry HSPromila + fix codice ISTAT Messina; 2026-08-06: run completa 234/244 scraper OK, bugfix retry anche su `halley.py`; Cefalù (+440 atti) e Partanna sbloccati (base_url errata, in realtà già su Halley EG — rimosso anche `partanna_tp`, duplicato di registro); Corleone scartato deliberatamente (WordPress con solo 12 documenti totali, non un registro atti reale); dashboard +tab Statistiche/Mappa copertura; 545 test verdi |
 | [TAL-48](TAL-48.md) | Red flag: riapertura dopo revoca | MVP + integrazione pdf_download (branch `feat/TAL-48-pdf-riaperture`); bugfix critico (data_atto NULL su jCityGov → 0 rilevazioni reali, ora 78); 480 test verdi |
 | [TAL-50](TAL-50.md) | Censimento Palermo + Trapani (E3 estensione) | PR #12 mergiata (2026-07-12): 9 comuni TIER 0 nel registro, riconciliato con refactor registro scraper (#11) |
 | — | Refactor: registro unificato scraper + health-check (#11) | `data/registro_scraper.csv` + `registry.py` + `_FACTORY_PER_MODULO`; health-check settimanale CI; 39 comuni censiti recuperati (1 attivato — Altavilla Milicia) |
@@ -80,7 +74,7 @@ incrocio tempistica graduatoria).
 | [TAL-21](TAL-21.md) | Schema DB atti + storage | `db.py`: DDL + helper CRUD + dataclass AttoMetadato/EnteMetadato |
 | [TAL-22](TAL-22.md) | Pipeline ANAC open data (regione 19) | `anac.py`: filtro Sicilia + idempotenza + 22 test offline |
 | [TAL-23](TAL-23.md) | Red flags batch deterministici | `red_flags/`: frazionamento + concentrazione + tempi anomali + runner; 20 test |
-| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | `modulo3_dashboard/app.py`: panoramica comuni, drill-down fonte, anonimizzazione; 7 test; BUG-6 chiuso (falso positivo) |
+| [TAL-30](TAL-30.md) | Dashboard Streamlit MVP | `modulo3_dashboard/app.py`: panoramica comuni, drill-down fonte, anonimizzazione; BUG-6 chiuso (falso positivo); 2026-08-06: +tab Statistiche (trend ingestione, aggregati) e Mappa copertura (pydeck + GeoJSON comuni); 17 test totali |
 | [TAL-42](TAL-42.md) | Schema DB: tabella procedimenti + colonne catena | `engine/catena._evolvi_schema`; lazy, idempotente |
 | [TAL-43](TAL-43.md) | Engine catena: individuazione e collegamento procedimenti | 3 strategie (CIG/riferimenti/oggetto simile) |
 | [TAL-44](TAL-44.md) | Red flag: revoca/annullamento in catena | integrato in runner; 6 test |

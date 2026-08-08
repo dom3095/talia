@@ -57,6 +57,8 @@ select = ["E", "F", "I", "UP", "B"]
 "tests/fonti/test_agrigento.py" = ["E501"]
 "tests/fonti/test_siracusa.py" = ["E501"]
 "tests/fonti/test_trapani.py" = ["E501"]
+"tests/fonti/test_nicosia.py" = ["E501"]
+"tests/fonti/test_serviziolinealbo.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

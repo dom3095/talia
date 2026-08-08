@@ -6,6 +6,8 @@ Nessuna chiamata di rete.
 
 from __future__ import annotations
 
+import urllib.request
+
 from talia.modulo2_scraping.db import (
     EnteMetadato,
     connetti,
@@ -13,7 +15,12 @@ from talia.modulo2_scraping.db import (
     inizializza_db,
     upsert_ente,
 )
-from talia.modulo2_scraping.fonti.hspromila import FONTE_SCRAPER, _parse_pagina, salva_atti
+from talia.modulo2_scraping.fonti.hspromila import (
+    FONTE_SCRAPER,
+    _parse_pagina,
+    salva_atti,
+    scarica_atti,
+)
 
 _URL = (
     "https://servizionline.hspromilaprod.hypersicapp.net/cmssambucadisicilia/"
@@ -147,3 +154,50 @@ def test_salva_atti_idempotente():
 def test_salva_atti_lista_vuota():
     esito = salva_atti([], _db())
     assert esito["inseriti"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test retry su timeout (host condiviso, TAL-51/sweep 2026-07-26)
+# ---------------------------------------------------------------------------
+
+
+class _RispostaFinta:
+    def __init__(self, html: str):
+        self._html = html.encode("utf-8")
+
+    def read(self):
+        return self._html
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_scarica_atti_riprova_dopo_un_timeout(monkeypatch):
+    chiamate = {"n": 0}
+
+    def _urlopen_finto(*_args, **_kwargs):
+        chiamate["n"] += 1
+        if chiamate["n"] == 1:
+            raise TimeoutError("simulato")
+        return _RispostaFinta(_HTML_PAGINA)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    atti = list(scarica_atti(_URL, _ISTAT))
+    assert len(atti) == 2
+    assert chiamate["n"] == 2
+
+
+def test_scarica_atti_rilancia_dopo_retry_esaurito(monkeypatch):
+    def _urlopen_finto(*_args, **_kwargs):
+        raise TimeoutError("simulato")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    try:
+        list(scarica_atti(_URL, _ISTAT, _retry=0))
+        raise AssertionError("doveva sollevare TimeoutError")
+    except TimeoutError:
+        pass

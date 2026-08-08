@@ -1,164 +1,312 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-07-26 (PR #14 pronta per merge — vedi sessione 2026-07-25 sotto per i
-> 9 findings corretti. **Nuova PR #15** su branch `fix/scraper-registro-cert-url`: 4 dei 7
-> scraper falliti nel run del 25/07 diagnosticati e corretti — vedi sezione sotto.)
+> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep
+> automatico (16 comuni) + esplorazione manuale su 10 residui (Aci Catena, Nicosia) +
+> Pachino/Barrafranca via Playwright (nuovo scraper generico `serviziolinealbo.py`,
+> stessa piattaforma di Agrigento). Copertura 83,0%, 258 comuni attivi, 85 ancora mai
+> censiti.)
 
 ---
 
-## Sessione 2026-07-26 — Diagnosi scraper falliti, PR #15
+## Sessione 2026-08-06 (continua) — Pachino/Barrafranca con Playwright
 
-Su richiesta di Dom ("possiamo fare qualcosa sugli scraper che non funzionano"),
-diagnosticati dal vivo (curl + client Python diretto, non assumendo rumore di rete) i 7
-scraper falliti nel run del 25/07. **4 corretti, PR #15 aperta** (branch
-`fix/scraper-registro-cert-url`, da `main` — non da questo branch, fix indipendente dal
-check LLM):
+**Richiesta di Dom:** "non possiamo usare playwright?" (dopo aver segnalato Pachino e
+Barrafranca come "stessa famiglia di Agrigento, richiede Playwright, non approfondito
+per limiti di tempo"). Verificato che Playwright è già installato e funzionante
+(Chromium incluso, usato per Agrigento) — nessun ostacolo tecnico, solo non ancora fatto.
 
-- **`brolo`, `pozzallo`, `sortino`** (Halley EG): catena certificato SSL incompleta lato
-  server, stesso pattern già noto per Siculiana/Joppolo Giancaxio (non un certificato
-  scaduto). Verificato che il contenuto con `skip_ssl=True` è genuino (titolo pagina +
-  markup Halley coerenti col comune, non un dominio sbagliato) prima di applicare il fix.
-  `skip_ssl=true` impostato nel registro.
-- **`castellammare_golfo`** (portalepa): `base_url` in registro puntava a una pagina del
-  sito comunale invece che al portale portalepa reale (probabile artefatto del censimento
-  originale) — corretto a `castellammare.soluzionipa.it`, stesso pattern
-  `<slug>.soluzionipa.it` degli altri tenant.
+Con Playwright, navigando fino a `/ServiziOnLine/AlboPretorio/AlboPretorio`, confermato
+che Pachino e Barrafranca usano la **stessa identica piattaforma DevExpress di
+Agrigento** (stesso DOM: span `text-custom p-1`, permalink `data-link`, paginazione PBN).
+Nuovo scraper **generico** `src/talia/modulo2_scraping/fonti/serviziolinealbo.py`
+(parametrico su base_url/codice_istat) invece di duplicare `agrigento.py` — che resta
+intatto e dedicato, per non introdurre rischio su uno scraper già verificato in
+produzione senza necessità concreta.
 
-Tutti e 4 verificati end-to-end con `run_scrapers.py --scrapers <slug> --max-pagine 2` su
-DB isolato prima del commit.
+Unica variazione reale tra i due tenant: il titolo a volte include un riferimento
+settoriale finale ("- NNNN/YYYY del DD/MM/YYYY", visto su Barrafranca, assente su
+Pachino) — gestito scartandolo prima della classificazione del tipo atto. Bug trovato e
+corretto durante lo sviluppo: la prima versione usava l'anno invece del numero come
+chiave del dizionario permalink→URL, causando il filtro quasi totale degli atti
+(1/178 sopravvissuto); poi riscritta seguendo lo stesso approccio più robusto già
+verificato in `agrigento.py` (permalink-first, span ancorato via `data-bs-target`)
+invece del mio primo tentativo più fragile (scan sequenziale con finestra euristica).
 
-**Restano non risolti** (richiedono lavoro vero, non un fix di registro):
-- `corleone` (portalepa): l'albo reale è su un layout HTML diverso
-  (`openweb/messi/public/albo.php`, su IP diretto con una home page "demo/cms"), non
-  compatibile col parser attuale di `portalepa.py` (`openweb/albo/albo_pretorio.php`) —
-  serve una variante di parser dedicata.
-- `cefalù`, `partanna_tp` (portalepa): `base_url` reale non individuato con una ricerca
-  rapida (nessun sottodominio `soluzionipa.it` plausibile risponde via DNS, nessun link
-  "albo"/"pretorio"/"soluzionipa" nella homepage del sito comunale) — serve
-  investigazione più approfondita (ricerca manuale o web).
+Verificato con `scarica_atti()` reale: **178 atti Pachino, 90 atti Barrafranca**.
+Entrambi `escluso_default` nel registro (come Agrigento: Playwright più lento, non nel
+run automatico — vanno lanciati esplicitamente con `--scrapers pachino barrafranca`).
+16 nuovi test (`tests/fonti/test_serviziolinealbo.py`).
 
-**Copertura scraper — quadro completo** (richiesto da Dom, non ancora in nessuna doc):
-su 391 comuni siciliani (5.001.690 abitanti), 198 hanno uno scraper attivo (74%
-popolazione). Il resto si divide in: Agrigento (funzionante, escluso dal run *default* per
-tempo — va lanciato esplicitamente), Messina (bloccato, FortiGate+cert scaduto), 38
-comuni `pending` (piattaforma già identificata, scraper da scrivere — backlog TAL-51), e
-**153 comuni mai censiti** (non hanno mai superato lo sweep di dominio delle piattaforme
-note) — il gap più grande e meno esplorato.
+Tentato anche un bypass di **Leonforte** (Cloudflare, segnalato come bloccato
+nell'esplorazione precedente) con Playwright: la sfida Cloudflare resta attiva
+indefinitamente anche con un browser reale (non un problema di rendering JS ma di
+bot-detection attiva). Non tentato un bypass più aggressivo di proposito — aggirare una
+misura anti-bot attiva non è nello spirito del progetto, stessa linea già seguita per
+il WAF ANAC e per Messina (entrambi richiedono intervento lato server, non evasione).
 
----
+**Copertura risultante: 258 comuni attivi (era 256), 4.132.778 abitanti (83,0%, era
+82,0%)**. Restano **85 comuni mai censiti**.
 
-## Sessione 2026-07-25 — Riconciliazione PR #14, code review, pulizia BOARD.md
-
-**PR #14 (TAL-11):** il merge di `main` fatto in sessione precedente aveva prodotto un
-commit rotto (`git stash` a metà merge aveva perso `MERGE_HEAD`, quindi non era un vero
-merge a 2 parent) — rifatto correttamente, poi ripulita una duplicazione silenziosa di 3
-righe in `BOARD.md` che il merge automatico aveva introdotto. `/code-review` su tutto il
-diff ha trovato 9 findings reali (verificati, non solo plausibili), tutti corretti in
-`0117852`: offset↔testo dei chunk RAG non allineato (bug riprodotto), offset della
-citazione al corpus non coerente col troncamento, `carenza_istruttoria` non mostrata per
-giudizio "incerta", parsing JSON fragile su graffe letterali, client Ollama duplicato tra
-`engine/llm.py` e `engine/catena.py` (unificato in `chiama_ollama()`), `LLMNonDisponibile`
-non catturata in `cli.py --llm`, `IndiceCorpus` ricostruito ad ogni chiamata senza cache,
-conteggio test sbagliato in HANDOFF. 531 test verdi (erano 526), ruff pulito. Dettagli in
-[TAL-11.md](docs/cards/TAL-11.md), sezione Tentativi.
-
-**Pulizia BOARD.md:** su richiesta di Dom, verificate una per una le card ferme in
-"Review" da sessioni vecchie (alcune da giugno). Per ciascuna: controllato che il file/
-funzione esista, sia effettivamente importato nel percorso di produzione (non solo
-scritto e mai collegato), e che tutti i criteri di accettazione della card siano
-spuntati. Spostate in Done: TAL-1, TAL-2, TAL-4, TAL-6, TAL-7, TAL-8, TAL-10, TAL-13,
-TAL-14, TAL-20, TAL-47. **Lasciate deliberatamente in Review** (gap reale ancora aperto,
-documentato nella card stessa, non solo checkbox stantia):
-- TAL-3 — manca un PDF scansionato campione in `data/samples/` per un test OCR
-  automatizzato (l'OCR funziona ed è stato validato ad-hoc su fascicoli reali TAL-12/48,
-  ma non c'è un test di regressione permanente).
-- TAL-5 — associazione nome↔ruolo dei firmatari esplicitamente rinviata (deviazione
-  documentata: euristica deterministica sì, spaCy no, per scelta).
-- TAL-9 — incrocio con la tempistica della graduatoria non implementato, la card stessa
-  rimanda a "eventuale card dedicata" mai creata.
-
-TAL-20 (spider iCity) è un caso particolare: tutti i criteri sono soddisfatti (32 test),
-ma il modulo non è nel registro scraper di produzione (`data/registro_scraper.csv`) — era
-un pilota "Tappa 2" per validare il pattern, poi la copertura reale è stata raggiunta con
-la famiglia jCityGov/portalepa/halley/urbi/hspromila/ribera. Marcato Done come pilota
-completato, non come modulo attivo in produzione (nota esplicita in BOARD.md per non
-generare confusione futura).
-
-**Run scraper (completato):** `python3 scripts/run_scrapers.py`, 204 scraper di default,
-per recuperare gli atti pubblicati dal 21/07 (ultimo run) ad oggi. **197/204 riusciti.**
-DB: 104.812 → **111.239 atti** (+6.427), 163 → **575 red flags** (concentrazione 428,
-tempi anomali 1, revoche in catena 46, riaperture 75 rilevati in questo passaggio — il
-runner ricalcola su tutto il DB ad ogni run, quindi il delta netto è inferiore al
-"rilevati" per via di flag già esistenti ririlevati).
-
-**7 scraper falliti** (exit code 1 dello script è per convenzione — non un crash, vedi
-`return 1 if errori else 0` in `run_scrapers.py`):
-- **`castellammare_golfo`, `cefalù`, `corleone`, `partanna_tp`** (tutti portalepa) — stessi
-  4 comuni già falliti nel run locale del 20/07 (vedi sessione sotto): non sembra rumore
-  di rete casuale ma un problema specifico e persistente di questi 4 tenant portalepa,
-  riproducibile anche da rete locale (non solo dal blocco Akamai IP/ASN di GH Actions già
-  documentato). Da investigare se si ripete ancora al prossimo run.
-- **`brolo`, `pozzallo`, `sortino`** (halley) — `pozzallo` con un errore SSL insolito
-  (*hostname mismatch*, il certificato ricevuto è per `comune.pozzallo.rg.it` ma la
-  richiesta arriva da un contesto taggato "Partanna" nel log: da verificare se è solo un
-  problema di interleaving nell'output o un'anomalia reale nel registro).
-- **Nessuna perdita di copertura**: sia Racalmuto (4 errori 404 sulla riga portalepa
-  `racalmuto`, ma `racalmuto_halley` ha coperto il comune con 55 atti nuovi) sia Partanna
-  hanno un secondo scraper registrato sulla stessa piattaforma-famiglia — tranne
-  `partanna_tp`/`partanna` (halley), che **questo run hanno fallito entrambi**: Partanna
-  non ha ricevuto atti nuovi in questo passaggio (unico comune con 0 copertura effettiva).
+**572 test verdi (erano 556), ruff pulito, registro validato (312 righe).**
 
 ---
 
-## Sessione 2026-07-21 — TAL-11: check-3 qualità motivazione (LLM + RAG)
+## Sessione 2026-08-06 (continua) — Esplorazione manuale 10 comuni residui
 
-**Contesto:** dopo la sessione precedente (TAL-48/TAL-12, PR #13, poi mergiata il 24/07 — vedi
-quella sezione per lo stato dei fascicoli TAL-12 e il bugfix `data_atto`/`data_pub`), Dom ha
-chiesto di procedere con l'unico check della checklist che richiede un LLM: TAL-11 aveva già
-una spec quasi completa ma 3 "Domande aperte" non barrate. Risolte con Dom prima di scrivere
-codice (modello LLM, soglia motivazione, scope RAG — vedi `docs/cards/TAL-11.md`).
+**Richiesta di Dom:** "puoi continuare a esplorare altri 10 dei comuni mancanti? crea
+gli scraper se puoi" (dopo i due sweep automatici, sui 10 comuni residui più popolosi:
+Comiso, Aci Catena, Floridia, Pachino, Bronte, Carlentini, Palagonia, Nicosia,
+Barrafranca, Leonforte).
 
-**Branch:** `feat/TAL-11-check3-motivazione`, da `main` (non da PR #13: le due PR erano
-indipendenti; riconciliato con `main` il 24/07 dopo il merge di PR #13, conflitti solo su
-`HANDOFF.md`/`BOARD.md`, nessun conflitto di codice).
+A differenza degli sweep automatici (pattern noti su tanti comuni), qui ogni comune è
+stato esplorato singolarmente (link "albo pretorio" in homepage, sottodomini noti,
+`wp-sitemap.xml` per i siti WordPress) — nessun pattern comune tra i 10, ognuno è un
+caso a sé.
 
-**Implementato:**
-- `src/talia/engine/rag.py` — `IndiceCorpus`: retrieval **BM25 in puro stdlib** su
-  `data/corpus_normativo/` (nessun embedding/vector store: corpus piccolo, 16 file curati —
-  decisione di Dom, evita nuove dipendenze pip).
-- `src/talia/engine/llm.py` — client minimale per **Ollama** (`genera`/`LLMNonDisponibile`),
-  `urllib` puro, opener iniettabile per i test. Nessun fallback silenzioso: LLM irraggiungibile
-  → eccezione esplicita (spec TAL-11).
-- `src/talia/engine/checklist/check3_motivazione.py` — `valuta_motivazione(contesto,
-  esiti_precedenti, indice=None)`. **Non registrato** nel registry automatico dei check
-  (richiede sia gli esiti precedenti sia una chiamata di rete): invocato esplicitamente da
-  `analizza_fascicolo/testi/pdf(..., valuta_llm=True)` o `talia analizza ... --llm`.
-  Disattivato di default.
-- Modello scelto: **qwen3:4b via Ollama** (già presente in locale, gratuito).
+**2 attivati:**
+- **Aci Catena** (28.749 ab.): jCityGov standard, ma su dominio proprio
+  (`trasparenza.comune.acicatena.ct.it`) invece del vendor condiviso
+  `trasparenza-valutazione-merito.it` — non lo intercetta lo sweep automatico, che
+  controlla solo quel dominio. **Nessun codice nuovo**: `jcitygov.py` accetta già
+  `base_url` come parametro. +1.000 atti (backfill storico completo).
+- **Nicosia** (14.272 ab.): WordPress "Developers Italia" (stesso tema di Corleone, ma
+  qui la tassonomia "Albo Pretorio" è viva). **Nuovo scraper dedicato**
+  `src/talia/modulo2_scraping/fonti/nicosia.py` (stesso schema di `ribera.py`): lista
+  paginata via tassonomia + una fetch di dettaglio per atto (data reale e descrizione
+  non sono nella pagina lista). Solo atti in pubblicazione (~12, non uno storico) —
+  serve scraping continuo, stesso pattern di Palermo/Catania. 11 nuovi test
+  (`tests/fonti/test_nicosia.py`).
+  Nota per il futuro: il backend reale di Nicosia è **URBI** (`asp.urbi.it`, DB_NAME
+  `n201401` esposto nei link "Scarica documento"), ma con un frontend più recente
+  ("Bootstrap ITALIA") che non risponde al flusso HTTP di `urbi.py` (costruito per
+  l'interfaccia di Catania/Favara/Raffadali) — non approfondito ora. Se in futuro
+  emergono altri comuni sulla stessa piattaforma nuova, conviene investire lì invece di
+  replicare scraper WordPress uno per uno.
 
-**2 bug reali scoperti col modello vero (non dai test mockati)** — verificato end-to-end con
-`talia analizza data/samples/fascicolo_critico --llm` contro Ollama reale:
-1. Timeout di default (120s) insufficiente: qwen3 è un modello "thinking", ragiona ad alta
-   voce anche su prompt banali (~18-28s solo per un JSON di poche parole) → portato a 300s.
-2. `_estrai_giudizio` con un singolo regex greedy falliva quando il modello ripeteva lo schema
-   JSON del prompt come "esempio" prima della risposta vera (due oggetti `{...}` nella risposta
-   → cattura tutto in mezzo, JSON non valido). Fix: si prende l'ultimo oggetto JSON valido con
-   chiave `giudizio`, non il primo/unico match presunto. Test di regressione aggiunto.
+**8 approfonditi, non ancora scriptabili in modo economico** (dettagli e piattaforma
+identificata per ciascuno in
+[14-censimento-albi.md](docs/wiki/14-censimento-albi.md)): Comiso (JSF/PrimeFaces
+stateful), Pachino e Barrafranca (ASP.NET DevExpress, famiglia Agrigento → Playwright),
+Bronte (URBI ma flusso da reverse-engineerare come Catania), Leonforte (Cloudflare bot
+protection), Floridia e Palagonia (nessuna piattaforma identificata), Carlentini
+(sottodominio WordPress separato, struttura non chiarita).
 
-**Test:** 33 nuovi (`test_rag.py`, `test_llm.py`, `test_check3_motivazione.py`,
-`test_analisi_llm.py` per il wiring), 496 totali verdi, ruff pulito.
+**Copertura risultante: 256 comuni attivi (era 254), 4.096.733 abitanti (82,0%, era
+81,0%)**. Restano **87 comuni mai censiti**.
 
-**Nota di processo:** `pyproject.toml`/CI su `main` dichiarano ancora `python 3.14`/`ruff
-target-version py314` (il fix a 3.12 vive solo sulla PR #13, non ancora mergiata) — `ruff
-format .` sull'intero repo da questo branch riscrive ~30 file preesistenti non toccati da
-questa card (drift di formattazione dovuto al target py314). **Non incluso in questo PR**:
-revertiti tutti i file non pertinenti a TAL-11, mantenute solo le modifiche intenzionali.
-Verificare manualmente se lo stesso accade su altri branch aperti da `main` prima del merge
-della PR #13.
+**556 test verdi (erano 545), ruff pulito, registro validato (310 righe).**
 
-**Prossimo passo naturale:** usare `--llm` sugli 8 fascicoli TAL-12 già preparati (PR #13,
-mergiata) per iniziare il ground truth falsi positivi/negativi anche sul check LLM — sbloccato
-non appena mergiata anche PR #14.
+---
+
+## Sessione 2026-08-06 (continua) — Secondo sweep comuni residui (106 → 89 mancanti)
+
+**Richiesta di Dom:** "lavorerei a censire gli altri comuni" (i 106 rimasti dopo lo
+sweep del 26/07). Aggiunto allo stesso branch `feat/sweep-comuni-mancanti`/PR #16 già
+aperta (un branch separato creato per errore e poi riportato qui su richiesta di Dom).
+
+**Metodologia** (stessa dei sweep precedenti, con 2 estensioni): più varianti di slug
+per comune (calibrate confrontando lo slug atteso con l'host reale dei 195 comuni già
+censiti — 191/195 combaciavano con la concatenazione semplice) + pattern Halley "EGOV"
+scoperto lo stesso giorno con Cefalù.
+
+**Bug critico trovato e corretto nel proprio script di sweep** (non nel codice di
+produzione): il fingerprint jCityGov si basava sullo status HTTP, ma
+`trasparenza-valutazione-merito.it` risponde **403 con una pagina di errore generica per
+qualsiasi sottodominio, anche inesistente** — un catch-all del vendor. Risultato del
+primo giro: **106/106 "hit"**, tutti falsi. Diagnosticato testando un sottodominio
+palesemente inventato (stesso 403) e un comune jCityGov reale noto (marker
+`jcitygov-albi-theme` nel body, assente nel falso positivo). Corretto richiedendo quel
+marker; rilanciato: **17 hit reali** su 106.
+
+**Verifica end-to-end** (come da principio ormai consolidato — mai attivare dal solo
+fingerprint): tutti e 17 chiamati con le funzioni `scarica_atti()` di produzione.
+**16 con atti reali** → attivati. **1** (Valguarnera Caropepe, Halley EG) con
+fingerprint corretto ma pagina vuota (0 righe in tabella, verificato anche con una
+seconda chiamata isolata) → lasciato `pending`. **1** (Mirabella Imbaccari) richiedeva
+`skip_ssl` (stessa causa di Siculiana: certificato valido, catena incompleta).
+
+**Copertura risultante: 254 comuni attivi (era 238), 4.053.712 abitanti (81,0%, era
+79,0%)** — numeri confermati anche dalla nuova tab Mappa copertura della dashboard
+(`streamlit.testing.v1.AppTest` su `talia.db` reale). Restano **89 comuni mai censiti**
+(~500.000 abitanti), nessun pattern di piattaforma noto trovato — candidati per
+ricognizione manuale, non più sweepabili in automatico con i pattern esistenti.
+
+**545 test verdi (invariato — solo dati di registro, nessun codice nuovo), ruff pulito,
+registro validato (308 righe).** Dettagli completi in
+[14-censimento-albi.md](docs/wiki/14-censimento-albi.md). Script di sweep/verifica non
+committati (one-off in scratchpad, stessa convenzione).
+
+**Prossimo passo:** PR #16 già aggiornata con questo commit, in attesa di review/merge
+di Dom. Poi considerare una ricognizione manuale sui 89 comuni residui.
+
+---
+
+## Sessione 2026-08-06 (continua) — Dashboard: tab Statistiche + Mappa copertura (TAL-30)
+
+**Richiesta di Dom:** dashboard con statistiche di ingestione (documenti raccolti negli
+ultimi giorni, aggregati) + mappa interattiva della Sicilia con i comuni colorati per
+copertura scraper.
+
+**Fatto** in `src/talia/modulo3_dashboard/app.py`:
+- **Tab 📈 Statistiche**: KPI (atti totali, comuni con atti, atti ultimi 7/30gg), trend
+  atti ingeriti per giorno (`st.bar_chart`, finestra configurabile 7-90gg), aggregati per
+  provincia/tipo atto/piattaforma scraper. Tutto da query dirette su `atti`/`enti`
+  (`data_accesso`, non `data_atto` — è la data di *ingestione*, coerente con la richiesta).
+- **Tab 🗺️ Mappa copertura**: `pydeck.Layer("GeoJsonLayer")` su
+  `data/comuni_sicilia_confini.geojson` (391 comuni, già presente in repo), colorato per
+  `enti.stato_scraper` (verde=attivo/escluso_default, arancio=pending, rosso=bloccato,
+  grigio=non censito/assente da `enti`). KPI popolazione coperta incrociando
+  `data/comuni_sicilia.csv`. Nessuna dipendenza nuova: `pydeck` è già incluso in
+  Streamlit (verificato: `pip show streamlit` lo elenca in `Requires`), niente token
+  Mapbox (`map_provider="carto"`).
+- **Unica eccezione al principio "la dashboard legge solo dal DB"**: la mappa incrocia
+  anche i due file statici sopra, perché i confini geografici e l'elenco dei comuni mai
+  censiti (assenti da `enti` per definizione) non possono venire dal DB. Documentato in
+  un commento in cima alla sezione mappa di `app.py` e nella card TAL-30.
+- Verificato end-to-end con `streamlit.testing.v1.AppTest` su `talia.db` reale (nessuna
+  API browser disponibile in sessione): 0 eccezioni, metriche coerenti con lo stato noto
+  del progetto (238 comuni coperti, 79% popolazione, 128.585 atti totali).
+- 10 nuovi test (`tests/test_dashboard.py`), **545 test verdi totali**, ruff pulito.
+
+**Non fatto:** nessuna vista storica multi-run (la mappa/statistiche riflettono solo lo
+stato corrente del DB, non uno storico di run passate — coerente con la scelta del resto
+della dashboard).
+
+---
+
+## Sessione 2026-08-05 — Riconciliazione PR #16 + run completa scraper + fix halley.py
+
+**Contesto:** Dom aveva già mergiato PR #14 (TAL-11 check-3 LLM) e PR #15 (fix
+skip_ssl/base_url) direttamente su `main` senza notifica in sessione. `feat/sweep-comuni-mancanti`
+(PR #16) risultava quindi `CONFLICTING`/`DIRTY`. Riconciliato con `git merge origin/main`
+(merge a 2 parent verificato con `git cat-file -p`, nessun duplicato residuo in
+BOARD.md/HANDOFF.md/registro — controllato esplicitamente dopo l'incidente di stash
+della sessione precedente). 533 test verdi, `ruff check` pulito, `registry.py::valida_registro`
+senza errori. Push riuscito, **PR #16 ora `MERGEABLE`**.
+
+**Run completa scraper** (`caffeinate -i python scripts/run_scrapers.py`, su `talia.db`
+reale, 244 scraper attivi): **234/244 OK (95,9%)** → DB: 286 enti, 128.050 atti, 631 red
+flags. 10 falliti al primo giro, tutti errori di rete (nessun parsing rotto). Analisi
+dei 10 via query diretta su `scraper_runs` (più affidabile del parsing log — stdout
+bufferizzato e stderr non bufferizzato si interlacciano nel file quando redirect
+combinato `2>&1`, l'ordine delle righe non riflette l'ordine reale degli eventi):
+- **7 flaky Halley** (`calatafimisegesta`, `maletto`, `mussomeli`, `sancipirello`,
+  `sangiuseppejato`, `grammichele`, `altavillamilicia`): `ConnectionRefusedError`
+  transitorio, confermato con retry manuale/`curl` a distanza di secondi — stesso
+  pattern host-condiviso-sovraccarico già risolto per `hspromila.py` il 26/07, ma su
+  un IP Halley diverso (`195.231.11.215`, condiviso da almeno 3 dei falliti).
+  **Fix: retry con backoff 2s in `halley.py::scarica_atti`** (stesso pattern
+  `jcitygov.py`/`hspromila.py`, cattura `TimeoutError` + `urllib.error.URLError`; prima
+  non aveva *nessun* retry). 2 nuovi test di regressione. Dopo il fix, recuperati 5/7 al
+  retry immediato (`maletto`, `altavillamilicia`, `calatafimisegesta`, `sancipirello`,
+  `mussomeli`); `sangiuseppejato`/`grammichele` ancora giù al terzo tentativo — confermato
+  con `curl` diretto che il server è genuinamente irraggiungibile in questo momento, non
+  un bug: da ritentare in un run successivo.
+- **3 non recuperabili col retry — piattaforma migrata** (bug reale, non transitorio):
+  `cefalù` (spostato a `egov.comune.cefalu.pa.it`, piattaforma Zucchetti "zf", diversa da
+  portalepa), `corleone` (path `/openweb/messi/public/albo.php` su IP diretto, layout
+  diverso), `partanna_tp` (usa Gazzetta Amministrativa, piattaforma terza generica,
+  non portalepa/halley). Già segnalati come aperti nella sessione PR #15 del 26/07 con
+  la stessa causa sospettata ("base_url reale non trovato" / "layout HTML diverso") —
+  confermato oggi con verifica diretta del sito. Richiedono un nuovo scraper dedicato o
+  un adattamento del parser portalepa, non ancora fatto.
+
+**535 test verdi (erano 533), ruff pulito.**
+
+**Prossimo passo (superato, vedi sezione "Seguito stesso giorno" sotto):**
+~~decidere se investire in scraper dedicati per `cefalù`/`corleone`/`partanna_tp`~~ —
+risolto lo stesso giorno: Cefalù e Partanna erano solo `base_url` sbagliata (già Halley
+EG), Corleone scartato (nessun registro atti reale). Resta aperto solo: valutare se il
+retry di `halley.py` va esteso con un secondo tentativo (backoff più lungo), dato che
+l'host condiviso `195.231.11.215` è rimasto giù per minuti, non secondi, in questa
+sessione — non ancora fatto.
+
+**Seguito stesso giorno — indagine sui 3 comuni "piattaforma migrata":**
+- **Cefalù**: non serviva un nuovo scraper. Il vero portale trasparenza è
+  `egov.comune.cefalu.pa.it/cefalu` (link "Albo pretorio" nel menu del sito puntava a
+  `mc/mc_p_ricerca.php`, lo stesso endpoint standard di `halley.py`) — solo la `base_url`
+  in registro era sbagliata (puntava al sito istituzionale `comune.cefalu.pa.it`, non al
+  portale trasparenza). Corretta. **440 atti storici recuperati** (2017→2026).
+- **Partanna**: stessa causa — vero portale `servizi.comune.partanna.tp.it` (Halley EG
+  standard). **Ma esisteva già una riga di registro corretta e attiva per lo stesso
+  comune sotto lo slug `partanna`** (non `partanna_tp`), con 570 atti già raccolti
+  regolarmente: `partanna_tp` era un **duplicato di registro** con URL sbagliata, non un
+  comune scoperto. Rimossa la riga `partanna_tp` invece di "fixarla" (avrebbe fatto
+  girare lo stesso scraper due volte sullo stesso server). Verificato con
+  `awk`/`uniq -d` sul CSV che **non ci sono altri duplicati per errore**: gli altri 5
+  codici ISTAT doppi nel registro (Favignana, Campofelice di Roccella, Villabate,
+  Racalmuto, San Giovanni la Punta) sono intenzionali — stesso comune su **due
+  piattaforme diverse** (jCityGov + Halley/portalepa), già coperto dal backlog
+  **TAL-52** (deduplicazione atti tra scraper ridondanti).
+- **Corleone**: **non risolto, deliberatamente scartato**. Il sito è WordPress con un
+  custom post type `documento_pubblico` ("Albo Pretorio"), ma il sitemap XML
+  (`wp-sitemap-posts-documento_pubblico-1.xml`) rivela **solo 12 documenti totali**,
+  quasi tutti caricati lo stesso giorno (2024-08-05, probabile migrazione una-tantum:
+  giuramento sindaco, nomine settori) — non un registro atti attivo. Nessun sottodominio
+  Halley (`servizi.comune.corleone.pa.it` esiste ma è una pagina Plesk di default, non
+  Halley) né altra piattaforma nota trovata. Lasciato `bloccato` in registro con nota
+  esplicita, per il principio "mai attivare uno scraper a 0 atti reali" (CLAUDE.md).
+
+**535 test verdi (nessun nuovo test: solo correzioni di registro, nessun codice nuovo), ruff pulito, registro validato (291 righe).**
+
+---
+
+## Sessione 2026-07-26 — Sweep comuni mai censiti + fix scraper (PR #15 + questo branch)
+
+**Contesto:** su richiesta di Dom ("possiamo fare qualcosa sugli scraper che non
+funzionano o su quelli mancanti"), prima diagnosticati e corretti 4 dei 7 scraper falliti
+nel run del 25/07 — **PR #15** (`fix/scraper-registro-cert-url`, branch separato da
+questo): `brolo`/`pozzallo`/`sortino` (Halley, catena certificato incompleta →
+`skip_ssl=true`) e `castellammare_golfo` (portalepa, `base_url` sbagliato in registro,
+corretto a `castellammare.soluzionipa.it`); restano aperti `corleone` (layout HTML
+diverso, serve parser dedicato) e `cefalù`/`partanna_tp` (base_url reale non trovato).
+Poi, su richiesta esplicita di continuare con gli scraper mancanti: primo conteggio
+sistematico di quanti comuni siciliani non avessero **nessuna**
+riga nel registro (né attivo né pending) → **153 comuni, 1.072.324 abitanti**, un gap
+più grande di quanto la documentazione esistente (TAL-49/50/51) suggerisse.
+
+**Sweep di dominio** (stessa metodologia 2026-07-07: pattern noti jCityGov/Halley
+EG/portalepa + fingerprint, più **Halley HSPromila** mai sweepato sistematicamente
+prima): script one-off in scratchpad, lanciato sotto `caffeinate` (branch dedicato
+`feat/sweep-comuni-mancanti`, indipendente da PR #14/#15). **47 hit** su 153 (34
+HSPromila, 11 Halley, 2 jCityGov).
+
+**A differenza degli sweep precedenti, ogni hit verificato con una vera chiamata a
+`scarica_atti()`** (moduli di produzione), non solo il fingerprint HTTP:
+- **40 confermati con atti reali** (contenuto controllato a campione: titoli di atti
+  plausibili, es. "ESTATE RIESINA 2026 PRIMA PARTE - IMPEGNO DI SPESA") → attivati
+- **7 con fingerprint corretto ma 0 atti estratti** (Cianciana, San Michele di Ganzaria,
+  Oliveri, Monterosso Almo, Acquaviva Platani, Novara di Sicilia, Floresta) → lasciati
+  `pending` con nota — non abbastanza per attivarli senza capire se l'albo è
+  genuinamente vuoto o la struttura HTML è diversa (principio "mai attivare uno scraper
+  a 0 atti silenzioso", CLAUDE.md)
+
+**2 bug reali trovati durante l'integrazione (non dai test, dal test end-to-end):**
+1. **Codice ISTAT di Messina sbagliato nel registro** (083053 — in realtà **Moio
+   Alcantara**, mai testato per questo conflitto silenzioso). Corretto a 083048.
+   Verificato che Moio Alcantara non è comunque raggiungibile sui pattern noti.
+2. **Timeout sistemico su HSPromila**: un primo run reale con `run_scrapers.py` sui 40
+   nuovi comuni ha dato 16/40 falliti per timeout — non un problema per singolo tenant,
+   ma l'host condiviso `hspromilaprod.hypersicapp.net` (34 tenant in più sullo stesso
+   dominio, prima solo 6) che non regge richieste sequenziali ravvicinate per comuni
+   diversi. Verificato isolando una richiesta fallita: risponde 200 pulito se non
+   preceduta da altre richieste ravvicinate — non un fallimento persistente. Fix: retry
+   con backoff 2s in `hspromila.py::scarica_atti` (stesso pattern già in `jcitygov.py`),
+   2 nuovi test di regressione (mock su `urllib.request.urlopen`). Dopo il fix: **37/40**
+   al secondo run (3 falliti, in linea col rumore di rete storico ~3-7%).
+
+**Copertura risultante: 238 comuni attivi (era 198), 3.889.697 abitanti (77,8%, era
+74,0%)**, +7 pending verificati. Restano **106 comuni mai censiti da nessuno sweep**
+(624.607 abitanti) — candidati per un prossimo giro, probabilmente su piattaforme non
+ancora coperte da TALIA (nessun hit sui pattern jCityGov/Halley/portalepa/HSPromila).
+
+**495 test verdi (erano 493), ruff pulito.** Dettagli completi in
+[14-censimento-albi.md](docs/wiki/14-censimento-albi.md). Script di sweep non
+committato (one-off in scratchpad, stessa convenzione degli sweep precedenti).
+
+**Prossimo passo:** aprire PR per `feat/sweep-comuni-mancanti` (indipendente da PR
+#14/#15). Poi considerare un giro di reverse-engineering manuale sui 106 comuni residui
+(prossima estensione naturale di TAL-51, finora limitato a Palermo/Trapani).
 
 ---
 

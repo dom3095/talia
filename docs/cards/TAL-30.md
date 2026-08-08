@@ -32,3 +32,14 @@ TAL-21, TAL-23.
 
 ## 📝 Note
 Simmetria: la dashboard non è una gogna. Mostra il buono quanto il sospetto.
+
+**2026-08-06:** aggiunte 2 tab su richiesta esplicita di Dom: **📈 Statistiche**
+(atti ingeriti per giorno, KPI 7/30gg, aggregati per provincia/tipo/piattaforma
+scraper) e **🗺️ Mappa copertura** (confini comunali da
+`data/comuni_sicilia_confini.geojson`, colorati per stato scraper letto da
+`enti.stato_scraper`; popolazione coperta calcolata incrociando
+`data/comuni_sicilia.csv`). Unica eccezione al principio "legge solo dal DB":
+i confini geografici e l'elenco completo dei comuni (compresi quelli mai
+censiti, assenti da `enti`) non possono venire dal DB per definizione — vedi
+commento in cima alla sezione mappa in `app.py`. Nessuna dipendenza nuova:
+`pydeck` è già incluso in Streamlit. 10 nuovi test.

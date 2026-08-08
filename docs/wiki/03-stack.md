@@ -18,6 +18,7 @@ Tutto gratuito/open source. Nessuna dipendenza a pagamento di default. L'LLM gir
 | LLM | filtro a imbuto: regole prima, LLM **solo** su documenti già flaggati e solo per il check "motivazione"; **qwen3:4b via Ollama** (TAL-11 ✅), locale | ~0 |
 | RAG | retrieval **BM25 in puro stdlib** su `data/corpus_normativo/` (TAL-11 ✅) — nessun embedding/vector store: corpus piccolo (~16 file curati), un retrieval lessicale è sufficiente | 0 |
 | Dashboard | Streamlit >= 1.35 (TAL-30 ✅) | 0 |
+| Mappa copertura | pydeck (bundle in Streamlit, nessuna dipendenza nuova) + `data/comuni_sicilia_confini.geojson` — no Mapbox token (`map_provider="carto"`) | 0 |
 | Hosting | GitHub Pages / Streamlit Cloud / HF Spaces | 0 |
 | CI/cron | GitHub Actions | 0 |
 

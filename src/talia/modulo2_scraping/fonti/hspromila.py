@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+import time
 import urllib.request
 from collections.abc import Iterable, Iterator
 from html import unescape
@@ -84,18 +85,20 @@ def _parse_pagina(html: str, url: str, codice_istat: str) -> list[AttoMetadato]:
         numero_registro = cells[4]
         oggetto = cells[5] or None
         categoria = cells[6]
-        atti.append(AttoMetadato(
-            ente_codice_istat=codice_istat,
-            tipo=_tipo_da_categoria(categoria),
-            url_fonte=f"{url}#{chiave_riga}",
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=ora_utc(),
-            numero=numero_registro or None,
-            oggetto=oggetto,
-            data_pub=parse_data_iso(cells[8]) if len(cells) > 8 else None,
-            data_scadenza=parse_data_iso(cells[9]) if len(cells) > 9 else None,
-            cig=estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=codice_istat,
+                tipo=_tipo_da_categoria(categoria),
+                url_fonte=f"{url}#{chiave_riga}",
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=ora_utc(),
+                numero=numero_registro or None,
+                oggetto=oggetto,
+                data_pub=parse_data_iso(cells[8]) if len(cells) > 8 else None,
+                data_scadenza=parse_data_iso(cells[9]) if len(cells) > 9 else None,
+                cig=estrai_cig(oggetto),
+            )
+        )
     return atti
 
 
@@ -104,7 +107,9 @@ def _parse_pagina(html: str, url: str, codice_istat: str) -> list[AttoMetadato]:
 # ---------------------------------------------------------------------------
 
 
-def scarica_atti(url: str, codice_istat: str, **_kwargs) -> Iterator[AttoMetadato]:
+def scarica_atti(
+    url: str, codice_istat: str, *, _retry: int = 1, **_kwargs
+) -> Iterator[AttoMetadato]:
     """Scarica gli atti attualmente elencati su un albo pretorio Halley HSPromila.
 
     Args:
@@ -115,10 +120,24 @@ def scarica_atti(url: str, codice_istat: str, **_kwargs) -> Iterator[AttoMetadat
         codice_istat: codice ISTAT a 6 cifre del comune.
 
     Nessuna paginazione nota: la pagina espone un unico blocco di atti.
+
+    Un retry con backoff di 2s su timeout (stesso pattern di `jcitygov.py`):
+    l'host condiviso `hspromilaprod.hypersicapp.net` (decine di tenant sullo
+    stesso dominio) va in timeout più spesso se colpito da richieste
+    consecutive ravvicinate per comuni diversi nello stesso run — non un
+    fallimento persistente per singolo tenant (verificato: stesso comune,
+    stessa richiesta, riprovata isolata, risponde 200 senza problemi).
     """
     req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=20) as r:
-        html = r.read().decode("utf-8", errors="replace")
+    for tentativo in range(_retry + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                html = r.read().decode("utf-8", errors="replace")
+            break
+        except TimeoutError:
+            if tentativo == _retry:
+                raise
+            time.sleep(2)
     atti = _parse_pagina(html, url, codice_istat)
     if not atti:
         logger.warning(
