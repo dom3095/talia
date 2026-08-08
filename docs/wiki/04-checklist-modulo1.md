@@ -33,7 +33,7 @@ verde/giallo/rosso con citazione testuale e riferimento normativo.
 |-------|--------|-----------------|------|
 | 1 base giuridica | `check1_base_giuridica.py` | 🟢🟡🔴 | coerenza via parole spia, da validare con ⚖️ LEX |
 | 2 termini 12 mesi | `check2_termini.py` | 🟢🟡🔴⚪ | solo annullamenti; date mancanti → 🟡, mai crash |
-| 3 qualità motivazione | `check3_motivazione.py` | 🟢🟡🔴⚪ | LLM (qwen3:4b/Ollama) + RAG (BM25, `engine/rag.py`); solo se un altro check ha già flaggato; ⚪ altrimenti |
+| 3 qualità motivazione | `check3_motivazione.py` | 🟢🟡🔴⚪ | LLM (qwen3:4b/Ollama) + RAG (BM25, `engine/rag.py`); solo se un altro check ha già flaggato; ⚪ altrimenti; retrieval arricchito coi riferimenti dei check 🟡/🔴 già individuati, non solo la motivazione (TAL-54) |
 | 5 avvio art. 7 | `check5_avvio.py` | 🟢🔴 | assenza di menzione ≠ omissione provata |
 | 6 firmatari | `check6_firmatari.py` | 🟢🟡🔴⚪ | sovrapposizione → 🟡 conservativo, 🔴 se anche a ridosso della graduatoria (TAL-53) |
 

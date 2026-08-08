@@ -56,6 +56,7 @@ sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
 | [TAL-53](TAL-53.md) | Check 6: associazione nome↔ruolo + incrocio tempistica graduatoria | 🔤 NLP | branch `feat/TAL-53-nome-ruolo-graduatoria`; implementazione completa (`graduatoria.py` + wiring in check6), 582 test verdi (erano 572) — in attesa di review/merge |
+| [TAL-54](TAL-54.md) | Check 3: retrieval RAG cieco ai temi già individuati dai check deterministici | 🔤 NLP | stesso branch di TAL-53; scoperto girando check 3 con Ollama reale sul fascicolo 1 (GDPR mancava dal retrieval nonostante check-7 l'avesse già individuato); fix `_cerca_passaggi_rag()` + istruzione di grounding nel prompt, 589 test verdi (erano 582), verificato anche sul fascicolo reale — in attesa di review/merge |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
 | [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo chiusa da TAL-53 |
 | [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria chiuso da TAL-53 |

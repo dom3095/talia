@@ -75,9 +75,13 @@ prima di agire)? Se sì, è una carenza di istruttoria — anche quando la motiv
 narrativamente ricca e dettagliata, una motivazione specifica basata su fatti non \
 verificati non equivale a una motivazione robusta.
 
+Nella spiegazione, indica se il tuo giudizio si fonda su una delle norme elencate sopra \
+(citane la fonte tra parentesi quadre, es. "[nazionale/l-241-1990.md]"); se nessuna delle \
+norme elencate è pertinente al tuo giudizio, scrivilo esplicitamente invece di ometterlo.
+
 Rispondi SOLO con un oggetto JSON, senza altro testo prima o dopo:
 {{"giudizio": "specifica|generica|incerta", "carenza_istruttoria": true|false, \
-"spiegazione": "una frase che motiva entrambi i giudizi"}}
+"spiegazione": "una frase che motiva i giudizi e il fondamento normativo (o la sua assenza)"}}
 """
 
 
@@ -122,6 +126,52 @@ def _unisci_frasi(prima: str, seconda: str) -> str:
 def flaggato_da_check_precedenti(esiti_precedenti: list[EsitoCheck]) -> bool:
     """True se almeno un check deterministico precedente ha dato 🟡/🔴."""
     return any(e.stato in _STATI_FLAG for e in esiti_precedenti)
+
+
+_K_MOTIVAZIONE_DEFAULT = 3
+
+
+def _cerca_passaggi_rag(
+    indice: IndiceCorpus,
+    motivazione: str,
+    esiti_precedenti: list[EsitoCheck],
+    *,
+    k_motivazione: int = _K_MOTIVAZIONE_DEFAULT,
+) -> list[Passaggio]:
+    """Passaggi del corpus per il prompt: motivazione + un passaggio per ogni check 🟡/🔴.
+
+    La sola query sul testo della motivazione può mancare completamente un tema
+    già individuato da un check deterministico, per un semplice scarto di
+    vocabolario tra l'atto e la norma (es. l'atto parla di "riservatezza delle
+    operazioni concorsuali", mai di "dati personali" o "GDPR": zero overlap
+    lessicale con `ue/gdpr-679-2016.md`, pur trattandosi dello stesso tema —
+    scoperto su un fascicolo reale, TAL-54). Un check 🟡/🔴 porta però nei
+    propri `riferimenti_normativi` la terminologia normativa esatta: qui si
+    interroga l'indice separatamente per ciascun check flaggato e se ne tiene
+    il passaggio migliore.
+
+    Query **separate** per ciascun check, non un'unica query con tutti i
+    riferimenti concatenati: verificato che concatenare tutto in una sola
+    query BM25 non basta — un check con pochi riferimenti (es. check-7 GDPR,
+    3 voci) resta comunque sotto la soglia dei primi risultati, annegato dal
+    punteggio cumulato di check con più voci su documenti più densi. Per lo
+    stesso motivo il risultato **non viene troncato** dopo l'arricchimento: un
+    taglio secco sul totale scarterebbe il contributo dei check flaggati per
+    ultimi nell'iterazione, vanificando il fix.
+    """
+    passaggi = list(indice.cerca(motivazione, k=k_motivazione))
+    visti = {(p.fonte, p.offset_inizio) for p in passaggi}
+    for esito in esiti_precedenti:
+        if esito.stato not in _STATI_FLAG or not esito.riferimenti_normativi:
+            continue
+        query_rif = " ".join(esito.riferimenti_normativi)
+        for p in indice.cerca(query_rif, k=1):
+            chiave = (p.fonte, p.offset_inizio)
+            if chiave not in visti:
+                passaggi.append(p)
+                visti.add(chiave)
+                break
+    return passaggi
 
 
 def _isola_motivazione(testo: str) -> str:
@@ -281,7 +331,7 @@ def valuta_motivazione(
         )
 
     indice = indice if indice is not None else _indice_corpus_default()
-    passaggi = indice.cerca(motivazione, k=5)
+    passaggi = _cerca_passaggi_rag(indice, motivazione, esiti_precedenti)
     contesto_normativo = "\n\n".join(f"[{p.fonte}]\n{p.testo}" for p in passaggi) or (
         "(nessun passaggio pertinente trovato nel corpus)"
     )

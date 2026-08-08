@@ -1,9 +1,12 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-07 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
-> `feat/sweep-comuni-mancanti`: check 6 ora arricchisce il messaggio col ruolo del
-> firmatario e incrocia la sovrapposizione con la tempistica della graduatoria
-> (🔴 se ravvicinata). Nuova card TAL-53, in Review. 582 test verdi.)
+> Aggiornato: 2026-08-08 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
+> `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
+> e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
+> ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati, non solo la
+> motivazione (TAL-54). Due card in Review (TAL-53, TAL-54), branch non ancora pushato.
+> 589 test verdi. Timeout LLM (300s) verificato insufficiente su prompt reali, non
+> ancora corretto.)
 
 ---
 
@@ -75,12 +78,61 @@ nell'atto). Nessun crash (gli offset vengono clampati in silenzio da `estratto()
 una citazione vuota/sbagliata — violazione dell'esplicabilità. Corretto tenendo
 esplicita la provenienza invece di ridedurla per identità; aggiunto un test che
 verifica il *contenuto* della citazione, non solo il conteggio (dettaglio in TAL-53,
-Tentativo 2). Commit ammendato, ancora 582 test verdi.
+Tentativo 2). Nuovo commit separato (`e6c17df`, non un amend — coerente con la
+convenzione di preferire commit nuovi), ancora 582 test verdi.
 
-**Prossimo passo:** review di Dom su TAL-53 (idealmente anche un `/code-review` vero,
-non solo la self-review fatta qui); poi PR (branch pronto, non ancora pushato). Se in
-futuro emerge un fascicolo reale con menzione di graduatoria, verificare
-`estrai_data_graduatoria()` dal vivo prima di fidarsene in produzione.
+---
+
+## Sessione 2026-08-08 — TAL-54: check 3, retrieval RAG cieco ai check già flaggati
+
+**Richiesta di Dom:** dopo aver chiesto come è coinvolto l'LLM nel progetto, ha chiesto
+di lanciare davvero check 3 (LLM, TAL-11) con Ollama locale sui fascicoli reali di
+TAL-12, invece di limitarsi a spiegarlo. Restato sullo stesso branch
+`feat/TAL-53-nome-ruolo-graduatoria` su richiesta esplicita di Dom ("rimani su questo
+branch"), pur essendo un tema diverso da TAL-53 — nuova card **TAL-54** invece di un
+nuovo branch.
+
+**Trovato girando l'LLM reale (non mockato) su fascicoli reali:**
+1. **Timeout insufficiente**: `llm._TIMEOUT_SECONDI = 300` non basta su questa macchina
+   (CPU) per un prompt reale — 344.8s sul fascicolo 1, 423.8s sul fascicolo 3, sempre
+   in timeout con la CLI (`talia analizza --llm`). Non ancora corretto in questa
+   sessione (segnalato a Dom, non ancora confermato se alzarlo).
+2. **Retrieval RAG cieco a temi già noti alla pipeline** (bug sostanziale, poi corretto
+   — vedi TAL-54): sul fascicolo 1, i 5 passaggi normativi recuperati da BM25 per il
+   check 3 non includevano mai il GDPR, nonostante (a) il corpus lo contenga
+   (`ue/gdpr-679-2016.md`), (b) sia recuperabile con una query mirata, e (c) il tema sia
+   esattamente quello già individuato dal check 7 deterministico (GDPR breach, 🔴 con i
+   riferimenti giusti). Causa: la motivazione dell'atto usa "segretezza"/"riservatezza",
+   mai "dati personali"/"GDPR" — zero overlap lessicale col documento normativo, pur
+   trattandosi dello stesso tema concettuale. Limite classico del BM25 lessicale puro.
+3. **Nessun vincolo di grounding nel prompt**: la `spiegazione` del LLM non citava mai i
+   passaggi allegati, pertinenti o meno — nessuna garanzia verificabile che il giudizio
+   ne tenesse conto.
+
+**Fix (`check3_motivazione.py`):**
+- `_cerca_passaggi_rag()`: oltre alla query sulla motivazione, una query BM25 separata
+  per ciascun check 🟡/🔴 precedente sui suoi `riferimenti_normativi`, un passaggio
+  garantito a testa, dedup, **nessun troncamento finale**. Primo tentativo (concatenare
+  tutti i riferimenti in un'unica query) verificato insufficiente: il contributo GDPR (3
+  voci) restava annegato dal punteggio cumulato di check con più voci (dettaglio in
+  TAL-54, Tentativi 1-2).
+- Prompt: istruzione esplicita a dichiarare in `spiegazione` il passaggio normativo usato
+  (fonte tra parentesi quadre) o l'assenza di uno pertinente.
+- 7 nuovi test (stub `_IndiceSelettivo` che riproduce il caso GDPR) + verificato anche
+  sul fascicolo reale (`genera` mockato, `esegui_checklist` reale): `ue/gdpr-679-2016.md`
+  ora compare in `riferimenti_normativi`, prima assente.
+
+**589 test verdi (erano 582), ruff pulito** (solo sui file toccati).
+
+**Non fatto:** il timeout LLM (punto 1 sopra) resta da correggere — segnalato, non
+implementato, in attesa di conferma. Il retrieval resta comunque cieco ai temi che
+**nessun** check deterministico ha ancora individuato (limite noto, documentato in
+TAL-54): il fix riusa segnale già calcolato, non risolve il problema alla radice. Un
+retrieval a embedding locale (gratuito, coerente con budget≈0) lo risolverebbe in
+generale, ma è un cambio di architettura proposto e non deciso in questa sessione.
+
+**Prossimo passo:** review di Dom su TAL-53 **e** TAL-54 (stesso branch, non ancora
+pushato); decidere se/come alzare il timeout LLM; poi PR.
 
 ---
 
