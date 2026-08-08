@@ -4,9 +4,9 @@
 > `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
 > e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
 > ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati, non solo la
-> motivazione (TAL-54). Due card in Review (TAL-53, TAL-54), branch non ancora pushato.
-> 589 test verdi. Timeout LLM (300s) verificato insufficiente su prompt reali, non
-> ancora corretto.)
+> motivazione (TAL-54); timeout LLM alzato 300s→900s (verificato insufficiente su
+> prompt reali). Due card in Review (TAL-53, TAL-54), branch non ancora pushato. 589
+> test verdi.)
 
 ---
 
@@ -124,15 +124,27 @@ nuovo branch.
 
 **589 test verdi (erano 582), ruff pulito** (solo sui file toccati).
 
-**Non fatto:** il timeout LLM (punto 1 sopra) resta da correggere — segnalato, non
-implementato, in attesa di conferma. Il retrieval resta comunque cieco ai temi che
-**nessun** check deterministico ha ancora individuato (limite noto, documentato in
-TAL-54): il fix riusa segnale già calcolato, non risolve il problema alla radice. Un
-retrieval a embedding locale (gratuito, coerente con budget≈0) lo risolverebbe in
-generale, ma è un cambio di architettura proposto e non deciso in questa sessione.
+**Timeout LLM corretto (stessa sessione, dopo conferma di Dom):** `llm._TIMEOUT_SECONDI`
+alzato da 300s a **900s**, coi tempi reali misurati (344.8s/423.8s) nel commento —
+margine ampio per fascicoli più pesanti dei due testati.
+
+**Verifica aggiuntiva su check-7 (GDPR, TAL-14):** richiesto da Dom un controllo se
+servissero altri fix lato GDPR oltre al retrieval di check 3. Riletto `check7_gdpr.py`
+e i suoi test: nessun bug trovato. Riverificato anche su fascicolo 3 (🔴 su fascicolo 1,
+dove il breach è descritto; ⚪ NON_APPLICABILE su fascicolo 3, che non ne parla —
+comportamento atteso, non un falso negativo). Il gap GDPR di questa sessione era
+interamente nel retrieval di check 3 (già corretto sopra), non nel check 7 stesso.
+
+**Non fatto:** il retrieval resta comunque cieco ai temi che **nessun** check
+deterministico ha ancora individuato (limite noto, documentato in TAL-54): il fix riusa
+segnale già calcolato, non risolve il problema alla radice. Un retrieval a embedding
+locale (gratuito, coerente con budget≈0) lo risolverebbe in generale, ma è un cambio di
+architettura proposto e non deciso in questa sessione. Il check-8 (DPO = Segretario →
+conflitto di interessi, già annotato come feature futura in memoria di progetto) resta
+fuori scope: richiede dati esterni (TAL-25).
 
 **Prossimo passo:** review di Dom su TAL-53 **e** TAL-54 (stesso branch, non ancora
-pushato); decidere se/come alzare il timeout LLM; poi PR.
+pushato); poi PR.
 
 ---
 
