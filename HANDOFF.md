@@ -4,10 +4,11 @@
 > `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
 > e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
 > ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati (TAL-54),
-> timeout LLM alzato 300s→900s e temperatura fissata a 0 per un giudizio riproducibile
-> (verificato: 2 run reali identici byte per byte post-fix). `/code-review` multi-agente
-> lanciato su tutto il branch: 2 bug reali su graduatoria.py/check6 trovati e corretti.
-> Due card in Review (TAL-53, TAL-54), branch non ancora pushato. 594 test verdi.)
+> timeout LLM alzato 300s→900s e temperatura fissata a 0 per un giudizio riproducibile.
+> `/code-review` multi-agente lanciato su tutto il branch (17 findings consolidati); i
+> più rilevanti corretti nella stessa sessione, con 4 nuove card (TAL-55/56/57/58: log
+> silenziosi negli scraper, deduplicazione codice scraper, pulizia Modulo 1, dashboard).
+> 6 card in Review (TAL-53…TAL-58), branch non ancora pushato. 598 test verdi.)
 
 ---
 
@@ -167,8 +168,37 @@ tra scraper, mancato logging 0-atti in `serviziolinealbo.py`, query dashboard no
 cachate, ecc.) riguardano commit precedenti a questa sessione, non toccati: riportati
 ma non corretti qui — vedi report `/code-review` per l'elenco completo.
 
-**Prossimo passo:** review di Dom su TAL-53 **e** TAL-54 (stesso branch, non ancora
-pushato); poi PR.
+**Aperte 4 card di follow-up dal `/code-review` (stessa sessione, richiesta esplicita di
+Dom "apri le card, ma sistemali in questo branch"), tutte corrette e testate:**
+- **TAL-55** (scraper, fallimenti silenziosi): `serviziolinealbo.py` ora logga WARNING
+  su atto scartato (anchor/span mancante) e su 0 atti totali; aggiunto il test "pagina
+  corrotta" che mancava (convenzione CLAUDE.md).
+- **TAL-56** (scraper, deduplicazione): `strip_html()`/`TIPI_ATTO_DEFAULT` estratte in
+  `utils.py`, usate da 4-5 scraper — effetto collaterale: corretto un drift già presente
+  (`nicosia.py` non intercettava "avvisi", le altre copie sì). `hspromila.py` allarga il
+  retry a `(TimeoutError, urllib.error.URLError)` come `halley.py`. **Non toccati**
+  `jcitygov.py` (pre-esistente, fuori dal diff) né l'unificazione completa del retry
+  su 3 scraper né il consolidamento `serviziolinealbo.py`/`agrigento.py` — decisioni di
+  architettura proposte, non eseguite (rischio su scraper già in produzione).
+- **TAL-57** (Modulo 1, pulizia minore): `_RE_MOTIVAZIONE` non tronca più la motivazione
+  se "determina/decreta/dispone" compare a inizio riga *dentro* il testo (solo se è
+  un'intestazione isolata); troncamento citazioni deduplicato (`_offset_fine_troncato`);
+  `IndiceCorpus.cerca()` precompute frequenze invece di ricostruirle ad ogni chiamata
+  (verificato anche sul corpus reale, stessi risultati); due costanti gemelle in
+  `graduatoria.py` unificate. **Non unificato** il matching firmatari di check6
+  (astrazione prematura per 2 soli chiamanti con tipi diversi).
+- **TAL-58** (dashboard): `_carica_enti`/`_carica_flags_per_ente` caricate una volta in
+  `main()` invece che duplicate tra tab; avviso privacy piccoli comuni unificato in un
+  helper; ternario annidato → dict lookup; somma copertura riusata invece di
+  ricalcolata. Verificato **dal vivo**, non solo staticamente: DB di test reale +
+  `streamlit.testing.v1.AppTest` (esegue l'intero script) → 0 eccezioni.
+
+598 test verdi (erano 594), ruff pulito. I findings restanti del `/code-review` (vedi
+`ReportFindings` nella conversazione) sono tutti o pre-esistenti a questa sessione o
+scelte di architettura deliberatamente rimandate, documentate nelle rispettive card.
+
+**Prossimo passo:** review di Dom su tutte le 6 card (TAL-53…TAL-58, stesso branch, non
+ancora pushato); poi PR.
 
 ---
 

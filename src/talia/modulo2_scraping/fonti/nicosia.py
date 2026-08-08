@@ -45,7 +45,8 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import TIPI_ATTO_DEFAULT, estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import strip_html as _strip
 
 logger = logging.getLogger(__name__)
 
@@ -71,24 +72,8 @@ _RE_DESCRIZIONE = re.compile(
     r'Descrizione</h4>.*?<div class="infodato[^"]*">(.*?)</div>', re.DOTALL
 )
 _RE_NUMERO = re.compile(r"[Nn]\.?\s*(\d+)")
-_RE_TAG = re.compile(r"<[^>]+>")
 
-# Titolo → tipo atto TALIA
-_TIPI = (
-    ("ordinanza", "ordinanza"),
-    ("delibera", "delibera"),
-    ("determin", "determina"),
-    ("concors", "concorso"),
-    ("gara", "bando"),
-    ("appalt", "bando"),
-    ("band", "bando"),
-    ("decret", "decreto"),
-    ("avviso", "avviso"),
-)
-
-
-def _strip(html: str) -> str:
-    return " ".join(_RE_TAG.sub("", unescape(html)).split())
+_TIPI = TIPI_ATTO_DEFAULT
 
 
 def _tipo_da_titolo(titolo: str) -> str:

@@ -28,12 +28,14 @@ _FINESTRA_GRADUATORIA = 150
 
 # Finestra (caratteri) in cui cercare la data rispetto alla parola di
 # approvazione: il pattern reale è quasi sempre "approvat[ao]... del
-# gg/mm/aaaa", quindi si cerca prima **dopo** "approvat[ao]" (finestra più
-# stretta, il caso di gran lunga più comune) e solo se non c'è nulla lì si
-# guarda **prima** di "graduatoria" (pattern raro: "in data X è stata
-# approvata la graduatoria").
-_FINESTRA_DATA_DOPO_APPROVATA = 80
-_FINESTRA_DATA_PRIMA_GRADUATORIA = 80
+# gg/mm/aaaa", quindi si cerca prima **dopo** "approvat[ao]" (il caso di gran
+# lunga più comune) e solo se non c'è nulla lì si guarda **prima** di
+# "graduatoria" (pattern raro: "in data X è stata approvata la graduatoria").
+# Un'unica costante per entrambe le direzioni (non due nominate separatamente
+# che per caso valevano entrambe 80, code review 2026-08-08): una ritaratura
+# futura di "quanto vicina deve essere la data" si applica così a entrambe
+# senza rischio di aggiornarne solo una.
+_FINESTRA_DATA = 80
 
 
 def estrai_data_graduatoria(atto: TestoAtto) -> Entita | None:
@@ -67,11 +69,11 @@ def estrai_data_graduatoria(atto: TestoAtto) -> Entita | None:
         # 05/01/2024, la data sbagliata).
         m_approvata = min(match_approvata, key=lambda ma: abs(ma.start() - m_grad.start()))
         dopo = m_approvata.end()
-        ent = _data_in_finestra(date_entita, dopo, dopo + _FINESTRA_DATA_DOPO_APPROVATA)
+        ent = _data_in_finestra(date_entita, dopo, dopo + _FINESTRA_DATA)
         if ent is not None:
             return ent
 
-        prima = max(0, m_grad.start() - _FINESTRA_DATA_PRIMA_GRADUATORIA)
+        prima = max(0, m_grad.start() - _FINESTRA_DATA)
         ent = _data_in_finestra(date_entita, prima, m_grad.start())
         if ent is not None:
             return ent

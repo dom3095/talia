@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from html import unescape
 
-_RE_CIG = re.compile(r'\bCIG\s*[:\-]?\s*([A-Z0-9]{10})\b', re.IGNORECASE)
+_RE_CIG = re.compile(r"\bCIG\s*[:\-]?\s*([A-Z0-9]{10})\b", re.IGNORECASE)
+_RE_TAG = re.compile(r"<[^>]+>")
 
 
 def parse_data_iso(s: str | None) -> str | None:
@@ -32,3 +34,33 @@ def estrai_cig(testo: str | None) -> str | None:
         return None
     m = _RE_CIG.search(testo)
     return m.group(1).upper() if m else None
+
+
+# Categoria/intestazione → tipo atto TALIA, condivisa da hspromila.py,
+# nicosia.py e serviziolinealbo.py (code review 2026-08-08): le tre copie
+# erano già divergenti sull'ultima voce ("avviso" in nicosia.py, "avvis" —
+# che intercetta anche il plurale "avvisi" — nelle altre due), un
+# falso-negativo di classificazione silenzioso su nicosia.py.
+TIPI_ATTO_DEFAULT = (
+    ("ordinanza", "ordinanza"),
+    ("delibera", "delibera"),
+    ("determin", "determina"),
+    ("concors", "concorso"),
+    ("gara", "bando"),
+    ("appalt", "bando"),
+    ("band", "bando"),
+    ("decret", "decreto"),
+    ("avvis", "avviso"),
+)
+
+
+def strip_html(html: str) -> str:
+    """Rimuove i tag HTML, decodifica le entità e collassa gli spazi bianchi.
+
+    Estratta da 5 copie identiche negli scraper di modulo2_scraping/fonti/
+    (halley, hspromila, jcitygov, nicosia, serviziolinealbo — code review
+    2026-08-08): stessa logica, mai centralizzata nonostante `utils.py`
+    fosse già il posto naturale (già usato da tutti per `parse_data_iso`/
+    `ora_utc`/`estrai_cig`).
+    """
+    return " ".join(_RE_TAG.sub("", unescape(html)).split())

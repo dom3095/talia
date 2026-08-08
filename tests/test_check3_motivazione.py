@@ -14,6 +14,7 @@ from talia.engine.checklist.check3_motivazione import (
     _calcola_stato,
     _cerca_passaggi_rag,
     _estrai_giudizio,
+    _isola_motivazione,
     flaggato_da_check_precedenti,
     valuta_motivazione,
 )
@@ -301,6 +302,34 @@ def test_giudizio_sconosciuto_trattato_come_incerta(monkeypatch):
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
     assert esito.stato is Stato.GIALLO
+
+
+# --- TAL-57: _isola_motivazione non tronca su "dispone" a inizio riga interno ---
+
+
+def test_isola_motivazione_tronca_su_determina_isolata_come_intestazione():
+    testo = (
+        "premesso che si ritiene necessario procedere per motivi di interesse "
+        "pubblico concreto.\nDETERMINA\ndi annullare l'atto."
+    )
+    assert _isola_motivazione(testo) == (
+        "si ritiene necessario procedere per motivi di interesse pubblico concreto."
+    )
+
+
+def test_isola_motivazione_non_tronca_su_dispone_dentro_la_motivazione():
+    # Regressione (code review): "dispone" a inizio riga per un a-capo di
+    # impaginazione (plausibile con testo estratto da PDF) non deve troncare
+    # la motivazione se non è seguito subito da un a-capo (non è
+    # un'intestazione isolata come "DETERMINA").
+    testo = (
+        "premesso che si richiama la norma, la quale\n"
+        "dispone quanto segue in materia di autotutela, e che pertanto si "
+        "ritiene necessario procedere.\nDETERMINA\ndi annullare l'atto."
+    )
+    motivazione = _isola_motivazione(testo)
+    assert "dispone quanto segue" in motivazione
+    assert "DETERMINA" not in motivazione
 
 
 # --- TAL-54: retrieval arricchito coi riferimenti dei check già flaggati ----

@@ -29,10 +29,10 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterable, Iterator
-from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import strip_html as _strip
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -44,7 +44,6 @@ _DETTAGLIO_PATH = "/mc/mc_p_dettaglio.php"
 
 _HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"}
 
-_RE_TAG = re.compile(r"<[^>]+>")
 _RE_ROW = re.compile(r"<tr>(.*?)</tr>", re.DOTALL)
 _RE_FIELD = re.compile(
     r"<strong>([^<]+)</strong>(?:\s*<br>)?(?:\s*<a[^>]*>)?\s*<div[^>]*>(.*?)</div>",
@@ -58,10 +57,6 @@ _NON_DEFINITO = "non definito"
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
-
-
-def _strip(html: str) -> str:
-    return " ".join(_RE_TAG.sub("", unescape(html)).split())
 
 
 def _campo(campi: dict[str, str], chiave: str) -> str | None:

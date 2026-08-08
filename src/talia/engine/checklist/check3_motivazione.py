@@ -47,9 +47,18 @@ _STATI_FLAG = (Stato.ROSSO, Stato.GIALLO)
 # ("determina/decreta/dispone"). Se non trovata, l'intero testo è trattato come
 # motivazione (fallback prudente: mai restituire una motivazione vuota per un
 # atto che in realtà la contiene, solo perché non riconosciamo il pattern).
+#
+# Il trigger di fine motivazione richiede che la parola sia sola sulla riga
+# (seguita solo da spazi e poi da un a-capo), non solo preceduta da un a-capo:
+# senza questo vincolo, "determina/decreta/dispone" comparso a inizio riga
+# *dentro* la motivazione stessa (plausibile con testo estratto da PDF, dove
+# gli a-capo seguono il layout visivo, non la sintassi — es. "...la quale\n
+# dispone quanto segue...") troncava la motivazione al punto sbagliato (trovato
+# in code review). Il vero dispositivo è quasi sempre un'intestazione isolata
+# ("DETERMINA\n• ...") — coerente con questo vincolo.
 _RE_MOTIVAZIONE = re.compile(
     r"(?:premesso che|considerato che|ritenuto che|dato atto che)"
-    r"(.+?)(?=\n\s*(?:determina|decreta|dispone)\b|\Z)",
+    r"(.+?)(?=\n\s*(?:determina|decreta|dispone)\b\s*\n|\Z)",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -250,6 +259,19 @@ def _estrai_giudizio(risposta: str) -> tuple[str, bool, str]:
 _LIMITE_ESTRATTO_CORPUS = 220
 
 
+def _offset_fine_troncato(offset_inizio: int, lunghezza_testo: int, limite: int) -> int:
+    """Offset di fine coerente con un estratto eventualmente troncato a `limite` caratteri.
+
+    Centralizza l'invariante offset↔testo-citato condivisa da `_cita_passaggio`
+    (passaggi del corpus normativo) e dalla citazione della motivazione in
+    `valuta_motivazione`: senza troncamento, un offset che dichiara un
+    intervallo più ampio del testo davvero riportato tra virgolette è un bug
+    di esplicabilità già corretto due volte separatamente in questo file
+    (code review 2026-08-08) — qui un solo punto da mantenere corretto.
+    """
+    return offset_inizio + min(lunghezza_testo, limite)
+
+
 def _cita_passaggio(passaggio: Passaggio) -> str:
     """Riferimento puntuale a un passaggio del corpus normativo.
 
@@ -260,16 +282,15 @@ def _cita_passaggio(passaggio: Passaggio) -> str:
     Il troncamento avviene sul testo **grezzo** (prima della normalizzazione
     degli spazi bianchi usata solo per la resa a schermo): `offset_fine`
     corrisponde così esattamente a dove finisce il testo citato, non alla fine
-    dell'intero passaggio — stesso bug/principio già corretto per la citazione
-    dell'atto (altrimenti l'offset dichiarerebbe un intervallo più ampio di
-    quanto effettivamente riportato tra virgolette).
+    dell'intero passaggio.
     """
     grezzo = passaggio.testo
+    offset_fine = _offset_fine_troncato(
+        passaggio.offset_inizio, len(grezzo), _LIMITE_ESTRATTO_CORPUS
+    )
     if len(grezzo) > _LIMITE_ESTRATTO_CORPUS:
-        offset_fine = passaggio.offset_inizio + _LIMITE_ESTRATTO_CORPUS
         estratto = " ".join(grezzo[:_LIMITE_ESTRATTO_CORPUS].split()) + "…"
     else:
-        offset_fine = passaggio.offset_fine
         estratto = " ".join(grezzo.split())
     return f"{passaggio.fonte} (car. {passaggio.offset_inizio}-{offset_fine}): «{estratto}»"
 
@@ -349,13 +370,7 @@ def valuta_motivazione(
     inizio = atto.testo.find(motivazione)
     citazioni: list[Citazione] = []
     if inizio >= 0:
-        # offset_fine deve corrispondere a dove finisce il testo effettivamente
-        # citato, non alla fine dell'intera motivazione: per motivazioni lunghe
-        # (>200 caratteri) la citazione è troncata, e offset_fine deve seguirla
-        # — altrimenti dichiarerebbe un intervallo più ampio di quanto è
-        # davvero riportato tra virgolette (stesso principio applicato ai
-        # riferimenti al corpus normativo).
-        fine_citata = min(inizio + len(motivazione), inizio + 200)
+        fine_citata = _offset_fine_troncato(inizio, len(motivazione), 200)
         citazioni.append(
             Citazione(
                 testo=atto.estratto(inizio, fine_citata),

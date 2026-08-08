@@ -133,6 +133,37 @@ def test_parse_html_no_duplicati():
     assert len(_parse_html(html_doppio, _ISTAT)) == 1
 
 
+# Permalink presente ma l'anchor "#collapseNNNN_YYYY" corrispondente è assente
+# (es. uno scarto di zero-padding tra href e data-bs-target): l'atto va scartato
+# senza crash, con un WARNING che segnala la perdita (non un fallimento silenzioso).
+_HTML_ANCHOR_MANCANTE = f"""
+<html><body>
+<ul class="link-list">
+  <li>
+    <div class="it-right-zone">
+      <span class="it-multiple">
+        <a href="#" data-link="{_BASE}/ServiziOnLine/AlboPretorio/AlboPretorio?anno=2026&amp;numero=2094"
+           aria-label="Copia Permalink della scheda"></a>
+      </span>
+    </div>
+  </li>
+</ul>
+</body></html>
+"""
+
+
+def test_parse_html_pagina_corrotta_anchor_mancante_ritorna_lista_vuota():
+    assert _parse_html(_HTML_ANCHOR_MANCANTE, _ISTAT) == []
+
+
+def test_parse_html_pagina_corrotta_anchor_mancante_logga_warning(caplog):
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        _parse_html(_HTML_ANCHOR_MANCANTE, _ISTAT)
+    assert any("anchor" in r.message and "assente" in r.message for r in caplog.records)
+
+
 # ---------------------------------------------------------------------------
 # Test _parse_html — titolo CON riferimento settoriale finale (Barrafranca)
 # ---------------------------------------------------------------------------
