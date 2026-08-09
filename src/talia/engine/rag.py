@@ -219,13 +219,25 @@ class IndiceCorpus:
         self._passaggi: list[Passaggio] = []
         for md in sorted(cartella.rglob("*.md")):
             self._passaggi.extend(_chunk_file(md, cartella))
-        self._tokens = [_tokenizza(p.testo) for p in self._passaggi]
+        tokens = [_tokenizza(p.testo) for p in self._passaggi]
+        # Frequenze e lunghezza per documento precomputate una sola volta in
+        # fase di indicizzazione (code review 2026-08-08): `cerca()` le
+        # ricostruiva da zero per ogni passaggio ad ogni chiamata — costo che
+        # cresce con `n_chiamate × n_passaggi`, inutile perché il corpus non
+        # cambia tra una chiamata e l'altra dello stesso `IndiceCorpus`.
+        self._freqs: list[dict[str, int]] = []
+        for tok in tokens:
+            freq: dict[str, int] = {}
+            for t in tok:
+                freq[t] = freq.get(t, 0) + 1
+            self._freqs.append(freq)
+        self._dls = [len(tok) for tok in tokens]
         self._df: dict[str, int] = {}
-        for tok in self._tokens:
+        for tok in tokens:
             for t in set(tok):
                 self._df[t] = self._df.get(t, 0) + 1
         self._n = len(self._passaggi)
-        self._avgdl = (sum(len(t) for t in self._tokens) / self._n) if self._n else 0.0
+        self._avgdl = (sum(self._dls) / self._n) if self._n else 0.0
 
     def __len__(self) -> int:
         return self._n
@@ -242,20 +254,20 @@ class IndiceCorpus:
         """
         query_tok = _tokenizza(query)
         punteggi = [0.0] * self._n
-        for i, doc_tok in enumerate(self._tokens):
-            if not doc_tok or not query_tok:
-                continue
-            freq: dict[str, int] = {}
-            for t in doc_tok:
-                freq[t] = freq.get(t, 0) + 1
-            dl = len(doc_tok)
-            score = 0.0
-            for t in query_tok:
-                f = freq.get(t, 0)
-                if f == 0:
+        if query_tok:
+            for i, freq in enumerate(self._freqs):
+                if not freq:
                     continue
-                score += self._idf(t) * (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / self._avgdl))
-            punteggi[i] = score
+                dl = self._dls[i]
+                score = 0.0
+                for t in query_tok:
+                    f = freq.get(t, 0)
+                    if f == 0:
+                        continue
+                    score += (
+                        self._idf(t) * (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / self._avgdl))
+                    )
+                punteggi[i] = score
         ordinati = sorted(range(self._n), key=lambda i: punteggi[i], reverse=True)
         return [self._passaggi[i] for i in ordinati[:k] if punteggi[i] > 0]
 

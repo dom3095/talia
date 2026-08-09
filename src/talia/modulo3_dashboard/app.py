@@ -62,6 +62,13 @@ ETICHETTE_STATO_FINALE = {
     "da_verificare": "Da verificare",
 }
 
+# Default "🔵" per gli stati non elencati (in_corso, sconosciuto, da_verificare).
+ICONE_STATO_FINALE = {
+    "revocato": "🔴",
+    "annullato": "🔴",
+    "aggiudicato": "✅",
+}
+
 COLORI_SEVERITA = {
     "alta": "🔴",
     "media": "🟡",
@@ -326,10 +333,26 @@ def _is_piccolo_comune(popolazione: int | None) -> bool:
     return popolazione is not None and popolazione < SOGLIA_PICCOLO_COMUNE
 
 
-def _mostra_panoramica(conn: sqlite3.Connection) -> None:
+def _avviso_privacy_piccolo_comune(cosa_nascosta: str) -> None:
+    """Banner privacy per i piccoli comuni: `cosa_nascosta` non viene mostrata.
+
+    Estratto da due copie quasi identiche (`_mostra_dettaglio_comune`,
+    `_mostra_procedimenti` — code review 2026-08-08) con testo/soglia già
+    divergenti tra loro: un solo punto da aggiornare per la soglia o il testo
+    del disclaimer, rilevante perché è proprio il meccanismo di tutela
+    privacy nei piccoli comuni richiesto da CLAUDE.md.
+    """
+    st.info(
+        f"Questo comune ha meno di {SOGLIA_PICCOLO_COMUNE:,} abitanti: {cosa_nascosta} "
+        "non vengono mostrati per tutelare la privacy. Sono visualizzate solo le "
+        "aggregazioni.",
+        icon="🔒",
+    )
+
+
+def _mostra_panoramica(rows: list[sqlite3.Row]) -> None:
     st.subheader("Panoramica comuni")
 
-    rows = _carica_flags_per_ente(conn)
     if not rows:
         st.info("Nessun dato disponibile nel database.")
         return
@@ -383,12 +406,7 @@ def _mostra_dettaglio_comune(
     st.subheader(f"Segnalazioni per {denominazione}{label_pop}")
 
     if piccolo:
-        st.info(
-            f"Questo comune ha meno di {SOGLIA_PICCOLO_COMUNE:,} abitanti. "
-            "I dettagli nominativi degli atti non vengono mostrati per tutelare la privacy. "
-            "Sono visualizzate solo le aggregazioni.",
-            icon="🔒",
-        )
+        _avviso_privacy_piccolo_comune("i dettagli nominativi degli atti")
 
     for flag in flags:
         tipo_label = ETICHETTE_TIPO_FLAG.get(flag["tipo_flag"], flag["tipo_flag"])
@@ -472,7 +490,7 @@ def _carica_atti_procedimento(conn: sqlite3.Connection, procedimento_id: int) ->
     ).fetchall()
 
 
-def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
+def _mostra_procedimenti(conn: sqlite3.Connection, enti: list[sqlite3.Row]) -> None:
     st.subheader("Catene di eventi per comune")
     st.markdown(
         "Un **procedimento** raggruppa gli atti amministrativi collegati "
@@ -480,7 +498,6 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
         "Le catene individuate via similarità oggetto richiedono verifica manuale."
     )
 
-    enti = _carica_enti(conn)
     if not enti:
         st.info("Nessun comune nel database.")
         return
@@ -502,19 +519,12 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
 
     piccolo = _is_piccolo_comune(r["popolazione"])
     if piccolo:
-        st.info(
-            f"Comune < {SOGLIA_PICCOLO_COMUNE:,} ab. — dettagli nominativi anonimizzati.",
-            icon="🔒",
-        )
+        _avviso_privacy_piccolo_comune("i dettagli nominativi")
 
     for proc in procedimenti:
         stato = proc["stato_finale"] or "sconosciuto"
         etichetta_stato = ETICHETTE_STATO_FINALE.get(stato, stato)
-        icona_stato = (
-            "🔴"
-            if stato in ("revocato", "annullato")
-            else ("✅" if stato == "aggiudicato" else "🔵")
-        )
+        icona_stato = ICONE_STATO_FINALE.get(stato, "🔵")
         metodo = proc["metodo_individuazione"] or "n/d"
         cig_label = f" | CIG: `{proc['cig']}`" if proc["cig"] else ""
         periodo = ""
@@ -558,8 +568,7 @@ def _mostra_procedimenti(conn: sqlite3.Connection) -> None:
                 )
 
 
-def _mostra_comuni_virtuosi(conn: sqlite3.Connection) -> None:
-    rows = _carica_flags_per_ente(conn)
+def _mostra_comuni_virtuosi(rows: list[sqlite3.Row]) -> None:
     virtuosi = [r for r in rows if r["n_flags"] == 0]
 
     st.subheader("Comuni virtuosi")
@@ -655,7 +664,7 @@ def _mostra_mappa(conn: sqlite3.Connection) -> None:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric(
         "🟢 Comuni coperti",
-        copertura["per_stato"].get("attivo", 0) + copertura["per_stato"].get("escluso_default", 0),
+        copertura["coperti_comuni"],
         f"{perc_comuni:.0f}% del totale",
     )
     col2.metric("🟠 In verifica", copertura["per_stato"].get("pending", 0))
@@ -739,11 +748,18 @@ def main() -> None:
         )
     )
 
+    # Caricate una volta e condivise tra i tab che ne hanno bisogno (code
+    # review 2026-08-08): _carica_enti/_carica_flags_per_ente venivano prima
+    # richiamate indipendentemente da due tab ciascuna, riemettendo la stessa
+    # query ad ogni rerun di Streamlit (lo script gira per intero ad ogni
+    # interazione con un widget qualsiasi).
+    enti = _carica_enti(conn)
+    flags_per_ente = _carica_flags_per_ente(conn)
+
     with tab_panoramica:
-        _mostra_panoramica(conn)
+        _mostra_panoramica(flags_per_ente)
 
     with tab_comune:
-        enti = _carica_enti(conn)
         if not enti:
             st.info("Nessun comune nel database.")
         else:
@@ -754,10 +770,16 @@ def main() -> None:
                 _mostra_dettaglio_comune(conn, r["id"], r["denominazione"], r["popolazione"])
 
     with tab_procedimenti:
-        _mostra_procedimenti(conn)
+        _mostra_procedimenti(conn, enti)
 
     with tab_virtuosi:
-        _mostra_comuni_virtuosi(conn)
+        _mostra_comuni_virtuosi(flags_per_ente)
+
+    with tab_statistiche:
+        _mostra_statistiche(conn)
+
+    with tab_mappa:
+        _mostra_mappa(conn)
 
     with tab_statistiche:
         _mostra_statistiche(conn)

@@ -26,7 +26,7 @@ def test_check3_assente_di_default():
 
 def test_check3_presente_con_valuta_llm(monkeypatch):
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "generica", "spiegazione": "boilerplate"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "generica", "spiegazione": "boilerplate"}'
     )
     report = analizza_testi([_testo_autotutela()], valuta_llm=True)
     esiti_check3 = [e for e in report.esiti if e.id == mod.ID]

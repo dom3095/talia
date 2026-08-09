@@ -26,12 +26,13 @@ import logging
 import re
 import sqlite3
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterable, Iterator
-from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import TIPI_ATTO_DEFAULT, estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import strip_html as _strip
 
 logger = logging.getLogger(__name__)
 
@@ -45,24 +46,8 @@ _HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com
 
 _RE_ROW = re.compile(r'<tr class="">(.*?)</tr>', re.DOTALL)
 _RE_CELL = re.compile(r"<td[^>]*>(.*?)</td>", re.DOTALL)
-_RE_TAG = re.compile(r"<[^>]+>")
 
-# Categoria → tipo atto TALIA
-_TIPI = (
-    ("ordinanza", "ordinanza"),
-    ("delibera", "delibera"),
-    ("determin", "determina"),
-    ("concors", "concorso"),
-    ("gara", "bando"),
-    ("appalt", "bando"),
-    ("band", "bando"),
-    ("decret", "decreto"),
-    ("avvis", "avviso"),
-)
-
-
-def _strip(html: str) -> str:
-    return " ".join(_RE_TAG.sub("", unescape(html)).split())
+_TIPI = TIPI_ATTO_DEFAULT
 
 
 def _tipo_da_categoria(categoria: str) -> str:
@@ -121,12 +106,18 @@ def scarica_atti(
 
     Nessuna paginazione nota: la pagina espone un unico blocco di atti.
 
-    Un retry con backoff di 2s su timeout (stesso pattern di `jcitygov.py`):
-    l'host condiviso `hspromilaprod.hypersicapp.net` (decine di tenant sullo
-    stesso dominio) va in timeout più spesso se colpito da richieste
-    consecutive ravvicinate per comuni diversi nello stesso run — non un
-    fallimento persistente per singolo tenant (verificato: stesso comune,
-    stessa richiesta, riprovata isolata, risponde 200 senza problemi).
+    Un retry con backoff di 2s su timeout/connessione (stesso pattern di
+    `jcitygov.py`/`halley.py`): l'host condiviso `hspromilaprod.hypersicapp.net`
+    (decine di tenant sullo stesso dominio) va in timeout più spesso se colpito
+    da richieste consecutive ravvicinate per comuni diversi nello stesso run —
+    non un fallimento persistente per singolo tenant (verificato: stesso
+    comune, stessa richiesta, riprovata isolata, risponde 200 senza problemi).
+    Cattura anche `urllib.error.URLError` (non solo `TimeoutError`, a
+    differenza della versione originale): host condiviso sotto carico può
+    anche chiudere la connessione (`ConnectionResetError`/`RemoteDisconnected`,
+    entrambe sottoclassi di `OSError` incapsulate da `URLError`), non solo
+    andare in timeout — drift trovato in code review confrontando con
+    `halley.py`, che già catturava entrambe per lo stesso scenario.
     """
     req = urllib.request.Request(url, headers=_HEADERS)
     for tentativo in range(_retry + 1):
@@ -134,7 +125,7 @@ def scarica_atti(
             with urllib.request.urlopen(req, timeout=20) as r:
                 html = r.read().decode("utf-8", errors="replace")
             break
-        except TimeoutError:
+        except (TimeoutError, urllib.error.URLError):
             if tentativo == _retry:
                 raise
             time.sleep(2)

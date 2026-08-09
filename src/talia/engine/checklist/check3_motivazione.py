@@ -47,9 +47,18 @@ _STATI_FLAG = (Stato.ROSSO, Stato.GIALLO)
 # ("determina/decreta/dispone"). Se non trovata, l'intero testo è trattato come
 # motivazione (fallback prudente: mai restituire una motivazione vuota per un
 # atto che in realtà la contiene, solo perché non riconosciamo il pattern).
+#
+# Il trigger di fine motivazione richiede che la parola sia sola sulla riga
+# (seguita solo da spazi e poi da un a-capo), non solo preceduta da un a-capo:
+# senza questo vincolo, "determina/decreta/dispone" comparso a inizio riga
+# *dentro* la motivazione stessa (plausibile con testo estratto da PDF, dove
+# gli a-capo seguono il layout visivo, non la sintassi — es. "...la quale\n
+# dispone quanto segue...") troncava la motivazione al punto sbagliato (trovato
+# in code review). Il vero dispositivo è quasi sempre un'intestazione isolata
+# ("DETERMINA\n• ...") — coerente con questo vincolo.
 _RE_MOTIVAZIONE = re.compile(
     r"(?:premesso che|considerato che|ritenuto che|dato atto che)"
-    r"(.+?)(?=\n\s*(?:determina|decreta|dispone)\b|\Z)",
+    r"(.+?)(?=\n\s*(?:determina|decreta|dispone)\b\s*\n|\Z)",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -75,9 +84,13 @@ prima di agire)? Se sì, è una carenza di istruttoria — anche quando la motiv
 narrativamente ricca e dettagliata, una motivazione specifica basata su fatti non \
 verificati non equivale a una motivazione robusta.
 
+Nella spiegazione, indica se il tuo giudizio si fonda su una delle norme elencate sopra \
+(citane la fonte tra parentesi quadre, es. "[nazionale/l-241-1990.md]"); se nessuna delle \
+norme elencate è pertinente al tuo giudizio, scrivilo esplicitamente invece di ometterlo.
+
 Rispondi SOLO con un oggetto JSON, senza altro testo prima o dopo:
 {{"giudizio": "specifica|generica|incerta", "carenza_istruttoria": true|false, \
-"spiegazione": "una frase che motiva entrambi i giudizi"}}
+"spiegazione": "una frase che motiva i giudizi e il fondamento normativo (o la sua assenza)"}}
 """
 
 
@@ -122,6 +135,52 @@ def _unisci_frasi(prima: str, seconda: str) -> str:
 def flaggato_da_check_precedenti(esiti_precedenti: list[EsitoCheck]) -> bool:
     """True se almeno un check deterministico precedente ha dato 🟡/🔴."""
     return any(e.stato in _STATI_FLAG for e in esiti_precedenti)
+
+
+_K_MOTIVAZIONE_DEFAULT = 3
+
+
+def _cerca_passaggi_rag(
+    indice: IndiceCorpus,
+    motivazione: str,
+    esiti_precedenti: list[EsitoCheck],
+    *,
+    k_motivazione: int = _K_MOTIVAZIONE_DEFAULT,
+) -> list[Passaggio]:
+    """Passaggi del corpus per il prompt: motivazione + un passaggio per ogni check 🟡/🔴.
+
+    La sola query sul testo della motivazione può mancare completamente un tema
+    già individuato da un check deterministico, per un semplice scarto di
+    vocabolario tra l'atto e la norma (es. l'atto parla di "riservatezza delle
+    operazioni concorsuali", mai di "dati personali" o "GDPR": zero overlap
+    lessicale con `ue/gdpr-679-2016.md`, pur trattandosi dello stesso tema —
+    scoperto su un fascicolo reale, TAL-54). Un check 🟡/🔴 porta però nei
+    propri `riferimenti_normativi` la terminologia normativa esatta: qui si
+    interroga l'indice separatamente per ciascun check flaggato e se ne tiene
+    il passaggio migliore.
+
+    Query **separate** per ciascun check, non un'unica query con tutti i
+    riferimenti concatenati: verificato che concatenare tutto in una sola
+    query BM25 non basta — un check con pochi riferimenti (es. check-7 GDPR,
+    3 voci) resta comunque sotto la soglia dei primi risultati, annegato dal
+    punteggio cumulato di check con più voci su documenti più densi. Per lo
+    stesso motivo il risultato **non viene troncato** dopo l'arricchimento: un
+    taglio secco sul totale scarterebbe il contributo dei check flaggati per
+    ultimi nell'iterazione, vanificando il fix.
+    """
+    passaggi = list(indice.cerca(motivazione, k=k_motivazione))
+    visti = {(p.fonte, p.offset_inizio) for p in passaggi}
+    for esito in esiti_precedenti:
+        if esito.stato not in _STATI_FLAG or not esito.riferimenti_normativi:
+            continue
+        query_rif = " ".join(esito.riferimenti_normativi)
+        for p in indice.cerca(query_rif, k=1):
+            chiave = (p.fonte, p.offset_inizio)
+            if chiave not in visti:
+                passaggi.append(p)
+                visti.add(chiave)
+                break
+    return passaggi
 
 
 def _isola_motivazione(testo: str) -> str:
@@ -200,6 +259,19 @@ def _estrai_giudizio(risposta: str) -> tuple[str, bool, str]:
 _LIMITE_ESTRATTO_CORPUS = 220
 
 
+def _offset_fine_troncato(offset_inizio: int, lunghezza_testo: int, limite: int) -> int:
+    """Offset di fine coerente con un estratto eventualmente troncato a `limite` caratteri.
+
+    Centralizza l'invariante offset↔testo-citato condivisa da `_cita_passaggio`
+    (passaggi del corpus normativo) e dalla citazione della motivazione in
+    `valuta_motivazione`: senza troncamento, un offset che dichiara un
+    intervallo più ampio del testo davvero riportato tra virgolette è un bug
+    di esplicabilità già corretto due volte separatamente in questo file
+    (code review 2026-08-08) — qui un solo punto da mantenere corretto.
+    """
+    return offset_inizio + min(lunghezza_testo, limite)
+
+
 def _cita_passaggio(passaggio: Passaggio) -> str:
     """Riferimento puntuale a un passaggio del corpus normativo.
 
@@ -210,16 +282,15 @@ def _cita_passaggio(passaggio: Passaggio) -> str:
     Il troncamento avviene sul testo **grezzo** (prima della normalizzazione
     degli spazi bianchi usata solo per la resa a schermo): `offset_fine`
     corrisponde così esattamente a dove finisce il testo citato, non alla fine
-    dell'intero passaggio — stesso bug/principio già corretto per la citazione
-    dell'atto (altrimenti l'offset dichiarerebbe un intervallo più ampio di
-    quanto effettivamente riportato tra virgolette).
+    dell'intero passaggio.
     """
     grezzo = passaggio.testo
+    offset_fine = _offset_fine_troncato(
+        passaggio.offset_inizio, len(grezzo), _LIMITE_ESTRATTO_CORPUS
+    )
     if len(grezzo) > _LIMITE_ESTRATTO_CORPUS:
-        offset_fine = passaggio.offset_inizio + _LIMITE_ESTRATTO_CORPUS
         estratto = " ".join(grezzo[:_LIMITE_ESTRATTO_CORPUS].split()) + "…"
     else:
-        offset_fine = passaggio.offset_fine
         estratto = " ".join(grezzo.split())
     return f"{passaggio.fonte} (car. {passaggio.offset_inizio}-{offset_fine}): «{estratto}»"
 
@@ -281,13 +352,16 @@ def valuta_motivazione(
         )
 
     indice = indice if indice is not None else _indice_corpus_default()
-    passaggi = indice.cerca(motivazione, k=5)
+    passaggi = _cerca_passaggi_rag(indice, motivazione, esiti_precedenti)
     contesto_normativo = "\n\n".join(f"[{p.fonte}]\n{p.testo}" for p in passaggi) or (
         "(nessun passaggio pertinente trovato nel corpus)"
     )
 
     prompt = _PROMPT_TEMPLATE.format(motivazione=motivazione, contesto_normativo=contesto_normativo)
-    risposta = genera(prompt)
+    # temperature=0: un giudizio (specifica/generica, carenza istruttoria) deve
+    # essere riproducibile a parità di atto — osservato che senza fissarla due
+    # run identici su questa stessa sessione hanno dato esiti diversi (TAL-54).
+    risposta = genera(prompt, opzioni={"temperature": 0})
     giudizio, carenza_istruttoria, spiegazione_llm = _estrai_giudizio(risposta)
     stato = _calcola_stato(giudizio, carenza_istruttoria)
     if carenza_istruttoria and giudizio in ("specifica", "incerta"):
@@ -296,13 +370,7 @@ def valuta_motivazione(
     inizio = atto.testo.find(motivazione)
     citazioni: list[Citazione] = []
     if inizio >= 0:
-        # offset_fine deve corrispondere a dove finisce il testo effettivamente
-        # citato, non alla fine dell'intera motivazione: per motivazioni lunghe
-        # (>200 caratteri) la citazione è troncata, e offset_fine deve seguirla
-        # — altrimenti dichiarerebbe un intervallo più ampio di quanto è
-        # davvero riportato tra virgolette (stesso principio applicato ai
-        # riferimenti al corpus normativo).
-        fine_citata = min(inizio + len(motivazione), inizio + 200)
+        fine_citata = _offset_fine_troncato(inizio, len(motivazione), 200)
         citazioni.append(
             Citazione(
                 testo=atto.estratto(inizio, fine_citata),

@@ -27,13 +27,17 @@ Dati pubblici ai sensi del D.lgs. 33/2013.
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from collections.abc import Iterable, Iterator
 from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, EnteMetadato, inserisci_atto, upsert_ente
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import TIPI_ATTO_DEFAULT, estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import strip_html as _strip
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -41,28 +45,12 @@ from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
 
 FONTE_SCRAPER = "serviziolinealbo"
 
-_RE_TAG = re.compile(r"<[^>]+>")
 _RE_HEADER = re.compile(r"(\d+/\d{4})\s+del\s+(\d{2}/\d{2}/\d{4})\s+-\s+(.+)", re.IGNORECASE)
 _RE_RESTO_CON_SETTORIALE = re.compile(r"^(.*?)\s+-\s+\d+/\d{4}\s+del\s+\d{2}/\d{2}/\d{4}\s*$")
 _RE_OGGETTO = re.compile(r"<em>(.*?)</em>", re.DOTALL)
 _RE_PERMALINK = re.compile(r'data-link="(https?://[^"]+anno=(\d+)[^"]*numero=(\d+))"')
 
-# Tipo dal testo dell'intestazione → tipo atto TALIA
-_TIPI = (
-    ("ordinanza", "ordinanza"),
-    ("delibera", "delibera"),
-    ("determin", "determina"),
-    ("concors", "concorso"),
-    ("gara", "bando"),
-    ("appalt", "bando"),
-    ("band", "bando"),
-    ("decret", "decreto"),
-    ("avvis", "avviso"),
-)
-
-
-def _strip(html: str) -> str:
-    return " ".join(_RE_TAG.sub("", unescape(html)).split())
+_TIPI = TIPI_ATTO_DEFAULT
 
 
 def _tipo_da_testo(testo: str) -> str:
@@ -105,6 +93,13 @@ def _parse_html(html: str, codice_istat: str) -> list[AttoMetadato]:
         target = f"#collapse{numero_plain}_{anno}"
         target_idx = html.find(target)
         if target_idx < 0:
+            logger.warning(
+                "serviziolinealbo %s: permalink %s/%s trovato ma anchor %s assente — atto scartato",
+                codice_istat,
+                numero_plain,
+                anno,
+                target,
+            )
             continue
 
         span_m = re.search(
@@ -113,6 +108,13 @@ def _parse_html(html: str, codice_istat: str) -> list[AttoMetadato]:
             re.DOTALL,
         )
         if not span_m:
+            logger.warning(
+                "serviziolinealbo %s: permalink %s/%s trovato ma span dettaglio "
+                "assente — atto scartato",
+                codice_istat,
+                numero_plain,
+                anno,
+            )
             continue
         span_html = span_m.group(1)
 
@@ -174,6 +176,7 @@ def scarica_atti(
         ) from exc
 
     albo_url = f"{base_url}/ServiziOnLine/AlboPretorio/AlboPretorio"
+    totale = 0
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page()
@@ -185,6 +188,7 @@ def scarica_atti(
             atti = _parse_html(html, codice_istat)
             if not atti:
                 break
+            totale += len(atti)
             yield from atti
 
             if not _ha_pagina_successiva(page):
@@ -195,6 +199,13 @@ def scarica_atti(
             page.wait_for_timeout(2000)
 
         browser.close()
+
+    if totale == 0:
+        logger.warning(
+            "serviziolinealbo %s: 0 atti estratti — struttura HTML cambiata o "
+            "portale in manutenzione?",
+            base_url,
+        )
 
 
 def salva_atti(

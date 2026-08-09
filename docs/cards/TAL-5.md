@@ -16,7 +16,7 @@ Serve a check 1 (norme) e check 6 (firmatari) → [wiki/04](../wiki/04-checklist
 - [x] **Norme citate**: regex per `L. 241/1990`, `art. 21-quinquies`, `D.lgs. 36/2023`, `art. 7`, ecc.
 - [x] Normalizzare in riferimento canonico (legge + articolo)
 - [ ] **Firmatari**: spaCy NER (`it_core_news_lg`) + euristiche su "Il Dirigente", "Il RUP", firme finali
-- [ ] Associare nome ↔ ruolo dove possibile
+- [x] Associare nome ↔ ruolo dove possibile (via `attori.py`, agganciato al check 6 in TAL-53)
 - [x] ⚠️ Marcare i firmatari come **dato personale** (gestione privacy a valle)
 
 ## 🧪 Criteri di accettazione
@@ -38,5 +38,9 @@ latini, leggi/decreti `n/anno`, dedup dei match contenuti) e firmatari via titol
 onorifici + formule di sottoscrizione (`F.to`, `firmato`). `nome_normalizzato()` per il
 matching insensibile a ordine/maiuscole/titoli (usato dal check 6).
 **Deviazione:** niente spaCy per ora — euristica deterministica pura (precisione >
-recall); l'associazione nome↔ruolo è rinviata. I nomi restano dato personale: mai in
-viste pubbliche non anonimizzate.
+recall). I nomi restano dato personale: mai in viste pubbliche non anonimizzate.
+
+**Aggiornamento 2026-08-07 (TAL-53):** l'associazione nome↔ruolo era in realtà già
+disponibile in `engine/attori.py` (TAL-13) ma non agganciata al check 6 — collegata in
+[TAL-53](TAL-53.md), che arricchisce anche il check con l'incrocio tempistica
+graduatoria. Nessun task residuo qui.

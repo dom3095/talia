@@ -56,6 +56,20 @@ def test_genera_invia_il_modello_e_il_prompt_nel_payload():
     assert corpo["stream"] is False
 
 
+def test_genera_propaga_opzioni_nel_payload():
+    opener = _OpenerFinto(risposta=_RispostaFinta({"response": "ok"}))
+    genera("prompt di test", opener=opener, opzioni={"temperature": 0})
+    corpo = json.loads(opener.ultima_richiesta.data.decode("utf-8"))
+    assert corpo["options"] == {"temperature": 0}
+
+
+def test_genera_senza_opzioni_non_le_include_nel_payload():
+    opener = _OpenerFinto(risposta=_RispostaFinta({"response": "ok"}))
+    genera("prompt di test", opener=opener)
+    corpo = json.loads(opener.ultima_richiesta.data.decode("utf-8"))
+    assert "options" not in corpo
+
+
 def test_genera_solleva_llm_non_disponibile_su_errore_di_rete():
     opener = _OpenerFinto(eccezione=urllib.error.URLError("connection refused"))
     with pytest.raises(LLMNonDisponibile):

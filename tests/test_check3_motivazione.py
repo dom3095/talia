@@ -12,7 +12,9 @@ from talia.engine.checklist.base import EsitoCheck
 from talia.engine.checklist.check3_motivazione import (
     SOGLIA_ASSENTE,
     _calcola_stato,
+    _cerca_passaggi_rag,
     _estrai_giudizio,
+    _isola_motivazione,
     flaggato_da_check_precedenti,
     valuta_motivazione,
 )
@@ -37,6 +39,26 @@ class _IndiceFinto:
 
     def cerca(self, query, k=5):
         return self._passaggi[:k]
+
+
+class _IndiceSelettivo:
+    """Stub che ritorna passaggi diversi a seconda del contenuto della query.
+
+    Simula il caso reale scoperto in TAL-54: la query sulla sola motivazione
+    (`_generico`) non intercetta il passaggio pertinente, mentre una query sui
+    riferimenti normativi del check che l'ha già individuato sì (`_mirato`,
+    restituito solo se `_termine_chiave` compare nella query).
+    """
+
+    def __init__(self, generico, mirato, termine_chiave):
+        self._generico = generico
+        self._mirato = mirato
+        self._termine_chiave = termine_chiave
+
+    def cerca(self, query, k=5):
+        if self._termine_chiave in query:
+            return [self._mirato][:k]
+        return self._generico[:k]
 
 
 _MOTIVAZIONE_LUNGA = (
@@ -81,7 +103,7 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
     monkeypatch.setattr(
         mod,
         "genera",
-        lambda prompt: '{"giudizio": "specifica", "spiegazione": "motivazione concreta"}',
+        lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "motivazione concreta"}',
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     passaggi = [
@@ -98,6 +120,21 @@ def test_verde_su_giudizio_llm_specifica(monkeypatch):
     assert "10-21" in rif_corpus
     assert "testo norma" in rif_corpus
     assert esito.citazioni
+
+
+def test_valuta_motivazione_chiama_genera_con_temperatura_zero(monkeypatch):
+    # TAL-54: senza temperature=0 il giudizio non è riproducibile — osservato
+    # in sessione un giudizio diverso tra due run identici sullo stesso atto.
+    chiamate = []
+
+    def _spia(prompt, **kwargs):
+        chiamate.append(kwargs)
+        return '{"giudizio": "specifica", "spiegazione": "ok"}'
+
+    monkeypatch.setattr(mod, "genera", _spia)
+    contesto = _contesto(_MOTIVAZIONE_LUNGA)
+    valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
+    assert chiamate == [{"opzioni": {"temperature": 0}}]
 
 
 def test_calcola_stato_specifica_senza_carenza_istruttoria_e_verde():
@@ -125,7 +162,7 @@ def test_giallo_su_specifica_con_carenza_istruttoria_rilevata_dal_llm(monkeypatc
     monkeypatch.setattr(
         mod,
         "genera",
-        lambda prompt: (
+        lambda prompt, **_: (
             '{"giudizio": "specifica", "carenza_istruttoria": true, '
             '"spiegazione": "cita un interesse concreto ma su un fatto solo presunto"}'
         ),
@@ -144,7 +181,7 @@ def test_carenza_istruttoria_assente_dalla_risposta_non_penalizza(monkeypatch):
     # Un modello che non usa il nuovo campo (o lo omette) non deve essere
     # penalizzato: assenza di segnalazione ≠ carenza presunta.
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "ok"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -158,7 +195,7 @@ def test_citazione_troncata_ha_offset_coerente_col_testo(monkeypatch):
     # (stesso principio dei riferimenti puntuali al corpus normativo).
     assert len(_MOTIVAZIONE_MOLTO_LUNGA) - len("considerato che ") > 200
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "specifica", "spiegazione": "ok"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "ok"}'
     )
     contesto = _contesto(_MOTIVAZIONE_MOLTO_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -168,7 +205,7 @@ def test_citazione_troncata_ha_offset_coerente_col_testo(monkeypatch):
 
 def test_rosso_su_giudizio_llm_generica(monkeypatch):
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "generica", "spiegazione": "boilerplate"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "generica", "spiegazione": "boilerplate"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
@@ -176,7 +213,7 @@ def test_rosso_su_giudizio_llm_generica(monkeypatch):
 
 
 def test_giallo_su_risposta_llm_non_json(monkeypatch):
-    monkeypatch.setattr(mod, "genera", lambda prompt: "risposta senza json valido")
+    monkeypatch.setattr(mod, "genera", lambda prompt, **_: "risposta senza json valido")
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
     assert esito.stato is Stato.GIALLO
@@ -229,7 +266,7 @@ def test_giallo_su_incerta_con_carenza_istruttoria_include_nota(monkeypatch):
     monkeypatch.setattr(
         mod,
         "genera",
-        lambda prompt: (
+        lambda prompt, **_: (
             '{"giudizio": "incerta", "carenza_istruttoria": true, '
             '"spiegazione": "non è chiaro se la motivazione sia specifica"}'
         ),
@@ -260,8 +297,148 @@ def test_cita_passaggio_troncato_ha_offset_coerente_col_testo():
 
 def test_giudizio_sconosciuto_trattato_come_incerta(monkeypatch):
     monkeypatch.setattr(
-        mod, "genera", lambda prompt: '{"giudizio": "boh", "spiegazione": "non chiaro"}'
+        mod, "genera", lambda prompt, **_: '{"giudizio": "boh", "spiegazione": "non chiaro"}'
     )
     contesto = _contesto(_MOTIVAZIONE_LUNGA)
     esito = valuta_motivazione(contesto, [_esito(Stato.ROSSO)], indice=_IndiceFinto())
     assert esito.stato is Stato.GIALLO
+
+
+# --- TAL-57: _isola_motivazione non tronca su "dispone" a inizio riga interno ---
+
+
+def test_isola_motivazione_tronca_su_determina_isolata_come_intestazione():
+    testo = (
+        "premesso che si ritiene necessario procedere per motivi di interesse "
+        "pubblico concreto.\nDETERMINA\ndi annullare l'atto."
+    )
+    assert _isola_motivazione(testo) == (
+        "si ritiene necessario procedere per motivi di interesse pubblico concreto."
+    )
+
+
+def test_isola_motivazione_non_tronca_su_dispone_dentro_la_motivazione():
+    # Regressione (code review): "dispone" a inizio riga per un a-capo di
+    # impaginazione (plausibile con testo estratto da PDF) non deve troncare
+    # la motivazione se non è seguito subito da un a-capo (non è
+    # un'intestazione isolata come "DETERMINA").
+    testo = (
+        "premesso che si richiama la norma, la quale\n"
+        "dispone quanto segue in materia di autotutela, e che pertanto si "
+        "ritiene necessario procedere.\nDETERMINA\ndi annullare l'atto."
+    )
+    motivazione = _isola_motivazione(testo)
+    assert "dispone quanto segue" in motivazione
+    assert "DETERMINA" not in motivazione
+
+
+# --- TAL-54: retrieval arricchito coi riferimenti dei check già flaggati ----
+
+_RIF_GDPR = ["Art. 33 GDPR (notifica violazione dati all'Autorità di controllo entro 72h)"]
+
+
+def _passaggio(fonte: str, testo: str = "norma") -> Passaggio:
+    return Passaggio(testo=testo, fonte=fonte, offset_inizio=0, offset_fine=10)
+
+
+def test_cerca_passaggi_rag_recupera_passaggio_di_check_flaggato_non_visto_dalla_motivazione():
+    # Caso reale (TAL-54, fascicolo 1): la motivazione parla di "riservatezza",
+    # mai di "GDPR"/"dati personali" — la query sulla sola motivazione manca il
+    # passaggio, ma check-7 l'aveva già individuato coi suoi riferimenti.
+    generico = [_passaggio("nazionale/a.md"), _passaggio("nazionale/b.md")]
+    gdpr = _passaggio("ue/gdpr-679-2016.md")
+    indice = _IndiceSelettivo(generico, gdpr, termine_chiave="GDPR")
+    check7 = EsitoCheck(
+        id="check-7", titolo="t", stato=Stato.ROSSO, spiegazione="", riferimenti_normativi=_RIF_GDPR
+    )
+    passaggi = _cerca_passaggi_rag(indice, "motivazione senza vocabolario pertinente", [check7])
+    assert gdpr in passaggi
+    assert generico[0] in passaggi  # la query sulla motivazione resta comunque interrogata
+
+
+def test_cerca_passaggi_rag_ignora_check_non_flaggati():
+    generico = [_passaggio("nazionale/a.md")]
+    gdpr = _passaggio("ue/gdpr-679-2016.md")
+    indice = _IndiceSelettivo(generico, gdpr, termine_chiave="GDPR")
+    verde = EsitoCheck(
+        id="check-7", titolo="t", stato=Stato.VERDE, spiegazione="", riferimenti_normativi=_RIF_GDPR
+    )
+    passaggi = _cerca_passaggi_rag(indice, "motivazione", [verde])
+    assert gdpr not in passaggi
+
+
+def test_cerca_passaggi_rag_ignora_check_senza_riferimenti():
+    generico = [_passaggio("nazionale/a.md")]
+    gdpr = _passaggio("ue/gdpr-679-2016.md")
+    indice = _IndiceSelettivo(generico, gdpr, termine_chiave="GDPR")
+    senza_rif = EsitoCheck(id="check-7", titolo="t", stato=Stato.ROSSO, spiegazione="")
+    passaggi = _cerca_passaggi_rag(indice, "motivazione", [senza_rif])
+    assert gdpr not in passaggi
+
+
+def test_cerca_passaggi_rag_dedup_passaggio_gia_trovato_dalla_motivazione():
+    p = _passaggio("ue/gdpr-679-2016.md")
+    indice = _IndiceSelettivo([p], p, termine_chiave="GDPR")
+    check7 = EsitoCheck(
+        id="check-7", titolo="t", stato=Stato.ROSSO, spiegazione="", riferimenti_normativi=_RIF_GDPR
+    )
+    passaggi = _cerca_passaggi_rag(indice, "motivazione", [check7])
+    assert passaggi.count(p) == 1
+
+
+def test_cerca_passaggi_rag_non_tronca_il_contributo_di_ogni_check():
+    # Regressione: un taglio secco sul totale (k=5) dopo aver iterato tutti i
+    # check scartava il contributo dei check flaggati per ultimi — qui 4 check
+    # diversi devono comparire tutti, anche con k_motivazione già a 3.
+    generico = [
+        _passaggio("nazionale/a.md"),
+        _passaggio("nazionale/b.md"),
+        _passaggio("nazionale/c.md"),
+    ]
+    mirati = {f"CHIAVE{i}": _passaggio(f"nazionale/mirato{i}.md") for i in range(4)}
+
+    class _IndiceMultiChiave:
+        def cerca(self, query, k=5):
+            for chiave, passaggio in mirati.items():
+                if chiave in query:
+                    return [passaggio][:k]
+            return generico[:k]
+
+    esiti = [
+        EsitoCheck(
+            id=f"check-{i}",
+            titolo="t",
+            stato=Stato.ROSSO,
+            spiegazione="",
+            riferimenti_normativi=[f"CHIAVE{i}"],
+        )
+        for i in range(4)
+    ]
+    passaggi = _cerca_passaggi_rag(_IndiceMultiChiave(), "motivazione", esiti)
+    for mirato in mirati.values():
+        assert mirato in passaggi
+
+
+def test_valuta_motivazione_include_riferimento_di_check_flaggato_non_coperto_dalla_motivazione(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        mod, "genera", lambda prompt, **_: '{"giudizio": "specifica", "spiegazione": "ok"}'
+    )
+    contesto = _contesto(_MOTIVAZIONE_LUNGA)
+    generico = [_passaggio("nazionale/a.md")]
+    gdpr = _passaggio("ue/gdpr-679-2016.md", testo="disciplina della violazione dei dati personali")
+    indice = _IndiceSelettivo(generico, gdpr, termine_chiave="GDPR")
+    check7 = EsitoCheck(
+        id="check-7", titolo="t", stato=Stato.ROSSO, spiegazione="", riferimenti_normativi=_RIF_GDPR
+    )
+    esito = valuta_motivazione(contesto, [check7], indice=indice)
+    assert any("gdpr" in rif.lower() for rif in esito.riferimenti_normativi)
+
+
+def test_prompt_istruisce_il_llm_a_dichiarare_il_fondamento_normativo():
+    # TAL-54: senza questa istruzione la spiegazione del LLM non citava mai i
+    # passaggi allegati, anche quando pertinenti — nessuna garanzia che il
+    # giudizio fosse davvero fondato sul contesto normativo recuperato.
+    assert "tra parentesi quadre" in mod._PROMPT_TEMPLATE
+    assert "nessuna delle norme elencate è pertinente" in mod._PROMPT_TEMPLATE

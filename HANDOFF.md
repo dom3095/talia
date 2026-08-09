@@ -1,10 +1,207 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-06 (branch `feat/sweep-comuni-mancanti`, PR #16: secondo sweep
-> automatico (16 comuni) + esplorazione manuale su 10 residui (Aci Catena, Nicosia) +
-> Pachino/Barrafranca via Playwright (nuovo scraper generico `serviziolinealbo.py`,
-> stessa piattaforma di Agrigento). Copertura 83,0%, 258 comuni attivi, 85 ancora mai
-> censiti.)
+> Aggiornato: 2026-08-09 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
+> `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
+> e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
+> ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati (TAL-54),
+> timeout LLM alzato 300s→900s e temperatura fissata a 0 per un giudizio riproducibile.
+> `/code-review` multi-agente lanciato su tutto il branch (17 findings consolidati); i
+> più rilevanti corretti nella stessa sessione, con 4 nuove card (TAL-55/56/57/58: log
+> silenziosi negli scraper, deduplicazione codice scraper, pulizia Modulo 1, dashboard).
+> 6 card in Review (TAL-53…TAL-58). PR #17 aperta; risolti i conflitti di merge con
+> `main` (assorbito PR #16 — sweep comuni, Pachino/Barrafranca, Nicosia — già confluito
+> qui in sviluppo, conflitti reali solo su HANDOFF.md/BOARD.md). 598 test verdi.)
+
+---
+
+## Sessione 2026-08-07 — TAL-53: check 6 nome↔ruolo + tempistica graduatoria
+
+**Richiesta di Dom:** "stacca un nuovo branch a partire da questo, comincia a
+implementare l'associazione nome-ruolo firmatari e l'incrocio con la tempistica
+graduatoria" — i due gap lasciati esplicitamente aperti nei Consuntivi di TAL-5 e TAL-9
+(colonna Review di BOARD.md dal 2026-07-25). Branch `feat/TAL-53-nome-ruolo-graduatoria`
+staccato da `feat/sweep-comuni-mancanti` (PR #16 ancora aperta, non merge-blocking:
+questo branch parte dal lavoro scraper esistente per convenzione "stacca da questo",
+non da `main`). Nuova card **TAL-53** (spec-driven, nessuna domanda bloccante — vedi
+sotto per l'unica assunzione documentata).
+
+**Scoperta preliminare:** l'associazione nome↔ruolo esisteva già come estrazione
+generale in `engine/attori.py` (TAL-13, Done da tempo) ma non era mai stata agganciata
+al check 6 — il lavoro vero non era "costruire l'associazione" ma *usarla* dentro il
+check, più costruire da zero l'estrazione della tempistica graduatoria (che non
+esisteva).
+
+**Fatto:**
+- **Refactor minimo** (`checklist/_date_utils.py`): `filtra_date_ccnl`/`data_estrema`
+  estratte da `check2_termini.py` (private, duplicate altrimenti) in un helper
+  condiviso, ora usato anche da check 6 per calcolare la data dell'annullamento.
+  Nessuna regressione (stessi test di check 2 verdi).
+- **`engine/graduatoria.py`** (nuovo): `estrai_data_graduatoria()` — euristica
+  deterministica su "graduatoria" + "approvat[ao]"/"approvazione" + data vicine.
+  Punto delicato trovato **durante lo sviluppo dei test, non dopo**: ancorare la
+  data più vicina alla parola "graduatoria" sceglieva a volte una data estranea solo
+  perché testualmente più vicina (es. la data dell'annullamento stesso, scritta prima
+  di "graduatoria" nello stesso paragrafo) invece della data che segue realmente
+  "approvat[ao]... del gg/mm/aaaa". Corretto ancorando la ricerca della data alla
+  parola di approvazione (finestra più stretta, 80 caratteri dopo), con fallback a
+  prima di "graduatoria" per il pattern raro inverso ("in data X è stata approvata la
+  graduatoria").
+- **`check6_firmatari.py`**: arricchito, non riscritto — stesso algoritmo di matching
+  firmatari di prima (`_stesso_firmatario`, sottoinsieme di token). Aggiunte: (1) il
+  messaggio nomina il ruolo (via `attori.estrai_attori`) quando individuabile, es. "il
+  Segretario Generale Mario Rossi" invece del solo nome; (2) se la sovrapposizione dei
+  firmatari coincide con un annullamento entro **60 giorni** dalla graduatoria trovata,
+  l'esito sale da 🟡 a 🔴 con la graduatoria citata in più. Degrado sempre verso il
+  comportamento precedente (🟡) se ruolo o graduatoria non sono disponibili — **nessuna
+  regressione sui 5 test di check 6 preesistenti**, verificato prima di aggiungerne di
+  nuovi.
+- **Assunzione documentata, non normativa** (come già il termine dei 12 mesi in check
+  2): la soglia dei 60 giorni per "a ridosso della graduatoria" è una scelta euristica
+  di prodotto, esplicitamente segnalata nella card TAL-53 come da validare con ⚖️ LEX
+  su fascicoli reali (nessuno dei fascicoli TAL-12 letti finora cita esplicitamente
+  l'approvazione della graduatoria nell'atto di autotutela).
+- 10 nuovi test (6 `test_graduatoria.py`, 4 in `test_checklist.py`): ruolo nel
+  messaggio, escalation 🔴, graduatoria lontana → resta 🟡, nessuna menzione →
+  comportamento invariato.
+
+**582 test verdi (erano 572), ruff pulito** (nota: `ruff format` locale su Python 3.12
+proponeva di riformattare ~30 file preesistenti non toccati in questa sessione — stesso
+scarto di versione già documentato nell'entry del 20/07 più sotto; applicato `ruff
+format` solo ai file toccati, non all'intero repo).
+
+**Non fatto:** nessuna verifica su un fascicolo reale con menzione di graduatoria (i
+fascicoli TAL-12 disponibili non ne hanno una) — resta un'euristica testata solo su
+casi sintetici, da validare al primo fascicolo reale che la contiene. Nessun
+`/code-review` multi-agente lanciato (solo self-review manuale, vedi sotto).
+
+**Self-review post-commit (stesso giorno):** rilettura mirata del diff dopo il primo
+commit ha trovato un bug reale in `_esito_graduatoria` — la citazione della graduatoria
+veniva attribuita al testo sbagliato (identità su un'entità ricreata da una chiamata di
+estrazione separata, che quindi non coincide mai con l'oggetto già presente
+nell'atto). Nessun crash (gli offset vengono clampati in silenzio da `estratto()`), ma
+una citazione vuota/sbagliata — violazione dell'esplicabilità. Corretto tenendo
+esplicita la provenienza invece di ridedurla per identità; aggiunto un test che
+verifica il *contenuto* della citazione, non solo il conteggio (dettaglio in TAL-53,
+Tentativo 2). Nuovo commit separato (`e6c17df`, non un amend — coerente con la
+convenzione di preferire commit nuovi), ancora 582 test verdi.
+
+---
+
+## Sessione 2026-08-08 — TAL-54: check 3, retrieval RAG cieco ai check già flaggati
+
+**Richiesta di Dom:** dopo aver chiesto come è coinvolto l'LLM nel progetto, ha chiesto
+di lanciare davvero check 3 (LLM, TAL-11) con Ollama locale sui fascicoli reali di
+TAL-12, invece di limitarsi a spiegarlo. Restato sullo stesso branch
+`feat/TAL-53-nome-ruolo-graduatoria` su richiesta esplicita di Dom ("rimani su questo
+branch"), pur essendo un tema diverso da TAL-53 — nuova card **TAL-54** invece di un
+nuovo branch.
+
+**Trovato girando l'LLM reale (non mockato) su fascicoli reali:**
+1. **Timeout insufficiente**: `llm._TIMEOUT_SECONDI = 300` non basta su questa macchina
+   (CPU) per un prompt reale — 344.8s sul fascicolo 1, 423.8s sul fascicolo 3, sempre
+   in timeout con la CLI (`talia analizza --llm`). Non ancora corretto in questa
+   sessione (segnalato a Dom, non ancora confermato se alzarlo).
+2. **Retrieval RAG cieco a temi già noti alla pipeline** (bug sostanziale, poi corretto
+   — vedi TAL-54): sul fascicolo 1, i 5 passaggi normativi recuperati da BM25 per il
+   check 3 non includevano mai il GDPR, nonostante (a) il corpus lo contenga
+   (`ue/gdpr-679-2016.md`), (b) sia recuperabile con una query mirata, e (c) il tema sia
+   esattamente quello già individuato dal check 7 deterministico (GDPR breach, 🔴 con i
+   riferimenti giusti). Causa: la motivazione dell'atto usa "segretezza"/"riservatezza",
+   mai "dati personali"/"GDPR" — zero overlap lessicale col documento normativo, pur
+   trattandosi dello stesso tema concettuale. Limite classico del BM25 lessicale puro.
+3. **Nessun vincolo di grounding nel prompt**: la `spiegazione` del LLM non citava mai i
+   passaggi allegati, pertinenti o meno — nessuna garanzia verificabile che il giudizio
+   ne tenesse conto.
+
+**Fix (`check3_motivazione.py`):**
+- `_cerca_passaggi_rag()`: oltre alla query sulla motivazione, una query BM25 separata
+  per ciascun check 🟡/🔴 precedente sui suoi `riferimenti_normativi`, un passaggio
+  garantito a testa, dedup, **nessun troncamento finale**. Primo tentativo (concatenare
+  tutti i riferimenti in un'unica query) verificato insufficiente: il contributo GDPR (3
+  voci) restava annegato dal punteggio cumulato di check con più voci (dettaglio in
+  TAL-54, Tentativi 1-2).
+- Prompt: istruzione esplicita a dichiarare in `spiegazione` il passaggio normativo usato
+  (fonte tra parentesi quadre) o l'assenza di uno pertinente.
+- 7 nuovi test (stub `_IndiceSelettivo` che riproduce il caso GDPR) + verificato anche
+  sul fascicolo reale (`genera` mockato, `esegui_checklist` reale): `ue/gdpr-679-2016.md`
+  ora compare in `riferimenti_normativi`, prima assente.
+
+**589 test verdi (erano 582), ruff pulito** (solo sui file toccati).
+
+**Timeout LLM corretto (stessa sessione, dopo conferma di Dom):** `llm._TIMEOUT_SECONDI`
+alzato da 300s a **900s**, coi tempi reali misurati (344.8s/423.8s) nel commento —
+margine ampio per fascicoli più pesanti dei due testati.
+
+**Verifica aggiuntiva su check-7 (GDPR, TAL-14):** richiesto da Dom un controllo se
+servissero altri fix lato GDPR oltre al retrieval di check 3. Riletto `check7_gdpr.py`
+e i suoi test: nessun bug trovato. Riverificato anche su fascicolo 3 (🔴 su fascicolo 1,
+dove il breach è descritto; ⚪ NON_APPLICABILE su fascicolo 3, che non ne parla —
+comportamento atteso, non un falso negativo). Il gap GDPR di questa sessione era
+interamente nel retrieval di check 3 (già corretto sopra), non nel check 7 stesso.
+
+**Non fatto:** il retrieval resta comunque cieco ai temi che **nessun** check
+deterministico ha ancora individuato (limite noto, documentato in TAL-54): il fix riusa
+segnale già calcolato, non risolve il problema alla radice. Un retrieval a embedding
+locale (gratuito, coerente con budget≈0) lo risolverebbe in generale, ma è un cambio di
+architettura proposto e non deciso in questa sessione. Il check-8 (DPO = Segretario →
+conflitto di interessi, già annotato come feature futura in memoria di progetto) resta
+fuori scope: richiede dati esterni (TAL-25).
+
+**Instabilità del giudizio scoperta rilanciando check 3 (stessa sessione, dopo richiesta
+di Dom di rieseguirlo su fascicolo 1 salvando l'output):** due run identici sullo stesso
+fascicolo hanno dato giudizi diversi (🟡 poi 🟢) — il secondo riproduceva esattamente il
+falso negativo che TAL-11 aveva già corretto (motivazione basata su un fatto "presunto"
+letto come accertato). Causa: `check3_motivazione.genera(prompt)` non fissava mai la
+temperatura di campionamento di Ollama (`engine.catena.classifica_ruolo_llm` aveva già
+il pattern giusto, ma a un livello più basso). Fix: `genera()` accetta ora `opzioni`,
+check 3 chiama sempre con `temperature: 0`. Verificato con 2 run reali consecutivi
+post-fix: esito e spiegazione **identici byte per byte** (dettaglio in TAL-54,
+Tentativo 3). 592 test verdi (erano 589).
+
+**`/code-review` multi-agente (8 angoli, `main...HEAD`):** trovati 2 bug reali nel
+codice di questa card, corretti nello stesso ciclo (dettaglio in TAL-53, Tentativo 3):
+(1) `graduatoria.py` poteva scegliere la data sbagliata quando più occorrenze di
+"approvat[ao]" comparivano nella finestra attorno a "graduatoria" (ora sceglie la più
+vicina, non la prima in assoluto); (2) `check6_firmatari.py` poteva dare un 🔴 con
+`delta=0` fuorviante quando la data della graduatoria era anche l'unica/più recente
+data dell'atto (ora esclusa dal pool prima di calcolare la data di annullamento). 594
+test verdi (erano 592). Gli altri findings del code-review (duplicazione retry-logic
+tra scraper, mancato logging 0-atti in `serviziolinealbo.py`, query dashboard non
+cachate, ecc.) riguardano commit precedenti a questa sessione, non toccati: riportati
+ma non corretti qui — vedi report `/code-review` per l'elenco completo.
+
+**Aperte 4 card di follow-up dal `/code-review` (stessa sessione, richiesta esplicita di
+Dom "apri le card, ma sistemali in questo branch"), tutte corrette e testate:**
+- **TAL-55** (scraper, fallimenti silenziosi): `serviziolinealbo.py` ora logga WARNING
+  su atto scartato (anchor/span mancante) e su 0 atti totali; aggiunto il test "pagina
+  corrotta" che mancava (convenzione CLAUDE.md).
+- **TAL-56** (scraper, deduplicazione): `strip_html()`/`TIPI_ATTO_DEFAULT` estratte in
+  `utils.py`, usate da 4-5 scraper — effetto collaterale: corretto un drift già presente
+  (`nicosia.py` non intercettava "avvisi", le altre copie sì). `hspromila.py` allarga il
+  retry a `(TimeoutError, urllib.error.URLError)` come `halley.py`. **Non toccati**
+  `jcitygov.py` (pre-esistente, fuori dal diff) né l'unificazione completa del retry
+  su 3 scraper né il consolidamento `serviziolinealbo.py`/`agrigento.py` — decisioni di
+  architettura proposte, non eseguite (rischio su scraper già in produzione).
+- **TAL-57** (Modulo 1, pulizia minore): `_RE_MOTIVAZIONE` non tronca più la motivazione
+  se "determina/decreta/dispone" compare a inizio riga *dentro* il testo (solo se è
+  un'intestazione isolata); troncamento citazioni deduplicato (`_offset_fine_troncato`);
+  `IndiceCorpus.cerca()` precompute frequenze invece di ricostruirle ad ogni chiamata
+  (verificato anche sul corpus reale, stessi risultati); due costanti gemelle in
+  `graduatoria.py` unificate. **Non unificato** il matching firmatari di check6
+  (astrazione prematura per 2 soli chiamanti con tipi diversi).
+- **TAL-58** (dashboard): `_carica_enti`/`_carica_flags_per_ente` caricate una volta in
+  `main()` invece che duplicate tra tab; avviso privacy piccoli comuni unificato in un
+  helper; ternario annidato → dict lookup; somma copertura riusata invece di
+  ricalcolata. Verificato **dal vivo**, non solo staticamente: DB di test reale +
+  `streamlit.testing.v1.AppTest` (esegue l'intero script) → 0 eccezioni.
+
+598 test verdi (erano 594), ruff pulito. I findings restanti del `/code-review` (vedi
+`ReportFindings` nella conversazione) sono tutti o pre-esistenti a questa sessione o
+scelte di architettura deliberatamente rimandate, documentate nelle rispettive card.
+
+**Prossimo passo:** PR #17 aperta (https://github.com/dom3095/talia/pull/17), conflitti
+di merge con `main` risolti; in attesa di review/merge di Dom su tutte le 6 card
+(TAL-53…TAL-58).
 
 ---
 
@@ -135,9 +332,6 @@ ricognizione manuale, non più sweepabili in automatico con i pattern esistenti.
 registro validato (308 righe).** Dettagli completi in
 [14-censimento-albi.md](docs/wiki/14-censimento-albi.md). Script di sweep/verifica non
 committati (one-off in scratchpad, stessa convenzione).
-
-**Prossimo passo:** PR #16 già aggiornata con questo commit, in attesa di review/merge
-di Dom. Poi considerare una ricognizione manuale sui 89 comuni residui.
 
 ---
 
