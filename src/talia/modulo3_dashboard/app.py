@@ -781,6 +781,12 @@ def main() -> None:
     with tab_mappa:
         _mostra_mappa(conn)
 
+    with tab_statistiche:
+        _mostra_statistiche(conn)
+
+    with tab_mappa:
+        _mostra_mappa(conn)
+
 
 if __name__ == "__main__":
     main()

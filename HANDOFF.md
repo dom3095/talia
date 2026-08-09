@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-08 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
+> Aggiornato: 2026-08-09 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
 > `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
 > e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
 > ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati (TAL-54),
@@ -8,7 +8,9 @@
 > `/code-review` multi-agente lanciato su tutto il branch (17 findings consolidati); i
 > più rilevanti corretti nella stessa sessione, con 4 nuove card (TAL-55/56/57/58: log
 > silenziosi negli scraper, deduplicazione codice scraper, pulizia Modulo 1, dashboard).
-> 6 card in Review (TAL-53…TAL-58), branch non ancora pushato. 598 test verdi.)
+> 6 card in Review (TAL-53…TAL-58). PR #17 aperta; risolti i conflitti di merge con
+> `main` (assorbito PR #16 — sweep comuni, Pachino/Barrafranca, Nicosia — già confluito
+> qui in sviluppo, conflitti reali solo su HANDOFF.md/BOARD.md). 598 test verdi.)
 
 ---
 
@@ -197,8 +199,9 @@ Dom "apri le card, ma sistemali in questo branch"), tutte corrette e testate:**
 `ReportFindings` nella conversazione) sono tutti o pre-esistenti a questa sessione o
 scelte di architettura deliberatamente rimandate, documentate nelle rispettive card.
 
-**Prossimo passo:** review di Dom su tutte le 6 card (TAL-53…TAL-58, stesso branch, non
-ancora pushato); poi PR.
+**Prossimo passo:** PR #17 aperta (https://github.com/dom3095/talia/pull/17), conflitti
+di merge con `main` risolti; in attesa di review/merge di Dom su tutte le 6 card
+(TAL-53…TAL-58).
 
 ---
 
@@ -329,9 +332,6 @@ ricognizione manuale, non più sweepabili in automatico con i pattern esistenti.
 registro validato (308 righe).** Dettagli completi in
 [14-censimento-albi.md](docs/wiki/14-censimento-albi.md). Script di sweep/verifica non
 committati (one-off in scratchpad, stessa convenzione).
-
-**Prossimo passo:** PR #16 già aggiornata con questo commit, in attesa di review/merge
-di Dom. Poi considerare una ricognizione manuale sui 89 comuni residui.
 
 ---
 
