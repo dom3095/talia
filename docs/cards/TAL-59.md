@@ -165,3 +165,48 @@ aggiudicazione), non la sola presenza di una parola isolata.
 - 5 nuovi test sui casi reali che hanno motivato il filtro a frasi (censimento
   veicoli, procedura di revoca accoglienza, convenzione tra enti), oltre ai 3
   già scritti nel Tentativo 2. **611 test verdi (erano 606)**, ruff pulito.
+
+### 2026-08-13 — Tentativo 4
+**Approccio:** su richiesta di Dom ("crea un notebook critico in cui mi fai
+vedere la bontà delle modifiche"), costruito
+[`notebooks/tal59_verifica_critica.ipynb`](../../notebooks/tal59_verifica_critica.ipynb)
+(+ script generatore `tal59_build_notebook.py`, stesso pattern del notebook
+`copertura_scraper_sicilia.ipynb` già presente in repo): confronta dal vivo il
+codice pre/post fix sullo stesso `talia.db` reale (non sample sintetici),
+mostra per intero (non a campione) i procedimenti tolti e quelli rimasti, e
+— punto centrale — applica il filtro di dominio a un **campione casuale di 40
+procedimenti mai ispezionati durante lo sviluppo** (su una popolazione di 555),
+per verificare se generalizza o è overfit ai 9 casi noti di TAL-12.
+**Esito:** ✅ il fix regge, ma il campione cieco ha trovato 2 lacune reali,
+corrette nello stesso giro.
+**Appreso:**
+- Numero più severo del previsto: **67 → 8 procedimenti distinti (-88,1%)**,
+  non 23→10 come stimato a voce (quella stima copriva solo un sottoinsieme di
+  enti). Lettura integrale dei 59 tolti: 17 casi da un solo ente mai visto nei
+  9 campioni originari (Sant'Agata li Battiati — regolamenti, adesioni
+  societarie, piani di rientro), nessuno riconsiderabile.
+- **2 lacune trovate dal campione cieco, non dai casi noti**: (1)
+  `"REVOCA DELL'AFFIDAMENTO DISPOSTO..."` (Milazzo) — l'elisione `dell'`
+  lascia "disposto" come parola dopo "affidamento", non prevista dalla lista
+  originale (diretto/dei/del/della/delle); (2) `"AVVISO di selezione"` per una
+  progressione interna di carriera veniva escluso mentre lo stesso tipo di
+  atto altrove si chiamava `"BANDO di selezione"` (incluso) — stessa
+  fattispecie, parola diversa. Corrette estendendo la regex (`disposto`
+  aggiunto ai possibili seguiti di "affidamento", `avviso di selezione`
+  aggiunto come frase equivalente). **Verificato non regressivo su tutti i
+  555 procedimenti annullati/revocati** (non solo sui due casi noti): solo 5
+  cambiano classificazione, tutti nella direzione attesa (falso→vero), zero
+  nuovi falsi positivi.
+- Confermato con un controllo indipendente (CIG): solo 3/59 procedimenti tolti
+  avevano un CIG associato, e di questi solo **Adrano** è un caso
+  genuinamente perso (annullamento in autotutela di lavori di somma urgenza);
+  gli altri 2 hanno un CIG ma non descrivono una gara ripubblicata. Limite
+  dichiarato: la colonna `cig` non è sempre popolata anche quando il CIG è
+  scritto nel testo (San Gregorio di Catania, secondo caso perso, non
+  compare in questo conteggio per questo motivo).
+- Nessuna regressione sugli altri 4 red flag deterministici (girano puliti
+  sullo stesso DB). Numero di atti col tag `[annullato]` ancora da bonificare
+  (151/177) confermato in modo indipendente — coincide con la stima del
+  sotto-agente del Tentativo 1.
+- 2 nuovi test di regressione (elisione, avviso/bando equivalenti).
+  **613 test verdi (erano 611)**, ruff pulito.

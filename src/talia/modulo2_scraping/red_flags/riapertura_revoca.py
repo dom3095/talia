@@ -87,10 +87,21 @@ _RUOLI_CHIUSURA = ("revoca", "annullamento")
 # (adesione societaria) — nessuno di questi è un bando. Verificato sui 23 flag
 # residui reali dopo il primo giro di filtro: 7/23 (30%) restavano falsi
 # positivi proprio per questo. Sostituito con frasi (non singole parole):
-# "determina a contrarre", "affidamento diretto/dei/del/della/delle",
-# "procedura di gara/aperta/negoziata/ristretta" — che richiedono il contesto
-# giuridico specifico dell'atto di gara, non la sola presenza di una parola
-# genericamente burocratica.
+# "determina a contrarre", "affidamento diretto/dei/del/della/delle/disposto",
+# "procedura di gara/aperta/negoziata/ristretta", "avviso di selezione" — che
+# richiedono il contesto giuridico specifico dell'atto di gara, non la sola
+# presenza di una parola genericamente burocratica.
+#
+# Due lacune trovate verificando il filtro su un campione casuale MAI ispezionato
+# durante lo sviluppo (non solo sui casi noti, per stanare overfitting — vedi
+# notebooks/tal59_verifica_critica.ipynb, Prova 5/5b), corrette qui:
+# - "REVOCA DELL'AFFIDAMENTO DISPOSTO..." (Milazzo): l'elisione "dell'" davanti
+#   ad "affidamento" lascia "disposto" come parola successiva, non coperta dalla
+#   lista originale (diretto/dei/del/della/delle) — aggiunta "disposto".
+# - "AVVISO DI SELEZIONE" per una progressione interna di carriera (Palma di
+#   Montechiaro) veniva escluso mentre lo stesso tipo di atto altrove si chiamava
+#   "BANDO di selezione" (incluso) — stessa fattispecie, parola diversa scelta
+#   dall'ente. Aggiunta la frase "avviso di selezione" come equivalente.
 _RE_DOMINIO_GARA = re.compile(
     r"\b(?:"
     r"gar[ae]"
@@ -100,8 +111,9 @@ _RE_DOMINIO_GARA = re.compile(
     r"|capitolat\w*"
     r"|aggiudicazion\w*"
     r"|determina(?:zione)?\s+a\s+contra(?:rre|ttare)"
-    r"|affidament\w*\s+(?:diretto|dei|del|della|delle)"
+    r"|affidament\w*\s+(?:diretto|disposto|dei|del|della|delle)"
     r"|procedura\s+(?:di\s+gara|aperta|negoziata|ristretta)"
+    r"|avviso\s+di\s+selezione"
     r")\b",
     re.IGNORECASE,
 )

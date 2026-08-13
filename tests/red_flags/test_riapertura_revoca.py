@@ -69,6 +69,29 @@ class TestDominioGaraAppalti:
         )
         assert _e_dominio_gara_appalti(oggetto) is False
 
+    def test_affidamento_con_elisione_e_dominio(self):
+        # Caso reale (Milazzo), trovato verificando il filtro su un campione
+        # casuale mai ispezionato durante lo sviluppo (notebooks/
+        # tal59_verifica_critica.ipynb, Prova 5b): l'elisione "dell'" davanti
+        # ad "affidamento" lascia "disposto" come parola successiva, non
+        # coperta dalla lista originale (diretto/dei/del/della/delle).
+        oggetto = (
+            "Determinazione di revoca dell'affidamento disposto alla Officine "
+            "Metalliche Doppia C. S.r.l. con determinazione dirigenziale"
+        )
+        assert _e_dominio_gara_appalti(oggetto) is True
+
+    def test_avviso_di_selezione_equivalente_a_bando(self):
+        # Caso reale (Palma di Montechiaro vs Castel di Iudica): stessa
+        # fattispecie (progressione interna di carriera), un ente la chiama
+        # "avviso di selezione", un altro "bando di selezione" — devono
+        # rientrare entrambi nel dominio, non solo quello con la parola "bando".
+        oggetto = (
+            "Approvazione avviso di selezione e modello istanza per selezione "
+            "interna per progressione tra le aree"
+        )
+        assert _e_dominio_gara_appalti(oggetto) is True
+
 
 class TestTokenizeOggetto:
     """Test tokenizzazione e similarità Jaccard."""
