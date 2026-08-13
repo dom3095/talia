@@ -81,6 +81,22 @@ class TestDominioGaraAppalti:
         )
         assert _e_dominio_gara_appalti(oggetto) is True
 
+    def test_affidamento_minori_non_e_dominio_anche_se_disposto(self):
+        # Trovato in code review dopo aver aggiunto "disposto" ai seguiti
+        # accettati di "affidamento" (vedi test sopra): "affidamento" è anche
+        # il termine tecnico dell'affido di minori/probation, non solo
+        # l'aggiudicazione di un appalto — deve restare fuori dominio anche
+        # se la frase combacerebbe altrimenti con "affidamento disposto".
+        casi_da_escludere = [
+            "Revoca del provvedimento di affidamento disposto in favore dei "
+            "coniugi Bianchi con decreto del Tribunale per i Minorenni",
+            "Presa d'atto affidamento disposto dal Tribunale di Sorveglianza per l'imputato",
+            "Impegno di spesa per l'affidamento familiare di un minore con "
+            "provvedimento del Tribunale per i Minorenni",
+        ]
+        for oggetto in casi_da_escludere:
+            assert _e_dominio_gara_appalti(oggetto) is False, oggetto
+
     def test_avviso_di_selezione_equivalente_a_bando(self):
         # Caso reale (Palma di Montechiaro vs Castel di Iudica): stessa
         # fattispecie (progressione interna di carriera), un ente la chiama

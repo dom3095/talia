@@ -118,6 +118,28 @@ _RE_DOMINIO_GARA = re.compile(
     re.IGNORECASE,
 )
 
+# Guardia di esclusione categorica: "affidamento" in italiano è anche il
+# termine tecnico dell'affido di minori/probation (Tribunale per i Minorenni,
+# Tribunale di Sorveglianza), non solo l'aggiudicazione di un appalto. Trovato
+# in code review dopo aver aggiunto "disposto" ai seguiti accettati di
+# "affidamento" (TAL-59): frasi come "affidamento... disposto dal Tribunale
+# per i Minorenni" combaciano con la regex sopra pur non essendo mai un bando.
+# Verificato che oggi non genera falsi positivi reali (0 su 254 atti reali del
+# DB su minori/tribunale), ma la posta in gioco di un errore qui — una
+# segnalazione pubblica su un caso di affido di minori — è troppo alta per
+# lasciarlo alla sola assenza di casi osservati finora: esclusione categorica,
+# indipendente da qualunque altro match.
+_RE_ESCLUSIONE_MINORI_TUTELA = re.compile(
+    r"\b(?:"
+    r"tribunale\s+per\s+i\s+minorenni"
+    r"|tribunale\s+di\s+sorveglianza"
+    r"|affid[ao]\s+familiare"
+    r"|affidamento\s+familiare"
+    r"|affidamento\s+culturale"
+    r")\b",
+    re.IGNORECASE,
+)
+
 
 def _tokenize_oggetto(testo: str) -> set[str]:
     """Tokenizza un oggetto atto: minuscolo, rimuovi punteggiatura, stopword."""
@@ -138,6 +160,8 @@ def _e_dominio_gara_appalti(oggetto: str) -> bool:
     gara/concorso/bando).
     """
     if not oggetto:
+        return False
+    if _RE_ESCLUSIONE_MINORI_TUTELA.search(oggetto):
         return False
     return bool(_RE_DOMINIO_GARA.search(oggetto))
 

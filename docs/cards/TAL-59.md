@@ -210,3 +210,41 @@ corrette nello stesso giro.
   sotto-agente del Tentativo 1.
 - 2 nuovi test di regressione (elisione, avviso/bando equivalenti).
   **613 test verdi (erano 611)**, ruff pulito.
+
+### 2026-08-13 — Tentativo 5
+**Approccio:** su richiesta di Dom, lanciato `/code-review` sul diff prima di
+aprire la PR. Trovati 2 findings sul fix appena fatto (Tentativo 4).
+**Esito:** ✅ 1 finding reale e serio corretto, 1 finding minore accettato
+come trade-off documentato.
+**Appreso:**
+- **Finding 1 (grave, corretto)**: aggiungere "disposto" ai seguiti accettati
+  di "affidamento" riapre una collisione linguistica nota — in italiano
+  "affidamento" è anche il termine tecnico dell'affido di minori/probation
+  (Tribunale per i Minorenni, Tribunale di Sorveglianza), non solo
+  l'aggiudicazione di un appalto. Verificato empiricamente sul DB reale prima
+  di decidere come intervenire: **0 falsi positivi reali oggi** su 254 atti
+  del DB relativi a provvedimenti individuali di affido/collocamento di
+  minori (le frasi usate realmente dai comuni — "ricovero di minori con
+  provvedimento del Tribunale" — non collidono con la regex). Il rischio è
+  quindi teorico, non osservato — ma la posta in gioco (una segnalazione
+  pubblica su un caso di affido di minori) è troppo alta per lasciarlo alla
+  sola assenza di casi osservati finora (principio CLAUDE.md #4, privacy).
+  Aggiunta una guardia di esclusione categorica (`_RE_ESCLUSIONE_MINORI_TUTELA`):
+  se l'oggetto cita Tribunale per i Minorenni/di Sorveglianza o
+  affido/affidamento familiare/culturale, è escluso dal dominio
+  indipendentemente da qualunque altro match. Verificato che non silenzia
+  appalti legittimi: 13 atti che citano genericamente "famiglia/familiare"
+  restano correttamente in dominio (sono affidamenti di *servizi* di sostegno
+  socio-educativo alle famiglie — determina a contrarre + CIG — non
+  provvedimenti di affido individuale).
+- **Finding 2 (minore, accettato)**: "avviso di selezione" può includere
+  anche selezioni non concorsuali in senso stretto (es. nomina di un membro
+  del Nucleo di Valutazione). Verificato sul DB reale: **1 solo caso** del
+  genere su 367 match, nessun rischio di privacy (non riguarda persone
+  vulnerabili né terzi identificabili) — accettato come trade-off di
+  precisione, non un errore da correggere ora.
+- 3 nuovi test di regressione (2 casi di esclusione minori + 1 caso limite
+  "affidamento familiare"). **614 test verdi (erano 613)**, ruff pulito.
+  Notebook non riaggiornato in questo Tentativo (nessun impatto sui numeri
+  aggregati: 8 procedimenti distinti confermati invariati con la guardia
+  attiva).
