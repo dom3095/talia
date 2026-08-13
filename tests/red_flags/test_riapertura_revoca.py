@@ -7,10 +7,67 @@ import pytest
 from talia.engine.catena import _evolvi_schema
 from talia.modulo2_scraping.db import inizializza_db
 from talia.modulo2_scraping.red_flags.riapertura_revoca import (
+    _e_dominio_gara_appalti,
     _jaccard_similarity,
     _tokenize_oggetto,
     rileva_riapertura_dopo_revoca,
 )
+
+
+class TestDominioGaraAppalti:
+    """Test filtro di dominio (TAL-59).
+
+    Il filtro è a FRASI (non a singole parole): un primo tentativo su parole
+    isolate ("servizio", "procedura", "lavori") era troppo permissivo — vedi i
+    casi reali sotto, tutti trovati verificando i flag residui su `talia.db`
+    dopo il primo giro di filtro (7/23, 30%, restavano falsi positivi).
+    """
+
+    def test_bando_e_dominio(self):
+        assert _e_dominio_gara_appalti("BANDO ASSEGNAZIONE LOTTI ZES") is True
+
+    def test_affidamento_diretto_e_dominio(self):
+        assert _e_dominio_gara_appalti("Affidamento diretto servizio pulizie") is True
+
+    def test_determina_a_contrarre_e_dominio(self):
+        assert _e_dominio_gara_appalti("Determina a contrarre per l'indizione di gara") is True
+
+    def test_procedura_negoziata_e_dominio(self):
+        oggetto = "Avvio della procedura negoziata per l'affidamento dei lavori"
+        assert _e_dominio_gara_appalti(oggetto) is True
+
+    def test_contenzioso_non_e_dominio(self):
+        assert _e_dominio_gara_appalti("Ricorso al TAR per l'annullamento della sanzione") is False
+
+    def test_pianificazione_non_e_dominio(self):
+        assert _e_dominio_gara_appalti("Adozione della variante generale del PRG") is False
+
+    def test_lavoro_singolare_non_confuso_con_lavori_plurale(self):
+        # Caso reale (Caltanissetta): un contenzioso lavoristico non deve
+        # rientrare nel dominio solo per la parola "lavoro" (singolare).
+        oggetto = "Tribunale civile sezione lavoro - ricorso dipendente"
+        assert _e_dominio_gara_appalti(oggetto) is False
+
+    def test_parola_isolata_servizio_non_basta(self):
+        # Caso reale (Bompietro): "servizio" da solo, senza un contesto di
+        # affidamento/gara, non è dominio — qui è solo l'aggettivo di
+        # "autovetture di servizio" (veicoli aziendali), non un appalto.
+        assert _e_dominio_gara_appalti("Censimento delle autovetture di servizio 2026") is False
+
+    def test_parola_isolata_procedura_non_basta(self):
+        # Caso reale (Lercara Friddi): "procedura di revoca dell'accoglienza"
+        # in un progetto SAI/SIPROMI — non una procedura di gara.
+        oggetto = "Procedura di revoca dell'accoglienza del sig. Rossi nel progetto SAI"
+        assert _e_dominio_gara_appalti(oggetto) is False
+
+    def test_convenzione_tra_enti_non_e_dominio(self):
+        # Caso reale (Sant'Agata li Battiati): convenzioni/adesioni
+        # istituzionali che citano "servizi" solo nel nome dell'ente/ufficio.
+        oggetto = (
+            "Approvazione della convenzione per la gestione in forma associata "
+            "dei servizi e degli interventi sociali"
+        )
+        assert _e_dominio_gara_appalti(oggetto) is False
 
 
 class TestTokenizeOggetto:
@@ -322,6 +379,89 @@ class TestRilevaRiaperturaRivoca:
         assert r.data_riapertura == "2024-02-01"
         assert r.giorni_tra_revoca_e_riapertura == 22
         assert r.similarita_jaccard == 1.0
+
+    def test_falso_positivo_dominio_fuori_gara(self, db_test):
+        """TAL-59: procedimento fuori dominio (pianificazione urbanistica) non
+        deve generare un flag, anche con similarità Jaccard 1.0 e ruoli
+        annullamento/riapertura corretti — caso reale Comune di Alcamo (variante
+        PRG scambiata per bando revocato/riaperto)."""
+        ente_id = 5
+
+        sql = (
+            "INSERT INTO procedimenti "
+            "(id, ente_id, cig, oggetto, stato_finale, data_avvio, "
+            "data_chiusura, metodo_individuazione) "
+            "VALUES (3000, ?, NULL, 'Adozione della variante generale del PRG', "
+            "'annullato', '2025-08-07', '2025-08-07', 'contenimento_oggetto')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_pub, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'pianificazione', NULL, '2025-08-07', "
+            "'2025-08-07T00:00:00', 'http://test/atto1', 'annullamento', "
+            "'Adozione della variante generale del PRG', 3000, 'jcitygov')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_pub, data_accesso, "
+            "url_fonte, oggetto, fonte_scraper) VALUES (?, 'pianificazione', NULL, "
+            "'2025-08-08', '2025-08-08T00:00:00', 'http://test/atto2', "
+            "'Adozione della variante generale del PRG', 'jcitygov')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        db_test.commit()
+
+        risultati = rileva_riapertura_dopo_revoca(db_test)
+        assert [r for r in risultati if r.procedimento_revocato_id == 3000] == []
+
+    def test_dominio_gara_non_filtra_casi_validi(self, db_test):
+        """Il filtro di dominio non deve escludere i casi legittimi già coperti
+        dai test sopra — oggetto realistico (caso reale Ragusa, non una
+        parafrasi ridotta): la sola parola "lavori" non basta più a qualificare
+        il dominio da sola (era proprio la causa del falso positivo Giarre
+        "chiusura strada per lavori di manutenzione"), serve il contesto di
+        "determina a contrarre"/"procedura negoziata" come nel testo reale."""
+        ente_id = 6
+
+        sql = (
+            "INSERT INTO procedimenti "
+            "(id, ente_id, cig, oggetto, stato_finale, data_avvio, "
+            "data_chiusura, metodo_individuazione) "
+            "VALUES (3001, ?, NULL, "
+            "'Determina a contrarre e avvio della procedura negoziata per "
+            "l''affidamento dei lavori di adattamento ai cambiamenti climatici "
+            "in ambito urbano', "
+            "'annullato', '2022-07-11', '2022-07-27', 'cig')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, ruolo_in_catena, oggetto, procedimento_id, "
+            "fonte_scraper) VALUES (?, 'determina', '2022-07-27', "
+            "'2022-07-27T00:00:00', 'http://test/atto1', 'annullamento', "
+            "'Annullamento e sostituzione per aggiornamento progettuale', "
+            "3001, 'test')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        sql = (
+            "INSERT INTO atti (ente_id, tipo, data_atto, data_accesso, "
+            "url_fonte, oggetto, fonte_scraper) VALUES (?, 'determina', "
+            "'2022-10-24', '2022-10-24T00:00:00', 'http://test/atto2', "
+            "'Lavori di adattamento ai cambiamenti climatici in ambito urbano', "
+            "'test')"
+        )
+        db_test.execute(sql, (ente_id,))
+
+        db_test.commit()
+
+        risultati = rileva_riapertura_dopo_revoca(db_test)
+        assert len([r for r in risultati if r.procedimento_revocato_id == 3001]) == 1
 
     def test_nessuna_riapertura_se_no_procedure_revocate(self, db_test):
         """Se non ci sono procedure revocate, nessun flag."""

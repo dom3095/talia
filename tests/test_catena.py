@@ -93,6 +93,22 @@ def test_classifica_ruolo_solo_oggetto_senza_testo():
     assert classifica_ruolo(oggetto="AGGIUDICAZIONE DEFINITIVA SERVIZIO MENSA") == "aggiudicazione"
 
 
+def test_classifica_ruolo_ignora_tag_stato_pubblicazione():
+    # TAL-59: jCityGov (e altre piattaforme) anteponogono "[annullato] " quando
+    # una PUBBLICAZIONE viene ritirata/corretta — non è un annullamento
+    # sostanziale del procedimento. Caso reale: Comune di Alcamo, atto di
+    # pianificazione (PRG) ripubblicato il giorno dopo con lo stesso oggetto.
+    assert (
+        classifica_ruolo(oggetto="[annullato] ADOZIONE DELLA VARIANTE GENERALE DEL P.R.G.")
+        == "altro"
+    )
+    # Il tag non deve nascondere un ruolo genuino nel resto dell'oggetto
+    assert (
+        classifica_ruolo(oggetto="[annullato] AVVISO PUBBLICO MANIFESTAZIONE D'INTERESSE")
+        == "avvio"
+    )
+
+
 # ---------------------------------------------------------------------------
 # estrai_riferimenti
 # ---------------------------------------------------------------------------

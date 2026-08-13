@@ -98,6 +98,14 @@ _PATTERN_RUOLO: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
+# Tag di stato che alcune piattaforme (es. jCityGov) anteppongono a `oggetto`
+# quando una PUBBLICAZIONE viene ritirata/corretta sull'albo (es. "[annullato] ")
+# — è un metadato sullo stato della pubblicazione, non testo dell'atto: va
+# rimosso prima della classificazione, altrimenti "[annullato] BANDO X" viene
+# scambiato per un annullamento sostanziale del procedimento (TAL-59).
+_RE_TAG_STATO_PUBBLICAZIONE = re.compile(r"^\[[^\[\]]{1,30}\]\s*")
+
+
 def classifica_ruolo(testo: str = "", tipo_atto: str = "", oggetto: str = "") -> str:
     """Classifica il ruolo di un atto nella catena del procedimento.
 
@@ -112,7 +120,8 @@ def classifica_ruolo(testo: str = "", tipo_atto: str = "", oggetto: str = "") ->
     revoca / annullamento / altro.
     """
     # oggetto ha la precedenza perché è un riassunto conciso e privo di boilerplate
-    campione = (oggetto + " " + tipo_atto + " " + testo[:2000]).strip()
+    oggetto_pulito = _RE_TAG_STATO_PUBBLICAZIONE.sub("", oggetto)
+    campione = (oggetto_pulito + " " + tipo_atto + " " + testo[:2000]).strip()
     for ruolo, pattern in _PATTERN_RUOLO:
         if pattern.search(campione):
             return ruolo

@@ -76,6 +76,37 @@ _STOPWORD = {
 _RUOLI_CHIUSURA = ("revoca", "annullamento")
 
 
+# Dominio del red flag (TAL-48): "pattern di bando 'su misura' ripubblicato con
+# criteri aggiustati" — non contenziosi, delibere di giunta, pianificazione
+# urbanistica, ordinanze, convenzioni tra enti, ecc.
+#
+# Un primo tentativo su singole parole chiave ("servizio", "procedura", "lavori"
+# come token isolati) si è rivelato troppo permissivo: parole isolate come
+# "servizio" compaiono anche in "autovetture DI SERVIZIO" (censimento veicoli),
+# "servizi demografici" (nome di un ufficio), "servizio idrico integrato"
+# (adesione societaria) — nessuno di questi è un bando. Verificato sui 23 flag
+# residui reali dopo il primo giro di filtro: 7/23 (30%) restavano falsi
+# positivi proprio per questo. Sostituito con frasi (non singole parole):
+# "determina a contrarre", "affidamento diretto/dei/del/della/delle",
+# "procedura di gara/aperta/negoziata/ristretta" — che richiedono il contesto
+# giuridico specifico dell'atto di gara, non la sola presenza di una parola
+# genericamente burocratica.
+_RE_DOMINIO_GARA = re.compile(
+    r"\b(?:"
+    r"gar[ae]"
+    r"|appalt\w*"
+    r"|bando\w*"
+    r"|concors\w*"
+    r"|capitolat\w*"
+    r"|aggiudicazion\w*"
+    r"|determina(?:zione)?\s+a\s+contra(?:rre|ttare)"
+    r"|affidament\w*\s+(?:diretto|dei|del|della|delle)"
+    r"|procedura\s+(?:di\s+gara|aperta|negoziata|ristretta)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def _tokenize_oggetto(testo: str) -> set[str]:
     """Tokenizza un oggetto atto: minuscolo, rimuovi punteggiatura, stopword."""
     if not testo:
@@ -83,6 +114,20 @@ def _tokenize_oggetto(testo: str) -> set[str]:
     # Minuscolo, split su non-word, rimuovi stopword
     tokens = re.findall(r"\b\w+\b", testo.lower())
     return {t for t in tokens if t not in _STOPWORD and len(t) > 2}
+
+
+def _e_dominio_gara_appalti(oggetto: str) -> bool:
+    """Verifica se l'oggetto riguarda gare/appalti/concorsi (dominio del red flag).
+
+    Senza questo filtro il red flag si applicava a qualunque procedimento
+    revocato/annullato — contenziosi, delibere di giunta, pianificazione
+    urbanistica — non solo ai bandi per cui è stato progettato (TAL-59: 532/555
+    procedimenti annullati/revocati nel DB reale non avevano nessun atto di tipo
+    gara/concorso/bando).
+    """
+    if not oggetto:
+        return False
+    return bool(_RE_DOMINIO_GARA.search(oggetto))
 
 
 def _jaccard_similarity(set1: set[str], set2: set[str]) -> float:
@@ -179,6 +224,10 @@ def rileva_riapertura_dopo_revoca(
 
         tokens_rev = _tokenize_oggetto(oggetto_rev or "")
         if not tokens_rev:
+            continue
+
+        # Guardia di dominio: solo procedimenti di gara/appalto/concorso (TAL-59)
+        if not _e_dominio_gara_appalti(oggetto_rev or ""):
             continue
 
         # Guardia anti-periodicità: se l'oggetto è parte di routine ricorrente, skip

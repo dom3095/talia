@@ -1,16 +1,36 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-09 (branch `feat/TAL-53-nome-ruolo-graduatoria`, staccato da
-> `feat/sweep-comuni-mancanti`: check 6 arricchisce il messaggio col ruolo del firmatario
-> e incrocia la sovrapposizione con la tempistica della graduatoria (TAL-53); check 3
-> ora arricchisce il retrieval RAG coi riferimenti dei check già flaggati (TAL-54),
-> timeout LLM alzato 300s→900s e temperatura fissata a 0 per un giudizio riproducibile.
-> `/code-review` multi-agente lanciato su tutto il branch (17 findings consolidati); i
-> più rilevanti corretti nella stessa sessione, con 4 nuove card (TAL-55/56/57/58: log
-> silenziosi negli scraper, deduplicazione codice scraper, pulizia Modulo 1, dashboard).
-> 6 card in Review (TAL-53…TAL-58). PR #17 aperta; risolti i conflitti di merge con
-> `main` (assorbito PR #16 — sweep comuni, Pachino/Barrafranca, Nicosia — già confluito
-> qui in sviluppo, conflitti reali solo su HANDOFF.md/BOARD.md). 598 test verdi.)
+> Aggiornato: 2026-08-13 (branch `feat/TAL-59-fix-riapertura-falsi-positivi`, da
+> `main` dopo il merge di PR #17). Nuova card **TAL-59**: rileggendo i candidati
+> TAL-12, il sample 11 (63 PDF) si è rivelato non un bando revocato/riaperto ma
+> l'adozione della Variante Generale al P.R.G. di Alcamo — falso positivo del red
+> flag `riapertura_dopo_revoca`. Controllati tutti i 9 candidati TAL-12 contro
+> `talia.db` reale: **5 su 9 falsi positivi**, non solo il sample 11. Causa: (1)
+> `classifica_ruolo()` in `engine/catena.py` scambiava il tag `[annullato]` che
+> jCityGov antepone alle pubblicazioni ritirate/corrette per un annullamento
+> sostanziale; (2) `riapertura_revoca.py` non filtrava per dominio
+> gara/appalti/concorsi — 532/555 (95,9%) dei procedimenti annullati/revocati nel
+> DB reale non hanno nessun atto di tipo gara. Corretti entrambi (strip del tag +
+> filtro dominio con set di parole chiave, testato anche contro il caso limite
+> "lavoro" singolare/contenzioso vs "lavori" plurale/lavori pubblici). Verificato
+> dal vivo su `talia.db` reale (confronto codice originale vs. modificato sullo
+> stesso DB via `git stash`): **82→23 flag di riapertura_dopo_revoca (-72%)**.
+> Limite residuo documentato non corretto qui: la keyword "lavori" può ancora
+> includere ordinanze di chiusura strada per lavori di manutenzione (non un
+> bando) — bug 2b (Jaccard lega atti scorrelati anche in dominio) esplicitamente
+> fuori scope, da valutare come card separata. 8 nuovi test (606 verdi, erano
+> 598), ruff pulito. Nessun commit ancora — modifiche solo in working tree, in
+> attesa di conferma di Dom prima di committare/pushare (mai push diretto su
+> `main`). HANDOFF.md/BOARD.md allineati anche al merge di PR #17 (TAL-53…TAL-58,
+> 2026-08-09), che erano rimasti indietro.
+>
+> **Prossimi passi proposti** (nessuno scelto ancora, da confermare con Dom):
+> decidere se committare/pushare TAL-59 e aprire PR; rigenerare `data/samples/`
+> di TAL-12 scartando i 5 candidati falsi positivi appena trovati (3, 9, 10, 11,
+> 12); valutare se aprire una card per il bug 2b (Jaccard); poi TAL-12
+> (validazione umana ⚖️ LEX sui candidati validi rimasti — 6, 7, 8, più 13 da
+> verificare); TAL-3 (PDF scansionato campione); backlog P2/P3 (TAL-51, TAL-41,
+> TAL-24, TAL-52, TAL-40).
 
 ---
 
@@ -199,9 +219,8 @@ Dom "apri le card, ma sistemali in questo branch"), tutte corrette e testate:**
 `ReportFindings` nella conversazione) sono tutti o pre-esistenti a questa sessione o
 scelte di architettura deliberatamente rimandate, documentate nelle rispettive card.
 
-**Prossimo passo:** PR #17 aperta (https://github.com/dom3095/talia/pull/17), conflitti
-di merge con `main` risolti; in attesa di review/merge di Dom su tutte le 6 card
-(TAL-53…TAL-58).
+**Prossimo passo (superato, vedi banner in cima al file):** ~~PR #17 aperta, in attesa
+di review/merge~~ — mergiata il 2026-08-09.
 
 ---
 
