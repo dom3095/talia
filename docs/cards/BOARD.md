@@ -12,6 +12,9 @@ Ripulita la colonna Review (2026-07-25): 11 card verificate e spostate in Done, 
 lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, TAL-5
 associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria). I gap di TAL-5/TAL-9
 sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
+PR #17 (TAL-53…TAL-58: Modulo 1 nome↔ruolo/graduatoria + fix RAG/LLM, Modulo 2
+Pachino/Barrafranca, Modulo 3 tab Statistiche/Mappa) mergiata in `main` il 2026-08-09 —
+colonna Review aggiornata di conseguenza (2026-08-13).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -55,19 +58,20 @@ sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-53](TAL-53.md) | Check 6: associazione nome↔ruolo + incrocio tempistica graduatoria | 🔤 NLP | branch `feat/TAL-53-nome-ruolo-graduatoria`; implementazione completa (`graduatoria.py` + wiring in check6); 2 bug trovati da `/code-review` e corretti (Tentativo 3); 598 test verdi (erano 572) — PR #17 aperta, in attesa di review/merge |
-| [TAL-54](TAL-54.md) | Check 3: retrieval RAG cieco ai temi già individuati dai check deterministici | 🔤 NLP | stesso branch di TAL-53; scoperto girando check 3 con Ollama reale sul fascicolo 1 (GDPR mancava dal retrieval nonostante check-7 l'avesse già individuato); fix `_cerca_passaggi_rag()` + istruzione di grounding nel prompt + temperatura fissata a 0 (giudizio non riproducibile, trovato rilanciando il check) — PR #17 aperta, in attesa di review/merge |
-| [TAL-55](TAL-55.md) | Scraper: fallimenti silenziosi in serviziolinealbo.py | 🕷️ SCR | stesso branch; da `/code-review`; log WARNING su atto scartato/0 atti + test "pagina corrotta" — PR #17 aperta, in attesa di review/merge |
-| [TAL-56](TAL-56.md) | Scraper: consolidare _strip()/tabella tipi + retry hspromila | 🕷️ SCR | stesso branch; da `/code-review`; `strip_html()`/`TIPI_ATTO_DEFAULT` condivisi in `utils.py` (fix drift avviso/avvis), retry hspromila allargato — PR #17 aperta, in attesa di review/merge |
-| [TAL-57](TAL-57.md) | Modulo 1: pulizia minore (check3, RAG, graduatoria) | 🔤 NLP | stesso branch; da `/code-review`; fix truncamento motivazione, dedup offset citazioni, precompute BM25, costanti graduatoria unificate — PR #17 aperta, in attesa di review/merge |
-| [TAL-58](TAL-58.md) | Dashboard: query duplicate + pulizia minore | 📊 FE | stesso branch; da `/code-review`; query caricate una volta per tab, avviso privacy condiviso, verificato dal vivo con `AppTest` (0 eccezioni) — PR #17 aperta, in attesa di review/merge |
+| [TAL-59](TAL-59.md) | Falsi positivi in riapertura_dopo_revoca: tag "[annullato]" + dominio mancante | 🔤 NLP | branch `feat/TAL-59-fix-riapertura-falsi-positivi`; trovato rileggendo i candidati TAL-12 (sample 11 = variante PRG scambiata per bando); 2 fix (tag stato pubblicazione in `catena.py`, filtro dominio in `riapertura_revoca.py`); verificato dal vivo su `talia.db` reale: 82→23 flag (-72%); limite residuo noto (keyword "lavori" ambigua) documentato, non corretto; 606 test verdi (erano 598) |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
-| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | 🔤 NLP | senza spaCy (euristica deterministica); associazione nome↔ruolo chiusa da TAL-53 |
-| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | 🔤 NLP | incrocio con la tempistica della graduatoria chiuso da TAL-53 |
 
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| [TAL-53](TAL-53.md) | Check 6: associazione nome↔ruolo + incrocio tempistica graduatoria | PR #17 mergiata (2026-08-09); `graduatoria.py` + wiring in check6; 2 bug trovati da `/code-review` e corretti (Tentativo 3); 598 test verdi (erano 572) |
+| [TAL-54](TAL-54.md) | Check 3: retrieval RAG cieco ai temi già individuati dai check deterministici | PR #17 mergiata (2026-08-09); scoperto girando check 3 con Ollama reale sul fascicolo 1 (GDPR mancava dal retrieval nonostante check-7 l'avesse già individuato); fix `_cerca_passaggi_rag()` + istruzione di grounding nel prompt + temperatura fissata a 0 |
+| [TAL-55](TAL-55.md) | Scraper: fallimenti silenziosi in serviziolinealbo.py | PR #17 mergiata (2026-08-09); da `/code-review`; log WARNING su atto scartato/0 atti + test "pagina corrotta" |
+| [TAL-56](TAL-56.md) | Scraper: consolidare _strip()/tabella tipi + retry hspromila | PR #17 mergiata (2026-08-09); da `/code-review`; `strip_html()`/`TIPI_ATTO_DEFAULT` condivisi in `utils.py` (fix drift avviso/avvisi), retry hspromila allargato |
+| [TAL-57](TAL-57.md) | Modulo 1: pulizia minore (check3, RAG, graduatoria) | PR #17 mergiata (2026-08-09); da `/code-review`; fix troncamento motivazione, dedup offset citazioni, precompute BM25, costanti graduatoria unificate |
+| [TAL-58](TAL-58.md) | Dashboard: query duplicate + pulizia minore | PR #17 mergiata (2026-08-09); da `/code-review`; query caricate una volta per tab, avviso privacy condiviso, verificato dal vivo con `AppTest` (0 eccezioni) |
+| [TAL-5](TAL-5.md) | Estrazione firmatari + norme citate | senza spaCy (euristica deterministica); associazione nome↔ruolo chiusa da TAL-53, PR #17 mergiata (2026-08-09) |
+| [TAL-9](TAL-9.md) | Check 6: coerenza firmatari | incrocio con la tempistica della graduatoria chiuso da TAL-53, PR #17 mergiata (2026-08-09) |
 | — | Pachino/Barrafranca via Playwright (2026-08-06) | branch `feat/sweep-comuni-mancanti`; stessa piattaforma DevExpress di Agrigento, nuovo scraper generico `serviziolinealbo.py` (non fork di `agrigento.py`); +178 atti Pachino, +90 Barrafranca; entrambi `escluso_default` come Agrigento; Leonforte (Cloudflare) verificato ma non forzato di proposito; copertura 82,0%→83,0% (258 comuni, 85 mai censiti); 572 test verdi |
 | — | Esplorazione manuale 10 comuni residui più popolosi (2026-08-06) | branch `feat/sweep-comuni-mancanti`; 2 attivati (Aci Catena +1.000 atti su jCityGov esistente ma dominio proprio; Nicosia +12 atti, nuovo scraper dedicato WordPress `nicosia.py`, backend reale URBI non ancora supportato dal frontend nuovo), 8 approfonditi e rimandati (piattaforme diverse: JSF, ASP.NET DevExpress, URBI, Cloudflare, non identificate); copertura 81,0%→82,0% (256 comuni, 87 mai censiti); 556 test verdi |
 | — | Secondo sweep comuni residui (2026-08-06) | branch `feat/sweep-comuni-mancanti` (PR #16); 17 hit su 106 comuni mai censiti (9 Halley EG, 3 jCityGov, 3 portalepa, 1 HSPromila), 16 verificati con atti reali e attivati (+2.475 atti, +116.978 abitanti, copertura 79,0%→81,0%), 1 pending (Valguarnera Caropepe, 0 atti); bugfix critico: fingerprint jCityGov dava 106/106 falsi positivi (403 wildcard del vendor su qualsiasi sottodominio) — corretto richiedendo marker reale nel body; 545 test verdi |

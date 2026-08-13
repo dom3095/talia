@@ -76,6 +76,71 @@ _STOPWORD = {
 _RUOLI_CHIUSURA = ("revoca", "annullamento")
 
 
+# Dominio del red flag (TAL-48): "pattern di bando 'su misura' ripubblicato con
+# criteri aggiustati" — non contenziosi, delibere di giunta, pianificazione
+# urbanistica, ordinanze, convenzioni tra enti, ecc.
+#
+# Un primo tentativo su singole parole chiave ("servizio", "procedura", "lavori"
+# come token isolati) si è rivelato troppo permissivo: parole isolate come
+# "servizio" compaiono anche in "autovetture DI SERVIZIO" (censimento veicoli),
+# "servizi demografici" (nome di un ufficio), "servizio idrico integrato"
+# (adesione societaria) — nessuno di questi è un bando. Verificato sui 23 flag
+# residui reali dopo il primo giro di filtro: 7/23 (30%) restavano falsi
+# positivi proprio per questo. Sostituito con frasi (non singole parole):
+# "determina a contrarre", "affidamento diretto/dei/del/della/delle/disposto",
+# "procedura di gara/aperta/negoziata/ristretta", "avviso di selezione" — che
+# richiedono il contesto giuridico specifico dell'atto di gara, non la sola
+# presenza di una parola genericamente burocratica.
+#
+# Due lacune trovate verificando il filtro su un campione casuale MAI ispezionato
+# durante lo sviluppo (non solo sui casi noti, per stanare overfitting — vedi
+# notebooks/tal59_verifica_critica.ipynb, Prova 5/5b), corrette qui:
+# - "REVOCA DELL'AFFIDAMENTO DISPOSTO..." (Milazzo): l'elisione "dell'" davanti
+#   ad "affidamento" lascia "disposto" come parola successiva, non coperta dalla
+#   lista originale (diretto/dei/del/della/delle) — aggiunta "disposto".
+# - "AVVISO DI SELEZIONE" per una progressione interna di carriera (Palma di
+#   Montechiaro) veniva escluso mentre lo stesso tipo di atto altrove si chiamava
+#   "BANDO di selezione" (incluso) — stessa fattispecie, parola diversa scelta
+#   dall'ente. Aggiunta la frase "avviso di selezione" come equivalente.
+_RE_DOMINIO_GARA = re.compile(
+    r"\b(?:"
+    r"gar[ae]"
+    r"|appalt\w*"
+    r"|bando\w*"
+    r"|concors\w*"
+    r"|capitolat\w*"
+    r"|aggiudicazion\w*"
+    r"|determina(?:zione)?\s+a\s+contra(?:rre|ttare)"
+    r"|affidament\w*\s+(?:diretto|disposto|dei|del|della|delle)"
+    r"|procedura\s+(?:di\s+gara|aperta|negoziata|ristretta)"
+    r"|avviso\s+di\s+selezione"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Guardia di esclusione categorica: "affidamento" in italiano è anche il
+# termine tecnico dell'affido di minori/probation (Tribunale per i Minorenni,
+# Tribunale di Sorveglianza), non solo l'aggiudicazione di un appalto. Trovato
+# in code review dopo aver aggiunto "disposto" ai seguiti accettati di
+# "affidamento" (TAL-59): frasi come "affidamento... disposto dal Tribunale
+# per i Minorenni" combaciano con la regex sopra pur non essendo mai un bando.
+# Verificato che oggi non genera falsi positivi reali (0 su 254 atti reali del
+# DB su minori/tribunale), ma la posta in gioco di un errore qui — una
+# segnalazione pubblica su un caso di affido di minori — è troppo alta per
+# lasciarlo alla sola assenza di casi osservati finora: esclusione categorica,
+# indipendente da qualunque altro match.
+_RE_ESCLUSIONE_MINORI_TUTELA = re.compile(
+    r"\b(?:"
+    r"tribunale\s+per\s+i\s+minorenni"
+    r"|tribunale\s+di\s+sorveglianza"
+    r"|affid[ao]\s+familiare"
+    r"|affidamento\s+familiare"
+    r"|affidamento\s+culturale"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def _tokenize_oggetto(testo: str) -> set[str]:
     """Tokenizza un oggetto atto: minuscolo, rimuovi punteggiatura, stopword."""
     if not testo:
@@ -83,6 +148,22 @@ def _tokenize_oggetto(testo: str) -> set[str]:
     # Minuscolo, split su non-word, rimuovi stopword
     tokens = re.findall(r"\b\w+\b", testo.lower())
     return {t for t in tokens if t not in _STOPWORD and len(t) > 2}
+
+
+def _e_dominio_gara_appalti(oggetto: str) -> bool:
+    """Verifica se l'oggetto riguarda gare/appalti/concorsi (dominio del red flag).
+
+    Senza questo filtro il red flag si applicava a qualunque procedimento
+    revocato/annullato — contenziosi, delibere di giunta, pianificazione
+    urbanistica — non solo ai bandi per cui è stato progettato (TAL-59: 532/555
+    procedimenti annullati/revocati nel DB reale non avevano nessun atto di tipo
+    gara/concorso/bando).
+    """
+    if not oggetto:
+        return False
+    if _RE_ESCLUSIONE_MINORI_TUTELA.search(oggetto):
+        return False
+    return bool(_RE_DOMINIO_GARA.search(oggetto))
 
 
 def _jaccard_similarity(set1: set[str], set2: set[str]) -> float:
@@ -179,6 +260,10 @@ def rileva_riapertura_dopo_revoca(
 
         tokens_rev = _tokenize_oggetto(oggetto_rev or "")
         if not tokens_rev:
+            continue
+
+        # Guardia di dominio: solo procedimenti di gara/appalto/concorso (TAL-59)
+        if not _e_dominio_gara_appalti(oggetto_rev or ""):
             continue
 
         # Guardia anti-periodicità: se l'oggetto è parte di routine ricorrente, skip
