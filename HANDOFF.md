@@ -185,10 +185,37 @@
 > di URL, ma nemmeno deduplicazione automatica: un atto pubblicato oggi su
 > entrambe le sezioni creerebbe due righe distinte.
 >
-> **Prossimi passi** (da riprendere con Dom): decidere le due domande
-> bloccanti (dedup — con i numeri sopra, non più a intuito — e
-> download/persistenza) prima di collegare al run automatico; poi
-> verificare fattibilità Amministrazione Trasparente sulle piattaforme
+> **TAL-63 (P0) — Dom è tornato e ha rilanciato la domanda su jCityGov**:
+> "anche per jCity se clicco su un riferimento va su una pagina sballata",
+> con l'URL esatto di Acate già visto all'inizio del filone. Verificato con
+> Playwright (non solo curl): il formato `url_fonte` generato da
+> `_url_dettaglio()` — usato per **ogni** atto jCityGov, non solo
+> Amministrazione Trasparente — dà sempre errore server-side
+> ("Errore: contattare l'amministratore del Portale"), a sessione fredda e
+> con sessione attiva, confermato anche nell'HTML grezzo via curl puro (non
+> un problema di rendering JS) su due tenant diversi. Trovato il formato
+> vero cliccando davvero il bottone "Apri Dettaglio" nel portale:
+> `/-/papca/display/<id>?p_p_state=pop_up`, verificato a freddo.
+> `pdf_download.py` lo sapeva già (`_url_display_format`, usata per gli
+> allegati) ma come ottimizzazione, mai riportato a monte in
+> `_url_dettaglio()` — il link mostrato agli utenti è rimasto rotto.
+> **Corretto** (anche un bug collaterale: `papca_path` era hardcoded,
+> sbagliato per i 6 tenant TAL-49 con percorso alternativo). 643 test
+> verdi, committato e pushato (`5aac84d`).
+>
+> **Non ancora fatto — bloccante, serve conferma esplicita di Dom**: backfill
+> sugli **85.435 atti già in `talia.db`** con il vecchio formato non
+> funzionante. Il fix vale solo per i run futuri finché non si esegue la
+> migrazione (script non ancora scritto — estrarre `pub_id` da ogni
+> `url_fonte` esistente, ricostruire con `_url_dettaglio()`, backup del DB
+> prima come già fatto per TAL-61).
+>
+> **Prossimi passi** (da riprendere con Dom): decidere se/quando eseguire il
+> backfill TAL-63 (85k righe, DB reale — chiedere prima di procedere anche
+> con `caffeinate`/autonomia, per la scala della modifica); poi le due
+> domande bloccanti di TAL-62 (dedup — con i numeri già raccolti, non più a
+> intuito — e download/persistenza) prima di collegare al run automatico;
+> poi verificare fattibilità Amministrazione Trasparente sulle piattaforme
 > restanti (portalepa, catania, palermo, urbi, trapani, hspromila — 14%
 > dei dati). Poi, non ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui
 > candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
