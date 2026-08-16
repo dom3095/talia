@@ -112,12 +112,29 @@ concorso" attraverso più pagine (paginazione confermata), tutti con
 
 ## ❓ Domande aperte (bloccanti prima della messa in produzione)
 
-- [ ] **Deduplicazione con l'Albo Pretorio**: un bando pubblicato sull'Albo probabilmente
-  compare anche in Amministrazione Trasparente (stesso atto, due URL diversi,
-  `UNIQUE(ente_id, url_fonte)` non lo intercetta). Impatto su `engine/catena.py` (rischio
-  di procedimenti duplicati/doppi conteggi nei red flag) — imparentato con TAL-52
-  (dedup atti tra scraper ridondanti), stesso problema concettuale ma dentro la stessa
-  piattaforma invece che tra piattaforme diverse. **Non ancora deciso come gestirlo.**
+- [ ] **Deduplicazione con l'Albo Pretorio** — **quantificata dal vivo, non ancora
+  decisa**. Il profilo è opposto tra le due piattaforme, non un problema unico:
+  - **jCityGov**: Amministrazione Trasparente e Albo Pretorio condividono lo stesso
+    backend "igrid" (vedi Tentativo 1) — `_url_dettaglio()` genera lo **stesso
+    `url_fonte`** indipendentemente dal percorso di scoperta. Verificato su Ragusa:
+    **80/80 atti (100%) di "Bandi di concorso" già presenti in `talia.db`** (stesso
+    `url_fonte` esatto), range date 07/2025-07/2026. La deduplicazione qui è **già
+    gratuita** grazie a `UNIQUE(ente_id, url_fonte)` — ma ha un effetto collaterale
+    da decidere: se l'atto esiste già con `fonte_scraper="jcitygov"`, la riga
+    `"jcitygov_trasparenza"` non verrebbe mai scritta (`inserisci_atto` verificato
+    come insert-if-not-exists, non upsert) — l'informazione "questo atto ha
+    ritenzione lunga" andrebbe persa in silenzio per gli atti già noti.
+  - **Halley**: applicazione separata (Zend Framework), nessuna sovrapposizione di
+    URL possibile per costruzione. Verificato su Aci Bonaccorsi: **0/50 atti (0%)**
+    di "Bandi di concorso" già presenti in `talia.db`, né per `url_fonte` né per
+    oggetto normalizzato (range date 07/2024-12/2025, in parte precedente alla
+    finestra tipicamente coperta dall'Albo Pretorio). Qui la deduplicazione **non è
+    gratuita** e serve un criterio esplicito (probabile falso "0% duplicati" solo
+    perché le finestre temporali non si sovrappongono ancora — un atto pubblicato
+    oggi sull'Albo **e** su Amministrazione Trasparente lo stesso giorno
+    creerebbe comunque due righe distinte) — imparentato con TAL-52 (dedup atti
+    tra scraper ridondanti), stesso problema concettuale ma dentro la stessa
+    piattaforma invece che tra piattaforme diverse.
 - [ ] **Download/persistenza del documento**: la discussione che ha originato questa
   card aveva anche sollevato se scaricare/estrarre il testo (non solo l'URL) per gli
   atti citati nei red flag. Non ancora affrontato — `testo_estratto`/`hash_sha256`

@@ -165,18 +165,35 @@
 > sono testate e verificate dal vivo, ma non fanno ancora parte del run
 > automatico — deliberato, in attesa delle due decisioni sopra.
 >
-> **Non ancora committato** questo checkpoint (TAL-62) — codice pronto,
-> working tree pulito da errori (test+lint verdi), ma il commit va ancora
-> fatto.
+> **TAL-62 committato e pushato** (`6666445`), stesso branch.
 >
-> **Prossimi passi** (da riprendere con Dom): commit+push di TAL-62; poi
-> decidere le due domande bloccanti sopra (dedup, download/persistenza)
-> prima di collegare al run automatico; poi verificare fattibilità
-> Amministrazione Trasparente sulle piattaforme restanti (portalepa,
-> catania, palermo, urbi, trapani, hspromila — 14% dei dati). Poi, non
-> ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui candidati rimasti —
-> 6, 7, 8, più 13 da verificare); rigenerare `data/samples/` di TAL-12
-> scartando i candidati falsi positivi individuati da TAL-59 (3, 9, 10, 11,
+> **Quantificata dal vivo la deduplicazione con l'Albo Pretorio** (lavoro
+> autonomo dopo che Dom è uscito, con `caffeinate`), per dare numeri reali
+> alla discussione invece di procedere a intuito — dettaglio completo in
+> [TAL-62](docs/cards/TAL-62.md#-domande-aperte-bloccanti-prima-della-messa-in-produzione):
+> il profilo è **opposto tra le due piattaforme**, non un problema unico.
+> **jCityGov** (Ragusa): 80/80 atti (100%) di "Bandi di concorso" già
+> presenti in `talia.db` con lo **stesso `url_fonte` esatto** — stesso
+> backend "igrid" di Albo Pretorio, la deduplicazione è già gratuita via
+> `UNIQUE(ente_id, url_fonte)`, ma con un effetto collaterale da decidere:
+> se l'atto esiste già come `fonte_scraper="jcitygov"`, la versione
+> `"jcitygov_trasparenza"` non verrebbe mai scritta (`inserisci_atto` è
+> insert-if-not-exists, non upsert) — l'informazione "ritenzione lunga"
+> andrebbe persa in silenzio per gli atti già noti. **Halley** (Aci
+> Bonaccorsi): 0/50 atti (0%) già presenti, né per URL né per oggetto
+> normalizzato — applicazione separata, nessuna sovrapposizione strutturale
+> di URL, ma nemmeno deduplicazione automatica: un atto pubblicato oggi su
+> entrambe le sezioni creerebbe due righe distinte.
+>
+> **Prossimi passi** (da riprendere con Dom): decidere le due domande
+> bloccanti (dedup — con i numeri sopra, non più a intuito — e
+> download/persistenza) prima di collegare al run automatico; poi
+> verificare fattibilità Amministrazione Trasparente sulle piattaforme
+> restanti (portalepa, catania, palermo, urbi, trapani, hspromila — 14%
+> dei dati). Poi, non ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui
+> candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
+> `data/samples/` di TAL-12 scartando i candidati falsi positivi
+> individuati da TAL-59 (3, 9, 10, 11,
 > 12); bug 2b (Jaccard, noto da TAL-59); TAL-3 (PDF scansionato campione);
 > backlog P2/P3 (TAL-51, TAL-41, TAL-24, TAL-52, TAL-40).
 
