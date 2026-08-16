@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P0 (esplicabilità — principio 1 CLAUDE.md, non negoziabile)
-- **Stato:** In Progress (codice corretto, backfill sul DB reale non ancora eseguito)
+- **Stato:** Done (codice corretto, backfill completo eseguito e verificato sul DB reale)
 - **Branch:** `feat/TAL-60-streamlit-modulo1`
 
 ## 🎯 Obiettivo
@@ -92,23 +92,31 @@ basta correggere `atti.url_fonte` — va corretto **anche** `red_flags.atti_cig`
 per ogni voce che referenzia un atto jCityGov (631 red flags totali nel DB, non
 ancora contato quanti abbiano voci jCityGov da correggere).
 
-## ❓ Non ancora fatto (bloccante prima di poter dire "risolto")
+## 🔬 Tentativo 3 — backfill completo (85.394 atti + 341 red flags)
 
-- [x] **Acate (41 atti + 1 red flag), come prova**: fatto, verificato dal vivo — vedi
-  Tentativo 2.
-- [ ] **Backfill completo su `talia.db` reale**: 85.435 atti `fonte_scraper='jcitygov'`
-  hanno oggi un `url_fonte` nel vecchio formato non funzionante, **più** un numero
-  non ancora contato di voci in `red_flags.atti_cig` (copia denormalizzata,
-  scoperta nel Tentativo 2 — senza correggere anche questa, la dashboard mostra
-  ancora i link rotti anche dopo aver sistemato `atti`). Il codice corretto vale
-  solo per i **prossimi** run scraper — gli atti già scritti restano rotti finché
-  non si riscrivono entrambe le tabelle. Script di migrazione non ancora scritto
-  in forma definitiva (la versione usata su Acate era uno script una tantum) —
-  **non ancora eseguito su tutto il DB, in attesa di conferma esplicita di Dom**
-  prima di una modifica così ampia (85k righe + red_flags), anche con backup
-  preventivo (stesso schema già usato per Acate).
-- [ ] Verificare se lo stesso bug esiste su altre piattaforme con un meccanismo di
-  dettaglio simile (nessun segnale per ora, ma non controllato sistematicamente).
+**Approccio:** stesso script di Acate, esteso a tutto `talia.db` (backup preso
+prima: `talia.db.bak-pre-backfill-tal63-completo-20260816`). Due passate:
+1. `atti`: 85.394 righe con `fonte_scraper='jcitygov'` e URL nel vecchio formato
+   (85.435 totali − 41 già corrette su Acate) — tutte matchate dalla regex ed
+   aggiornate, **0 righe con formato inatteso**.
+2. `red_flags.atti_cig`: 2024 voci totali che referenziano un atto jCityGov,
+   trovate in 341 red flags distinti — 2019 aggiornate (5 già corrette su Acate).
+
+**Esito:** ✅
+**Appreso:** verificato con Playwright su due campioni casuali indipendenti — 8
+atti da 8 comuni diversi (Rometta, Palma di Montechiaro, Augusta, Modica,
+Gravina di Catania, Nicolosi, Ragusa, Giarre) presi da `atti.url_fonte`, e 6 URL
+casuali presi direttamente da `red_flags.atti_cig`: **14/14 funzionanti**. Il
+fix generalizza correttamente oltre ai due tenant già testati (Ragusa, Acate) a
+tutta la piattaforma.
+
+**Verificato anche Halley** prima di procedere con questo backfill, su
+richiesta di Dom: **nessun bug analogo**. L'Albo Pretorio (`mc_p_dettaglio.php`)
+mostra correttamente la pagina di dettaglio; Amministrazione Trasparente
+(`visualizza-documento-generico`) non è una pagina HTML ma un download diretto
+del PDF originale (`Content-Type: application/pdf`, verificato negli header
+HTTP) — comportamento corretto, non un errore (Playwright lo segnala come
+eccezione "Download is starting", non un fallimento del link).
 
 ## 📝 Note
 
@@ -118,3 +126,7 @@ solo reso più visibile perché usava la stessa funzione `_url_dettaglio()`. Int
 la piattaforma più grande del progetto (85.435 atti, più di tutte le altre insieme)
 — è l'esplicabilità del principio 1 di CLAUDE.md che non ha mai funzionato per
 questa fetta di dati, non solo un dettaglio tecnico.
+
+Non ancora fatto: verificare se lo stesso bug esiste sulle altre piattaforme oltre
+Halley (già controllata, pulita) con un meccanismo di dettaglio simile — non
+controllato sistematicamente.
