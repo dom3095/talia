@@ -210,15 +210,26 @@
 > `url_fonte` esistente, ricostruire con `_url_dettaglio()`, backup del DB
 > prima come già fatto per TAL-61).
 >
-> **Prossimi passi** (da riprendere con Dom): decidere se/quando eseguire il
-> backfill TAL-63 (85k righe, DB reale — chiedere prima di procedere anche
-> con `caffeinate`/autonomia, per la scala della modifica); poi le due
-> domande bloccanti di TAL-62 (dedup — con i numeri già raccolti, non più a
-> intuito — e download/persistenza) prima di collegare al run automatico;
-> poi verificare fattibilità Amministrazione Trasparente sulle piattaforme
-> restanti (portalepa, catania, palermo, urbi, trapani, hspromila — 14%
-> dei dati). Poi, non ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui
-> candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
+> **TAL-63 chiusa** (Dom, di ritorno: "sì, procedi"). Backfill di prova su
+> Acate prima (41 atti): ha rivelato che la dashboard non legge i link da
+> `atti.url_fonte` ma da `red_flags.atti_cig`, una copia JSON denormalizzata
+> mai sincronizzata — corretta anche quella. Prima di estendere a tutto il
+> DB, controllata anche **Halley** su richiesta di Dom: nessun bug analogo
+> (Albo Pretorio ok; Amministrazione Trasparente scarica il PDF diretto,
+> comportamento corretto). Backfill completo eseguito: **85.394 atti** +
+> **2019 voci in 341 `red_flags.atti_cig`** corrette, verificate con
+> Playwright su due campioni casuali indipendenti (14/14 funzionanti).
+> Backup preso prima (`talia.db.bak-pre-backfill-tal63-completo-20260816`).
+> 643 test verdi, tutto committato e pushato (`bf41fe9`).
+>
+> **Prossimi passi** (da riprendere con Dom): le due domande bloccanti di
+> TAL-62 (dedup — con i numeri già raccolti, non più a intuito — e
+> download/persistenza) prima di collegare Amministrazione Trasparente al
+> run automatico; poi verificare fattibilità Amministrazione Trasparente
+> sulle piattaforme restanti (portalepa, catania, palermo, urbi, trapani,
+> hspromila — 14% dei dati) e se il bug TAL-63 esiste anche lì (Halley già
+> controllata, pulita). Poi, non ancora ripreso: TAL-12 (validazione umana
+> ⚖️ LEX sui candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
 > `data/samples/` di TAL-12 scartando i candidati falsi positivi
 > individuati da TAL-59 (3, 9, 10, 11,
 > 12); bug 2b (Jaccard, noto da TAL-59); TAL-3 (PDF scansionato campione);
