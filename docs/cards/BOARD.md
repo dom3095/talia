@@ -13,8 +13,9 @@ lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, T
 associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria). I gap di TAL-5/TAL-9
 sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
 PR #17 (TAL-53…TAL-58: Modulo 1 nome↔ruolo/graduatoria + fix RAG/LLM, Modulo 2
-Pachino/Barrafranca, Modulo 3 tab Statistiche/Mappa) mergiata in `main` il 2026-08-09 —
-colonna Review aggiornata di conseguenza (2026-08-13).
+Pachino/Barrafranca, Modulo 3 tab Statistiche/Mappa) mergiata in `main` il 2026-08-09.
+PR #18 (TAL-59: falsi positivi in riapertura_dopo_revoca) mergiata il 2026-08-13 — colonna
+Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 2026-08-16.
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -58,12 +59,13 @@ colonna Review aggiornata di conseguenza (2026-08-13).
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-59](TAL-59.md) | Falsi positivi in riapertura_dopo_revoca: tag "[annullato]" + dominio mancante | 🔤 NLP | branch `feat/TAL-59-fix-riapertura-falsi-positivi`; trovato rileggendo i candidati TAL-12 (sample 11 = variante PRG scambiata per bando); 2 fix (tag stato pubblicazione in `catena.py`, filtro dominio in `riapertura_revoca.py`); verificato dal vivo su `talia.db` reale: 82→23 flag (-72%); limite residuo noto (keyword "lavori" ambigua) documentato, non corretto; 606 test verdi (erano 598) |
+| [TAL-60](TAL-60.md) | UI Streamlit per Modulo 1 (tab "Analisi fascicolo") | 📊 FE | branch `feat/TAL-60-streamlit-modulo1`; nuovo tab nella dashboard esistente, upload PDF/txt → report via `analizza_testi`, nessuna persistenza; bug reale trovato solo con `AppTest.from_file` (import relativi rotti in modalità `streamlit run`, i test pytest non lo intercettavano) e corretto; drive-by: rimossa doppia esecuzione di tab Statistiche/Mappa in `main()`; 617 test verdi (erano 614) |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
 
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| [TAL-59](TAL-59.md) | Falsi positivi in riapertura_dopo_revoca: tag "[annullato]" + dominio mancante | PR #18 mergiata (2026-08-13); 3 commit (fix dominio a frasi, verifica critica su campione casuale di 40 procedimenti mai ispezionati, guardia minori/tutela da code review); verificato dal vivo su `talia.db` reale: 82→23→10→8 flag; 614 test verdi (erano 598) |
 | [TAL-53](TAL-53.md) | Check 6: associazione nome↔ruolo + incrocio tempistica graduatoria | PR #17 mergiata (2026-08-09); `graduatoria.py` + wiring in check6; 2 bug trovati da `/code-review` e corretti (Tentativo 3); 598 test verdi (erano 572) |
 | [TAL-54](TAL-54.md) | Check 3: retrieval RAG cieco ai temi già individuati dai check deterministici | PR #17 mergiata (2026-08-09); scoperto girando check 3 con Ollama reale sul fascicolo 1 (GDPR mancava dal retrieval nonostante check-7 l'avesse già individuato); fix `_cerca_passaggi_rag()` + istruzione di grounding nel prompt + temperatura fissata a 0 |
 | [TAL-55](TAL-55.md) | Scraper: fallimenti silenziosi in serviziolinealbo.py | PR #17 mergiata (2026-08-09); da `/code-review`; log WARNING su atto scartato/0 atti + test "pagina corrotta" |

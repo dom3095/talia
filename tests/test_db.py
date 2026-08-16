@@ -326,6 +326,66 @@ def test_sincronizza_enti_da_registro_include_bloccato_e_pending(db):
 
 
 # ---------------------------------------------------------------------------
+# sincronizza_enti_da_registro — provincia/popolazione da comuni_sicilia.csv
+#
+# Bug reale (2026-08-16, segnalato da Dom guardando la tab Panoramica): il
+# registro (data/registro_scraper.csv) ha provincia vuota per la quasi
+# totalità delle righe e non ha mai avuto popolazione — prima di questo fix
+# 307/307 enti in talia.db avevano popolazione NULL e 192/307 provincia NULL,
+# inclusi capoluoghi come Ragusa. Il riferimento anagrafico esisteva già
+# (data/comuni_sicilia.csv, usato solo dalla tab Mappa) ma non era mai stato
+# incrociato con `enti`.
+# ---------------------------------------------------------------------------
+
+
+def _scrivi_csv_comuni(tmp_path, righe):
+    percorso = tmp_path / "comuni_sicilia.csv"
+    contenuto = "denominazione,provincia,codice_istat,popolazione\n"
+    contenuto += "\n".join(f"{d},{p},{c},{pop}" for d, p, c, pop in righe)
+    percorso.write_text(contenuto, encoding="utf-8")
+    return percorso
+
+
+def test_sincronizza_enti_completa_provincia_e_popolazione_da_riferimento(db, tmp_path):
+    csv_comuni = _scrivi_csv_comuni(tmp_path, [("Vittoria", "RG", "088012", "61006")])
+    entries = [_entry_registro(provincia=None)]  # il registro non la fornisce
+
+    sincronizza_enti_da_registro(db, entries, comuni_sicilia_path=csv_comuni)
+
+    row = db.execute(
+        "SELECT provincia, popolazione FROM enti WHERE codice_istat='088012'"
+    ).fetchone()
+    assert row["provincia"] == "RG"
+    assert row["popolazione"] == 61006
+
+
+def test_sincronizza_enti_provincia_del_registro_ha_priorita(db, tmp_path):
+    # Il riferimento anagrafico non deve mai contraddire una provincia più
+    # specifica già fornita dal registro (es. impostata da uno scraper
+    # monocomune) — resta comunque solo un fallback per i campi mancanti.
+    csv_comuni = _scrivi_csv_comuni(tmp_path, [("Vittoria", "RG", "088012", "61006")])
+    entries = [_entry_registro(provincia="ALTRO")]
+
+    sincronizza_enti_da_registro(db, entries, comuni_sicilia_path=csv_comuni)
+
+    row = db.execute("SELECT provincia FROM enti WHERE codice_istat='088012'").fetchone()
+    assert row["provincia"] == "ALTRO"
+
+
+def test_sincronizza_enti_senza_riferimento_lascia_popolazione_nulla(db, tmp_path):
+    # Comune assente dal riferimento anagrafico (es. path sbagliata o comune
+    # non censito nel CSV): nessun crash, solo nessun completamento.
+    csv_comuni = _scrivi_csv_comuni(tmp_path, [("Altro Comune", "PA", "999999", "1000")])
+    entries = [_entry_registro()]
+
+    n = sincronizza_enti_da_registro(db, entries, comuni_sicilia_path=csv_comuni)
+
+    assert n == 1
+    row = db.execute("SELECT popolazione FROM enti WHERE codice_istat='088012'").fetchone()
+    assert row["popolazione"] is None
+
+
+# ---------------------------------------------------------------------------
 # Atti
 # ---------------------------------------------------------------------------
 

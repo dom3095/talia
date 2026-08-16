@@ -1,36 +1,59 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-13 (branch `feat/TAL-59-fix-riapertura-falsi-positivi`, da
-> `main` dopo il merge di PR #17). Nuova card **TAL-59**: rileggendo i candidati
-> TAL-12, il sample 11 (63 PDF) si è rivelato non un bando revocato/riaperto ma
-> l'adozione della Variante Generale al P.R.G. di Alcamo — falso positivo del red
-> flag `riapertura_dopo_revoca`. Controllati tutti i 9 candidati TAL-12 contro
-> `talia.db` reale: **5 su 9 falsi positivi**, non solo il sample 11. Causa: (1)
-> `classifica_ruolo()` in `engine/catena.py` scambiava il tag `[annullato]` che
-> jCityGov antepone alle pubblicazioni ritirate/corrette per un annullamento
-> sostanziale; (2) `riapertura_revoca.py` non filtrava per dominio
-> gara/appalti/concorsi — 532/555 (95,9%) dei procedimenti annullati/revocati nel
-> DB reale non hanno nessun atto di tipo gara. Corretti entrambi (strip del tag +
-> filtro dominio con set di parole chiave, testato anche contro il caso limite
-> "lavoro" singolare/contenzioso vs "lavori" plurale/lavori pubblici). Verificato
-> dal vivo su `talia.db` reale (confronto codice originale vs. modificato sullo
-> stesso DB via `git stash`): **82→23 flag di riapertura_dopo_revoca (-72%)**.
-> Limite residuo documentato non corretto qui: la keyword "lavori" può ancora
-> includere ordinanze di chiusura strada per lavori di manutenzione (non un
-> bando) — bug 2b (Jaccard lega atti scorrelati anche in dominio) esplicitamente
-> fuori scope, da valutare come card separata. 8 nuovi test (606 verdi, erano
-> 598), ruff pulito. Nessun commit ancora — modifiche solo in working tree, in
-> attesa di conferma di Dom prima di committare/pushare (mai push diretto su
-> `main`). HANDOFF.md/BOARD.md allineati anche al merge di PR #17 (TAL-53…TAL-58,
-> 2026-08-09), che erano rimasti indietro.
+> Aggiornato: 2026-08-16 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
+>
+> **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun
+> commit ancora, in attesa di conferma"):** verificando lo stato reale del repo
+> a inizio sessione è emerso che TAL-59 era in realtà già stato completato,
+> committato (3 commit, non 1: il fix iniziale + una verifica critica su un
+> campione casuale di 40 procedimenti mai ispezionati, che ha trovato 2 lacune
+> reali nella prima regex + una guardia minori/tutela da code review) e
+> **mergiato in `main` come PR #18 il 2026-08-13** — questo HANDOFF non era mai
+> stato aggiornato dopo quel merge. Nessun contenuto perso: solo la
+> documentazione era rimasta indietro rispetto ai commit reali. BOARD.md
+> corretto di conseguenza (TAL-59 spostata da Review a Done).
+>
+> **Nuova card TAL-60** (stessa sessione, su richiesta di Dom dopo aver
+> discusso cosa manca per un MVP/PoC dimostrabile di Modulo 1): tab "📁 Analisi
+> fascicolo" nella dashboard Streamlit esistente (Modulo 3) — upload PDF/txt,
+> analisi via il motore esistente (`analizza_testi`), nessuna persistenza dei
+> file caricati. Decisioni prese in conversazione: solo uso locale (non pensata
+> per hosting pubblico — riaprirebbe il tema privacy, dati nominativi nei
+> fascicoli reali), tab nella dashboard già esistente invece di un'app separata
+> (riusa Streamlit già presente come dipendenza del Modulo 3). Riconcilia
+> esplicitamente la decisione precedente di TAL-10 ("niente Streamlit per il
+> Modulo 1"): quella riguardava il formato del report (resta HTML/JSON), questo
+> è un front-end opzionale in più, non una sostituzione.
+>
+> **Bug reale trovato solo con un run live**, non dai test pytest: gli import
+> relativi (`from ..engine...`) nelle nuove funzioni fallivano in modalità
+> `streamlit run src/talia/modulo3_dashboard/app.py` (script standalone, nessun
+> contesto di pacchetto) — `attempted relative import with no known parent
+> package`. I test pytest non lo intercettavano perché importano il modulo
+> come parte del pacchetto `talia`, dove gli stessi import funzionano.
+> Individuato con `streamlit.testing.v1.AppTest.from_file(...)` (che replica
+> l'avvio reale) + upload simulato + click sul bottone "Analizza": 0 eccezioni
+> dopo il fix (import assoluti). Dettaglio in [TAL-60](docs/cards/TAL-60.md),
+> Tentativo 1.
+>
+> **Bug collaterale corretto** (pre-esistente, non introdotto in questa
+> sessione): `main()` in `app.py` renderizzava le tab Statistiche e Mappa due
+> volte ciascuna (blocco duplicato dopo il merge di PR #17) — doppie query DB
+> ad ogni rerun. Rimossa la duplicazione.
+>
+> **617 test verdi (erano 614), ruff pulito.** Non ancora committato — modifiche
+> in working tree sul branch `feat/TAL-60-streamlit-modulo1`, in attesa di
+> conferma di Dom prima di committare/pushare/aprire PR.
 >
 > **Prossimi passi proposti** (nessuno scelto ancora, da confermare con Dom):
-> decidere se committare/pushare TAL-59 e aprire PR; rigenerare `data/samples/`
-> di TAL-12 scartando i 5 candidati falsi positivi appena trovati (3, 9, 10, 11,
-> 12); valutare se aprire una card per il bug 2b (Jaccard); poi TAL-12
-> (validazione umana ⚖️ LEX sui candidati validi rimasti — 6, 7, 8, più 13 da
-> verificare); TAL-3 (PDF scansionato campione); backlog P2/P3 (TAL-51, TAL-41,
-> TAL-24, TAL-52, TAL-40).
+> committare/pushare TAL-60 e aprire PR; poi TAL-12 (validazione umana ⚖️ LEX
+> sui candidati rimasti — 6, 7, 8, più 13 da verificare — è il gap più
+> importante rimasto prima di poter dire che il Modulo 1 è validato, non solo
+> testato); rigenerare `data/samples/` di TAL-12 scartando i candidati falsi
+> positivi individuati da TAL-59 (3, 9, 10, 11, 12); valutare se aprire una card
+> per il bug 2b (Jaccard lega atti scorrelati anche in dominio, noto da TAL-59);
+> TAL-3 (PDF scansionato campione); backlog P2/P3 (TAL-51, TAL-41, TAL-24,
+> TAL-52, TAL-40).
 
 ---
 

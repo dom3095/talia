@@ -45,6 +45,35 @@ def _percorso_default() -> Path:
     return Path(__file__).resolve().parents[3] / "data" / "registro_scraper.csv"
 
 
+def _percorso_comuni_sicilia() -> Path:
+    """Risolve il path assoluto di data/comuni_sicilia.csv dalla repo root."""
+    return Path(__file__).resolve().parents[3] / "data" / "comuni_sicilia.csv"
+
+
+def _carica_comuni_sicilia(percorso: Path) -> dict[str, tuple[str | None, int | None]]:
+    """Provincia e popolazione per codice ISTAT, dal riferimento statico dei 391 comuni.
+
+    Fonte anagrafica separata dal registro scraper (`data/registro_scraper.csv`
+    ha `provincia` vuota per la quasi totalità delle righe, e non ha mai avuto
+    `popolazione`): usata per completare `enti` in `sincronizza_enti_da_registro`.
+    """
+    dati: dict[str, tuple[str | None, int | None]] = {}
+    if not percorso.exists():
+        return dati
+    with open(percorso, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            codice = row.get("codice_istat")
+            if not codice:
+                continue
+            provincia = row.get("provincia") or None
+            try:
+                popolazione = int(row["popolazione"])
+            except (KeyError, ValueError):
+                popolazione = None
+            dati[codice] = (provincia, popolazione)
+    return dati
+
+
 def carica_registro(percorso: str | Path | None = None) -> list[EntryRegistro]:
     """Carica il registro degli scraper dal CSV.
 
@@ -206,7 +235,9 @@ def entries_default(entries: list[EntryRegistro]) -> list[str]:
     return [e.slug for e in entries if e.stato == "attivo"]
 
 
-def sincronizza_enti_da_registro(conn, entries: list[EntryRegistro]) -> int:
+def sincronizza_enti_da_registro(
+    conn, entries: list[EntryRegistro], *, comuni_sicilia_path: str | Path | None = None
+) -> int:
     """Upsert in blocco di tutti gli enti del registro in `enti`.
 
     Indipendente da quali scraper vengono eseguiti nel run corrente: tiene
@@ -215,19 +246,32 @@ def sincronizza_enti_da_registro(conn, entries: list[EntryRegistro]) -> int:
     stato_scraper='bloccato'``). I moduli senza ente (``MODULI_SENZA_ENTE``,
     es. ANAC) e le righe senza codice_istat sono escluse. Ritorna il numero
     di enti sincronizzati.
+
+    Completa `provincia`/`popolazione` da `data/comuni_sicilia.csv` (rif.
+    anagrafico statico dei 391 comuni) quando il registro non li fornisce —
+    `provincia` del registro resta prioritaria se presente (`upsert_ente` fa
+    comunque `COALESCE` con il valore già in DB, quindi un valore più
+    specifico impostato altrove non viene mai perso).
     """
     from talia.modulo2_scraping.db import EnteMetadato, upsert_ente
+
+    percorso_comuni = (
+        Path(comuni_sicilia_path) if comuni_sicilia_path else _percorso_comuni_sicilia()
+    )
+    comuni_sicilia = _carica_comuni_sicilia(percorso_comuni)
 
     n = 0
     for entry in entries:
         if entry.modulo in MODULI_SENZA_ENTE or not entry.codice_istat:
             continue
+        provincia_rif, popolazione = comuni_sicilia.get(entry.codice_istat, (None, None))
         upsert_ente(
             conn,
             EnteMetadato(
                 denominazione=entry.denominazione,
                 codice_istat=entry.codice_istat,
-                provincia=entry.provincia,
+                provincia=entry.provincia or provincia_rif,
+                popolazione=popolazione,
                 modulo=entry.modulo,
                 url_base=entry.base_url,
                 stato_scraper=entry.stato,
