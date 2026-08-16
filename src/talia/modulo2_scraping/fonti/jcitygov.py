@@ -135,13 +135,27 @@ def _scopri_risorse_alternative(opener, base: str) -> dict[str, str]:
     return dict(_RE_MAINURL.findall(html))
 
 
-def _url_dettaglio(base_url: str, pub_id: str) -> str:
-    return (
-        f"{base_url}{_PAPCA_PATH}"
-        f"?p_p_id={_PORTLET}"
-        f"&_{_PORTLET}_id={pub_id}"
-        f"&_{_PORTLET}_action=mostraDettaglio"
-    )
+def _url_dettaglio(base_url: str, papca_path: str, pub_id: str) -> str:
+    """Permalink al dettaglio di una pubblicazione.
+
+    BUG CRITICO corretto 2026-08-16 (TAL-63): il formato precedente
+    (`?p_p_id=...&_..._id=<id>&_..._action=mostraDettaglio`) è quello che lo
+    scraper ha sempre costruito ma **non è un permalink funzionante** — un
+    utente che ci clicca sopra, con o senza sessione attiva, vede sempre
+    "Errore! Errore: contattare l'amministratore del Portale" (verificato
+    dal vivo con Playwright, sessione fresca e sessione stabilita, su due
+    tenant diversi: Ragusa e Acate — quest'ultimo il caso segnalato da Dom
+    che ha fatto emergere il bug). Il vero link, quello che l'interfaccia
+    del portale genera per il bottone "Apri Dettaglio" (scoperto cliccandolo
+    davvero in un browser, non deducendolo), è `/-/papca/display/<id>
+    ?p_p_state=pop_up` — verificato funzionante a freddo (nessuna sessione
+    precedente) su entrambi i tenant. Il bug affliggeva ogni atto jCityGov
+    mai scaricato (85.435 in `talia.db` al momento della scoperta): la
+    citazione — il principio 1 di CLAUDE.md, "nessun indicatore senza link
+    alla fonte" — non ha mai puntato a una pagina funzionante per questa
+    piattaforma. Backfill sui dati già scritti in TAL-63.md.
+    """
+    return f"{base_url}{papca_path}/-/papca/display/{pub_id}?p_p_state=pop_up"
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +163,9 @@ def _url_dettaglio(base_url: str, pub_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetadato]:
+def _parse_pagina(
+    html: str, base_url: str, codice_istat: str, papca_path: str = _PAPCA_PATH
+) -> list[AttoMetadato]:
     # Alcuni tenant non hanno la colonna "Anno e Numero Registro": in quel caso
     # le celle sono [tipo, oggetto, periodo] invece di [tipo, numero, oggetto,
     # periodo] e senza questo controllo oggetto e date finiscono nei campi
@@ -180,7 +196,7 @@ def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetad
         atti.append(AttoMetadato(
             ente_codice_istat=codice_istat,
             tipo=tipo,
-            url_fonte=_url_dettaglio(base_url, pub_id),
+            url_fonte=_url_dettaglio(base_url, papca_path, pub_id),
             fonte_scraper=FONTE_SCRAPER,
             data_accesso=_ora_utc(),
             numero=numero,
@@ -289,7 +305,7 @@ def scarica_atti(
 
     raccolti = 0
     while raccolti < limit:
-        atti = _parse_pagina(html, base, codice_istat)
+        atti = _parse_pagina(html, base, codice_istat, papca_path)
         if not atti:
             break
 
@@ -411,7 +427,7 @@ def scarica_atti_trasparenza(
 
         raccolti = 0
         while raccolti < limit_per_categoria:
-            atti = _parse_pagina(html, base, codice_istat)
+            atti = _parse_pagina(html, base, codice_istat, papca_path)
             if not atti:
                 if raccolti == 0:
                     logger.warning("jcitygov trasparenza %s: 0 atti in %r", base, nome_categoria)

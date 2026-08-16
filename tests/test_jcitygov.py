@@ -125,11 +125,15 @@ def test_parse_date_cella_vuota():
 # ---------------------------------------------------------------------------
 
 
-def test_url_dettaglio_contiene_id():
-    url = _url_dettaglio(_BASE, "4721119")
-    assert "4721119" in url
-    assert _BASE in url
-    assert "mostraDettaglio" in url
+def test_url_dettaglio_usa_il_formato_display_funzionante():
+    # Regressione TAL-63: il vecchio formato (?...action=mostraDettaglio) non
+    # è un permalink funzionante — verificato dal vivo, mostra sempre
+    # "Errore! Errore: contattare l'amministratore del Portale" indipendentemente
+    # da sessione/cookie. Il formato corretto (/-/papca/display/<id>) è quello
+    # che l'interfaccia del portale genera davvero per il bottone "Apri Dettaglio".
+    url = _url_dettaglio(_BASE, "/web/trasparenza/papca-g", "4721119")
+    assert url == f"{_BASE}/web/trasparenza/papca-g/-/papca/display/4721119?p_p_state=pop_up"
+    assert "mostraDettaglio" not in url
 
 
 # ---------------------------------------------------------------------------
