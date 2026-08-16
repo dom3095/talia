@@ -54,6 +54,7 @@ Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 20
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-62](TAL-62.md) | Scraper "Amministrazione Trasparente" (jCityGov + Halley) | 🕷️ SCR | branch `feat/TAL-60-streamlit-modulo1`; `scarica_atti_trasparenza()` implementata e verificata dal vivo su entrambe le piattaforme (Ragusa/jCityGov, Aci Bonaccorsi/Halley); riusa il motore "igrid" esistente su jCityGov, applicazione separata (Zend Framework) su Halley; **non ancora in produzione**: manca decisione su deduplicazione con l'Albo Pretorio e su download/persistenza del testo, nessun wiring in `run_scrapers.py` |
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti; candidati 2-3 pronti (PDF scaricati via TAL-48) |
 
 ### 👀 Review

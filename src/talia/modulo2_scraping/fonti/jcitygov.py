@@ -315,6 +315,128 @@ def scarica_atti(
 
 
 # ---------------------------------------------------------------------------
+# Amministrazione Trasparente (TAL-62)
+#
+# A differenza dell'Albo Pretorio (bacheca temporanea, atti pubblicati 15-30
+# giorni), la sezione Amministrazione Trasparente ha la ritenzione prevista
+# dal D.lgs. 33/2013 — verificato dal vivo su Ragusa (2026-08-16): un atto in
+# "Bandi di concorso" aveva `data_scadenza` al 2031, non a giorni di distanza.
+#
+# jCityGov serve entrambe le sezioni con lo stesso motore "igrid" (stessa
+# struttura di riga `master-detail-list-line`/`data-id`, stesso portlet
+# jcitygovalbopubblicazioni, stessa paginazione) — Amministrazione
+# Trasparente non è altro che una categoria diversa dello stesso sistema, non
+# un'applicazione separata. Per questo si riusano `_parse_pagina`/`_RE_NEXT`
+# invece di scrivere un parser nuovo. Nessuna sessione JS/Playwright
+# necessaria in produzione: la scoperta delle categorie e il fetch delle
+# pagine sono richieste HTTP dirette (Playwright è servito solo per la
+# ricognizione iniziale, non per lo scraping).
+# ---------------------------------------------------------------------------
+
+_LANDING_PATH_TRASPARENZA = "/web/trasparenza/trasparenza"
+FONTE_SCRAPER_TRASPARENZA = "jcitygov_trasparenza"
+
+# Solo le categorie con contenuto documentale (famiglia di path "papca",
+# stesso motore dell'Albo Pretorio). Alcune categorie del menu (es. "Titolari
+# di incarichi...", e su Acate anche "Bandi di concorso") puntano invece alla
+# famiglia "pas" — portlet "jcitygovalbosoggetti" (registro di persone/
+# incarichi, non di atti): struttura di riga diversa, fuori scope qui.
+# Verificato dal vivo: la stessa query su una pagina "pas" ritorna 0 righe
+# con la regex degli atti, non perché la categoria sia vuota.
+CATEGORIE_TRASPARENZA_DEFAULT = (
+    "Bandi di concorso",
+    "Bandi di gara e contratti",
+)
+
+
+def scopri_categorie_trasparenza(
+    base_url: str, *, skip_ssl: bool = False, _opener=None
+) -> dict[str, str]:
+    """Scopre le categorie di Amministrazione Trasparente e i relativi path igrid.
+
+    Stessa tecnica di `_scopri_risorse_alternative` (attributi
+    data-resource/data-mainurl nella pagina menu, già usata per gli albi
+    "papca-ap" alternativi, TAL-49), puntata su .../trasparenza invece che su
+    .../albo-pretorio. Filtra alla sola famiglia "papca" (vedi nota di modulo
+    sopra); le categorie "pas" (portlet Soggetti) sono escluse.
+    """
+    opener = _opener or _build_opener(skip_ssl=skip_ssl)
+    base = base_url.rstrip("/")
+    try:
+        html = _fetch(opener, f"{base}{_LANDING_PATH_TRASPARENZA}")
+    except (TimeoutError, urllib.error.URLError):
+        return {}
+    tutte = dict(_RE_MAINURL.findall(html))
+    return {label: path for label, path in tutte.items() if "/papca" in path}
+
+
+def scarica_atti_trasparenza(
+    base_url: str,
+    codice_istat: str,
+    *,
+    categorie: Iterable[str] = CATEGORIE_TRASPARENZA_DEFAULT,
+    limit_per_categoria: int = _DEFAULT_LIMIT,
+    delay: float = _DEFAULT_DELAY,
+    skip_ssl: bool = False,
+    _opener=None,
+) -> Iterator[AttoMetadato]:
+    """Scarica atti dalla sezione Amministrazione Trasparente di un comune.
+
+    Gli atti hanno `fonte_scraper = "jcitygov_trasparenza"` (non
+    "jcitygov"): stessa piattaforma, fonte distinguibile da quella
+    dell'Albo Pretorio. Nessuna deduplicazione qui con gli atti già raccolti
+    dall'Albo Pretorio per lo stesso comune — probabile sovrapposizione (un
+    bando pubblicato sull'Albo può comparire anche qui), gestione della
+    catena/deduplicazione valutata separatamente (non ancora implementata).
+    """
+    opener = _opener or _build_opener(skip_ssl=skip_ssl)
+    base = base_url.rstrip("/")
+
+    categorie_disponibili = scopri_categorie_trasparenza(
+        base_url, skip_ssl=skip_ssl, _opener=opener
+    )
+
+    for nome_categoria in categorie:
+        percorso = categorie_disponibili.get(nome_categoria)
+        if not percorso:
+            logger.warning(
+                "jcitygov trasparenza %s: categoria %r non trovata tra quelle esposte",
+                base,
+                nome_categoria,
+            )
+            continue
+
+        html = _fetch(opener, f"{base}{percorso}")
+        papca_path = percorso.split("/-/papca")[0]
+
+        raccolti = 0
+        while raccolti < limit_per_categoria:
+            atti = _parse_pagina(html, base, codice_istat)
+            if not atti:
+                if raccolti == 0:
+                    logger.warning("jcitygov trasparenza %s: 0 atti in %r", base, nome_categoria)
+                break
+
+            for atto in atti:
+                if raccolti >= limit_per_categoria:
+                    break
+                atto.fonte_scraper = FONTE_SCRAPER_TRASPARENZA
+                yield atto
+                raccolti += 1
+
+            if not _RE_NEXT.search(html) or raccolti >= limit_per_categoria:
+                break
+
+            time.sleep(delay)
+            next_url = (
+                f"{base}{papca_path}"
+                f"?p_p_id={_PORTLET}&p_p_lifecycle=0&p_p_state=pop_up&p_p_mode=view"
+                f"&_{_PORTLET}_paginationAction=NEXT&_{_PORTLET}_action=mostraLista"
+            )
+            html = _fetch(opener, next_url)
+
+
+# ---------------------------------------------------------------------------
 # API pubblica: salva_atti
 # ---------------------------------------------------------------------------
 

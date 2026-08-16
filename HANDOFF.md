@@ -105,20 +105,80 @@
 > `agrigento.py`/`serviziolinealbo.py`/`palermo.py` (import lazy dentro le
 > funzioni) ma **non è mai stato dichiarato come dipendenza in `pyproject.toml`**
 > — funzionava solo perché qualcuno l'aveva installato manualmente in passato.
-> Da correggere quando si implementa lo scraper Amministrazione Trasparente
-> (che ne avrà bisogno in modo strutturale, non opzionale come Agrigento).
+> **Corretto**: nuovo gruppo extra `playwright` in `pyproject.toml`.
 >
-> **Prossimi passi concordati con Dom**: commit+push di TAL-60/TAL-61 (questo
-> checkpoint); poi verificare la fattibilità di Amministrazione Trasparente
-> anche su Halley (28.160 atti, seconda piattaforma per dimensione) e le altre
-> famiglie di scraper prima di iniziare l'implementazione — Dom è stato
-> esplicito: "fai tutte le verifiche che servono prima di implementare
-> qualcosa". Poi, non ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui
-> candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
-> `data/samples/` di TAL-12 scartando i candidati falsi positivi individuati da
-> TAL-59 (3, 9, 10, 11, 12); bug 2b (Jaccard, noto da TAL-59); TAL-3 (PDF
-> scansionato campione); backlog P2/P3 (TAL-51, TAL-41, TAL-24, TAL-52,
-> TAL-40).
+> **TAL-60/TAL-61 committati e pushati** (3 commit: `a066f79` TAL-60,
+> `8e892f6` TAL-61, `08ea525` doc). Branch pushato su origin, **nessuna PR
+> aperta ancora** — solo commit+push richiesti esplicitamente, non l'apertura
+> della PR.
+>
+> **TAL-62 — Amministrazione Trasparente jCityGov + Halley, implementata e
+> verificata dal vivo** (Dom: "partirei a implementare jcity e halley...
+> controlla che sia tutto funzionante", poi è uscito di casa chiedendo di
+> continuare con `caffeinate` — sessione proseguita in autonomia da qui):
+>
+> - **jCityGov**: scoperta fondamentale — Amministrazione Trasparente usa lo
+>   **stesso motore "igrid"** dell'Albo Pretorio (stessa struttura di riga,
+>   stesso portlet, stessa paginazione), solo una categoria diversa — non
+>   un'applicazione separata. `scopri_categorie_trasparenza()` +
+>   `scarica_atti_trasparenza()` in `jcitygov.py` riusano `_parse_pagina`/
+>   `_RE_NEXT` già esistenti, **nessun parser nuovo**. Playwright è servito
+>   solo per la ricognizione iniziale (capire l'URL delle categorie): a
+>   runtime bastano richieste HTTP dirette, verificato con `curl` puro dopo
+>   la scoperta. Trovata anche un'eccezione da escludere: alcune categorie
+>   (es. "Titolari di incarichi", e su Acate anche "Bandi di concorso" — non
+>   uniforme tra tenant) puntano a un portlet "Soggetti" (registro persone,
+>   non atti) con path `/pas/...` invece di `/papca-*/...`: filtrate.
+>   Verificato dal vivo su Ragusa: 35 atti raccolti su più pagine,
+>   `data_scadenza` in anni futuri (2031) confermata. 6 nuovi test.
+> - **Halley**: **applicazione completamente separata** dall'Albo Pretorio
+>   (Zend Framework, `/zf/index.php/trasparenza/...` — non `/mc/mc_p_*.php`):
+>   HTML diverso, nessun riuso di codice possibile con `halley.py` esistente,
+>   parser nuovo scritto da zero. Categorie scoperte da link diretti nel menu
+>   (`.../categoria/<id>`), righe documento via `<tr data-href="...">`,
+>   paginazione via path (`.../page/<N>`). **Nessuna data di scadenza sulle
+>   righe** (a differenza dell'Albo Pretorio) — ulteriore segnale di
+>   ritenzione permanente. Un export CSV esiste ma senza URL del documento,
+>   inutile per lo scraping. Verificato dal vivo su Aci Bonaccorsi (lo stesso
+>   comune del link morto originale!): 20 atti su 2 pagine, **17 pagine
+>   totali** disponibili solo per "Bandi di concorso" — storico profondo
+>   confermato. Trovata anche eterogeneità reale: un secondo tenant provato
+>   (Vittoria) usa una piattaforma Halley più recente ("Stanza del
+>   cittadino") senza il path `/zf/...` (404, gestito senza crash) — fuori
+>   scope qui. 9 nuovi test.
+>
+> **643 test verdi (erano 634), ruff pulito.** Card [TAL-62](docs/cards/TAL-62.md)
+> creata, **Stato: In Progress** (non Done): 2 domande bloccanti esplicite
+> prima della messa in produzione, entrambe segnalate da Dom prima di uscire
+> e non ancora decise:
+> 1. **Deduplicazione con l'Albo Pretorio**: un bando pubblicato sull'Albo
+>    probabilmente compare anche in Amministrazione Trasparente (stesso
+>    atto, due URL diversi) — impatto su `engine/catena.py` (rischio
+>    procedimenti duplicati), imparentato con TAL-52 ma dentro la stessa
+>    piattaforma invece che tra piattaforme diverse.
+> 2. **Download/persistenza del testo**: la discussione che ha originato
+>    questa card aveva sollevato anche se scaricare/estrarre il testo (non
+>    solo l'URL) per gli atti citati nei red flag — non ancora affrontato,
+>    `testo_estratto`/`hash_sha256` restano vuoti anche qui.
+>
+> **Le funzioni non sono collegate a `run_scrapers.py`/registry**: esistono,
+> sono testate e verificate dal vivo, ma non fanno ancora parte del run
+> automatico — deliberato, in attesa delle due decisioni sopra.
+>
+> **Non ancora committato** questo checkpoint (TAL-62) — codice pronto,
+> working tree pulito da errori (test+lint verdi), ma il commit va ancora
+> fatto.
+>
+> **Prossimi passi** (da riprendere con Dom): commit+push di TAL-62; poi
+> decidere le due domande bloccanti sopra (dedup, download/persistenza)
+> prima di collegare al run automatico; poi verificare fattibilità
+> Amministrazione Trasparente sulle piattaforme restanti (portalepa,
+> catania, palermo, urbi, trapani, hspromila — 14% dei dati). Poi, non
+> ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui candidati rimasti —
+> 6, 7, 8, più 13 da verificare); rigenerare `data/samples/` di TAL-12
+> scartando i candidati falsi positivi individuati da TAL-59 (3, 9, 10, 11,
+> 12); bug 2b (Jaccard, noto da TAL-59); TAL-3 (PDF scansionato campione);
+> backlog P2/P3 (TAL-51, TAL-41, TAL-24, TAL-52, TAL-40).
 
 ---
 

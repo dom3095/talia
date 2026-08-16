@@ -87,6 +87,15 @@ Aggiornato: 2026-07-07.
 
 Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **66 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con atti reali (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`). 6 di questi (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto) richiedono un percorso alternativo (`papca-ap/igrid/<id>`, risorsa "Albo pretorio" o "Storico atti") invece dello standard `papca-g`: `jcitygov.py` lo scopre e usa automaticamente quando il percorso standard ritorna 0 risultati.
 
+**Amministrazione Trasparente (TAL-62, 2026-08-16, non ancora in produzione):**
+`jcitygov.py`/`halley.py` espongono anche `scarica_atti_trasparenza()` — raccoglie
+dalla sezione Amministrazione Trasparente (D.lgs. 33/2013, ritenzione anni, non i
+15-30gg dell'Albo Pretorio) invece che dall'Albo Pretorio, con `fonte_scraper`
+distinto (`jcitygov_trasparenza`/`halley_trasparenza`). Verificato dal vivo su
+Ragusa e Aci Bonaccorsi. **Non collegata a `run_scrapers.py`**: mancano ancora la
+deduplicazione con l'Albo Pretorio (stesso atto, due URL) e la decisione su
+download/persistenza del testo — vedi [TAL-62](docs/cards/TAL-62.md).
+
 Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
 - **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **93 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana, Joppolo Giancaxio); retry con backoff 2s su timeout/connessione rifiutata (2026-08-05, host condiviso a volte sovraccarico, stesso pattern di `jcitygov.py`/`hspromila.py`)
