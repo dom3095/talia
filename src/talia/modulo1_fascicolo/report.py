@@ -30,6 +30,7 @@ class AttoMeta:
     ruolo: str
     fonte: str
     pagine: int
+    descrizione: str | None = None  # osservazioni dell'utente (TAL-60)
 
 
 @dataclass
@@ -70,7 +71,10 @@ class Report:
         if self.atti:
             righe.append("## Atti analizzati")
             for a in self.atti:
-                righe.append(f"- **{a.etichetta}** — {a.ruolo} ({a.fonte}, {a.pagine} pagg.)")
+                riga = f"- **{a.etichetta}** — {a.ruolo} ({a.fonte}, {a.pagine} pagg.)"
+                if a.descrizione:
+                    riga += f" — _{a.descrizione}_"
+                righe.append(riga)
             righe.append("")
 
         c = self.conteggio
@@ -91,7 +95,7 @@ class Report:
                 righe.append("_Riferimenti:_ " + "; ".join(esito.riferimenti_normativi))
             for cit in esito.citazioni:
                 righe.append("")
-                righe.append(f"> {_descr_citazione(cit)}")
+                righe.append(f"> {descrivi_citazione(cit)}")
             righe.append("")
 
         righe.append("---")
@@ -113,7 +117,7 @@ def _esito_to_dict(esito: EsitoCheck) -> dict:
     }
 
 
-def _descr_citazione(cit: Citazione) -> str:
+def descrivi_citazione(cit: Citazione) -> str:
     pagina = f"p. {cit.pagina}, " if cit.pagina is not None else ""
     return f"«{cit.testo}» ({pagina}offset {cit.offset_inizio}–{cit.offset_fine})"
 
@@ -155,9 +159,10 @@ def _render_html(report: Report) -> str:
     if report.atti:
         parti.append("<h2>Atti analizzati</h2><ul>")
         for a in report.atti:
+            nota = f"<br><em>{esc(a.descrizione)}</em>" if a.descrizione else ""
             parti.append(
                 f"<li><strong>{esc(a.etichetta)}</strong> — {esc(a.ruolo)} "
-                f"({esc(a.fonte)}, {a.pagine} pagg.)</li>"
+                f"({esc(a.fonte)}, {a.pagine} pagg.){nota}</li>"
             )
         parti.append("</ul>")
 
@@ -170,7 +175,7 @@ def _render_html(report: Report) -> str:
             rif = "; ".join(esc(r) for r in esito.riferimenti_normativi)
             parti.append(f'<p class="rif">Riferimenti: {rif}</p>')
         for cit in esito.citazioni:
-            parti.append(f'<div class="cit">{esc(_descr_citazione(cit))}</div>')
+            parti.append(f'<div class="cit">{esc(descrivi_citazione(cit))}</div>')
         parti.append("</div>")
 
     quando = esc(report.generato_il.isoformat(timespec="seconds"))

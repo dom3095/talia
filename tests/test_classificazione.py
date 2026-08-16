@@ -66,3 +66,38 @@ def test_contesto_sceglie_originario_migliore():
     )
     contesto = costruisci_contesto([allegato, determina, autotutela])
     assert contesto.atto_originario is determina
+
+
+# ---------------------------------------------------------------------------
+# Descrizione utente (TAL-60, upload interattivo): guida la classificazione
+# quando il testo dell'atto da solo è ambiguo o povero (es. un allegato).
+# ---------------------------------------------------------------------------
+
+
+def test_descrizione_vuota_non_cambia_il_punteggio():
+    atto = da_testo("revoca in autotutela della selezione")
+    assert punteggi_ruolo(atto) == punteggi_ruolo(atto, "")
+
+
+def test_descrizione_aggancia_allegato_povero_al_ruolo_giusto():
+    # Senza descrizione un prospetto di soli numeri non contiene nessuna delle
+    # formule cercate dall'euristica → SCONOSCIUTO.
+    allegato = da_testo("Prospetto: voce 1 € 100, voce 2 € 200.")
+    assert classifica_ruolo(allegato) is RuoloAtto.SCONOSCIUTO
+    assert classifica_ruolo(allegato, "revoca in autotutela del bando") is RuoloAtto.AUTOTUTELA
+
+
+def test_contesto_usa_descrizione_nel_tie_break():
+    # Stesso scenario di test_contesto_sceglie_autotutela_migliore_non_il_primo,
+    # ma qui i due atti hanno testo debole ex aequo: solo la descrizione
+    # dell'utente sul secondo li distingue.
+    senza_nota = AttoAnalizzato.da_testo(
+        da_testo("nota che richiama una revoca precedente"), RuoloAtto.AUTOTUTELA
+    )
+    con_nota = AttoAnalizzato.da_testo(
+        da_testo("nota che richiama una revoca precedente"),
+        RuoloAtto.AUTOTUTELA,
+        descrizione="revoca in autotutela, in autotutela, DETERMINA la revoca",
+    )
+    contesto = costruisci_contesto([senza_nota, con_nota])
+    assert contesto.atto_autotutela is con_nota

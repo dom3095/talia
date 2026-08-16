@@ -1,9 +1,12 @@
 """Dashboard TALIA — Modulo 3: vista aggregata per comune.
 
-Legge esclusivamente dal DB (TAL-21), tranne la tab mappa che incrocia anche
+Legge esclusivamente dal DB (TAL-21), tranne: la tab mappa, che incrocia anche
 i confini comunali e l'elenco di riferimento dei comuni siciliani (file
 statici in `data/`, indispensabili per mostrare anche i comuni mai censiti
-da nessuno scraper — assenti dal DB per definizione). Non analizza, non scrive.
+da nessuno scraper — assenti dal DB per definizione); e la tab "Analisi
+fascicolo" (TAL-60), un front-end opzionale per il Modulo 1 che analizza i
+file caricati dall'utente in locale, senza persistenza né scrittura sul DB.
+Per il resto, non scrive mai.
 
 Avvio:
     streamlit run src/talia/modulo3_dashboard/app.py
@@ -18,10 +21,15 @@ import csv
 import json
 import os
 import sqlite3
+import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pydeck as pdk
 import streamlit as st
+
+if TYPE_CHECKING:
+    from talia.modulo1_fascicolo.report import Report
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -702,6 +710,168 @@ def _mostra_mappa(conn: sqlite3.Connection) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Tab "Analisi fascicolo" (Modulo 1, TAL-60)
+# ---------------------------------------------------------------------------
+#
+# Unica tab che *analizza* invece di leggere solo dal DB (vedi eccezione nel
+# docstring di modulo). Nessuna scrittura né persistenza: i file caricati
+# vivono in una directory temporanea cancellata subito dopo l'estrazione del
+# testo (principio 4 CLAUDE.md — i fascicoli reali contengono nominativi).
+# Riusa `analizza_testi`, lo stesso motore della CLI `talia analizza`: questa
+# tab è un front-end alternativo, non una reimplementazione (TAL-10 aveva
+# scartato Streamlit per il *formato del report*, che resta HTML/JSON a zero
+# dipendenze; qui Streamlit è già una dipendenza del Modulo 3, quindi il
+# ragionamento "zero deps" non si applica a un front-end interattivo opzionale).
+
+_ESTENSIONI_ANALISI = {".pdf", ".txt"}
+_FORM_FEED_ANALISI = "\f"
+
+
+def _analizza_file_caricati(
+    documenti: list[tuple[str, bytes, str | None]], *, valuta_llm: bool
+) -> Report:
+    """Estrae il testo dai documenti caricati e produce il `Report` del Modulo 1.
+
+    Isolata da qualunque widget Streamlit (prende nome+bytes+descrizione, non
+    `UploadedFile`) per essere testabile senza `AppTest`. La descrizione
+    (TAL-60) sono le osservazioni scritte dall'utente per quel documento nel
+    box di upload: passate a `analizza_testi` per concorrere alla
+    classificazione del ruolo e comparire nel report.
+    """
+    from talia.engine.models import FonteTesto
+    from talia.engine.pdf_text import da_pagine, estrai_testo
+    from talia.modulo1_fascicolo.analisi import analizza_testi
+
+    testi = []
+    descrizioni: list[str | None] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for nome, contenuto, descrizione in documenti:
+            suffisso = Path(nome).suffix.lower()
+            if suffisso == ".pdf":
+                percorso = Path(tmp) / nome
+                percorso.write_bytes(contenuto)
+                testi.append(estrai_testo(percorso))
+            else:  # .txt, unico altro tipo ammesso dal file_uploader
+                testo = contenuto.decode("utf-8")
+                pagine = testo.split(_FORM_FEED_ANALISI) if _FORM_FEED_ANALISI in testo else [testo]
+                testi.append(da_pagine(pagine, fonte=FonteTesto.NATIVO, percorso=nome))
+            descrizioni.append(descrizione or None)
+
+    return analizza_testi(testi, descrizioni=descrizioni, valuta_llm=valuta_llm)
+
+
+def _mostra_report_fascicolo(report: Report) -> None:
+    from talia.modulo1_fascicolo.report import descrivi_citazione
+
+    c = report.conteggio
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("🟢 Verde", c["verde"])
+    col2.metric("🟡 Giallo", c["giallo"])
+    col3.metric("🔴 Rosso", c["rosso"])
+    col4.metric("⚪ N/A", c["non_applicabile"])
+
+    if report.atti:
+        st.markdown("**Atti analizzati:**")
+        for a in report.atti:
+            riga = f"- **{a.etichetta}** — {a.ruolo}"
+            if a.descrizione:
+                riga += f" — _{a.descrizione}_"
+            st.markdown(riga)
+
+    for esito in report.esiti:
+        aperto_default = esito.stato.value in ("giallo", "rosso")
+        with st.expander(f"{esito.stato.emoji} {esito.titolo}", expanded=aperto_default):
+            st.markdown(esito.spiegazione)
+            if esito.riferimenti_normativi:
+                st.caption("Riferimenti: " + "; ".join(esito.riferimenti_normativi))
+            for cit in esito.citazioni:
+                st.markdown(f"> {descrivi_citazione(cit)}")
+
+    st.download_button(
+        "⬇️ Scarica report (HTML)",
+        data=report.to_html(),
+        file_name="report_talia.html",
+        mime="text/html",
+    )
+    st.caption(f"⚠️ {report.disclaimer}")
+
+
+def _raccogli_box_fascicolo() -> list[tuple]:
+    """Renderizza la catena di box "allega file + descrizione" (TAL-60).
+
+    Un box per documento: appena si carica il file nel box N, compare il box
+    N+1 (vuoto), così si compone un fascicolo da 1 a N atti senza un bottone
+    "+" esplicito. Le chiavi dei widget sono stabili per indice (`tal60_file_
+    {i}`/`tal60_desc_{i}`): Streamlit conserva il loro valore in
+    `st.session_state` tra un rerun e l'altro, quindi al giro successivo si sa
+    già quanti box mostrare senza dover ricalcolare nulla di esplicito.
+    """
+    documenti = []
+    i = 0
+    while True:
+        with st.container(border=True):
+            st.caption(f"Documento {i + 1}")
+            col_file, col_desc = st.columns([2, 3])
+            file = col_file.file_uploader(
+                "Allega file",
+                type=["pdf", "txt"],
+                key=f"tal60_file_{i}",
+                label_visibility="collapsed",
+            )
+            descrizione = col_desc.text_input(
+                "Descrizione/osservazioni",
+                key=f"tal60_desc_{i}",
+                placeholder='Descrizione/osservazioni (opzionale) — es. "bando originario", '
+                '"revoca in autotutela"…',
+                label_visibility="collapsed",
+            )
+        if file is None:
+            break
+        documenti.append((file, descrizione))
+        i += 1
+    return documenti
+
+
+def _mostra_analisi_fascicolo() -> None:
+    st.subheader("Analizza un fascicolo")
+    st.caption(
+        "Allega gli atti di un fascicolo uno alla volta (indizione, bando, "
+        "revoca/annullamento…) per ricostruire la catena: dopo ogni file compare il box "
+        "successivo. PDF nativi o scansionati, oppure .txt. La descrizione è facoltativa "
+        "ma aiuta a classificare correttamente il ruolo di ogni atto quando il testo da "
+        "solo è ambiguo. L'analisi gira in locale — i file caricati non vengono salvati "
+        "né inviati altrove."
+    )
+
+    documenti = _raccogli_box_fascicolo()
+
+    usa_llm = st.checkbox(
+        "Includi check 3 — qualità motivazione (LLM)",
+        value=False,
+        help="Richiede Ollama in esecuzione in locale (`ollama serve`). Più lento (minuti).",
+    )
+
+    if documenti and st.button("Analizza", type="primary"):
+        with st.spinner("Analisi in corso…"):
+            try:
+                report = _analizza_file_caricati(
+                    [(f.name, f.getvalue(), d) for f, d in documenti], valuta_llm=usa_llm
+                )
+            except Exception as exc:  # estrazione PDF/LLM: mostrato, non un crash dell'app
+                st.error(f"Errore durante l'analisi: {exc}")
+                st.session_state.pop("report_modulo1", None)
+            else:
+                st.session_state["report_modulo1"] = report
+
+    report = st.session_state.get("report_modulo1")
+    if report is not None:
+        st.divider()
+        _mostra_report_fascicolo(report)
+    elif not documenti:
+        st.info("Allega almeno un documento per avviare l'analisi.")
+
+
+# ---------------------------------------------------------------------------
 # App principale
 # ---------------------------------------------------------------------------
 
@@ -735,18 +905,28 @@ def main() -> None:
         )
 
     # --- Tabs principali ---
-    tab_panoramica, tab_comune, tab_procedimenti, tab_virtuosi, tab_statistiche, tab_mappa = (
-        st.tabs(
-            [
-                "📊 Panoramica",
-                "🔍 Dettaglio comune",
-                "⛓️ Procedimenti",
-                "✅ Comuni virtuosi",
-                "📈 Statistiche",
-                "🗺️ Mappa copertura",
-            ]
-        )
+    (
+        tab_analisi,
+        tab_panoramica,
+        tab_comune,
+        tab_procedimenti,
+        tab_virtuosi,
+        tab_statistiche,
+        tab_mappa,
+    ) = st.tabs(
+        [
+            "📁 Analisi fascicolo",
+            "📊 Panoramica",
+            "🔍 Dettaglio comune",
+            "⛓️ Procedimenti",
+            "✅ Comuni virtuosi",
+            "📈 Statistiche",
+            "🗺️ Mappa copertura",
+        ]
     )
+
+    with tab_analisi:
+        _mostra_analisi_fascicolo()
 
     # Caricate una volta e condivise tra i tab che ne hanno bisogno (code
     # review 2026-08-08): _carica_enti/_carica_flags_per_ente venivano prima
@@ -774,12 +954,6 @@ def main() -> None:
 
     with tab_virtuosi:
         _mostra_comuni_virtuosi(flags_per_ente)
-
-    with tab_statistiche:
-        _mostra_statistiche(conn)
-
-    with tab_mappa:
-        _mostra_mappa(conn)
 
     with tab_statistiche:
         _mostra_statistiche(conn)

@@ -31,8 +31,10 @@ dev = [
     "ruff>=0.5",
     "pytest>=8.0",
 ]
-# Dashboard Modulo 3 (TAL-30).
-dashboard = ["streamlit>=1.35"]
+# Dashboard Modulo 3 (TAL-30); include [pdf] perché la tab "Analisi fascicolo"
+# (TAL-60) è un front-end del Modulo 1 e ne condivide il requisito primario
+# (upload PDF) — senza, l'upload di un PDF fallirebbe con un errore a runtime.
+dashboard = ["streamlit>=1.35", "talia[pdf]"]
 # Comodità: installa tutto il necessario all'uso end-to-end.
 all = ["talia[pdf,nlp,dashboard,dev]"]
 

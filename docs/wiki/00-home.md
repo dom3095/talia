@@ -36,7 +36,7 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 
 | Modulo | Stato | Dettagli |
 |--------|-------|----------|
-| **Motore / Modulo 1** | ✅ Implementato | OCR → entità → check 1,2,5,6,7 → report HTML/JSON/CLI |
+| **Motore / Modulo 1** | ✅ Implementato | OCR → entità → check 1,2,3,5,6,7 → report HTML/JSON, via CLI (`talia analizza`) o tab dashboard (TAL-60) |
 | **Modulo 2 — Scraping** | ✅ Implementato (⚠️ Trapani rotto) | Spider ANAC/Siracusa/Agrigento/jCityGov(CL,EN,RG,PA di M); Trapani: 0 atti (regex da fixare); vedi [13](13-scraper-status.md) |
 | **Modulo 2 — Catene procedimenti** | ✅ v2 (TAL-42/43/46) | Strategie CIG / riferimenti / contenimento oggetto / fuzzy con guard-rail + LLM opt-in |
 | **Modulo 3 — Dashboard** | ✅ MVP (TAL-30/45) | App Streamlit: panoramica comuni, drill-down fonte, tab procedimenti, anonimizzazione piccoli comuni |
