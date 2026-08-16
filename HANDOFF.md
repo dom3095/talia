@@ -41,19 +41,84 @@
 > volte ciascuna (blocco duplicato dopo il merge di PR #17) — doppie query DB
 > ad ogni rerun. Rimossa la duplicazione.
 >
-> **617 test verdi (erano 614), ruff pulito.** Non ancora committato — modifiche
-> in working tree sul branch `feat/TAL-60-streamlit-modulo1`, in attesa di
-> conferma di Dom prima di committare/pushare/aprire PR.
+> **TAL-60 esteso, stesso giorno** (feedback di Dom dopo aver provato il tab dal
+> vivo): upload sostituito da una catena di box "allega file + descrizione" (un
+> documento alla volta; il box successivo compare solo dopo aver caricato il
+> precedente). La descrizione non è solo estetica: `classifica_ruolo()` /
+> `punteggi_ruolo()` ora accettano una `descrizione` opzionale che concorre ai
+> punteggi con le stesse regex del testo — aggancia un allegato con poco testo
+> proprio (es. solo tabelle) al ruolo giusto quando da solo risulterebbe
+> SCONOSCIUTO. Filo fino a `Report`/`AttoMeta` (compare accanto al documento
+> nel report). Verificato dal vivo con `AppTest` (box 1→2→3 in sequenza,
+> descrizioni sull'atto giusto).
 >
-> **Prossimi passi proposti** (nessuno scelto ancora, da confermare con Dom):
-> committare/pushare TAL-60 e aprire PR; poi TAL-12 (validazione umana ⚖️ LEX
-> sui candidati rimasti — 6, 7, 8, più 13 da verificare — è il gap più
-> importante rimasto prima di poter dire che il Modulo 1 è validato, non solo
-> testato); rigenerare `data/samples/` di TAL-12 scartando i candidati falsi
-> positivi individuati da TAL-59 (3, 9, 10, 11, 12); valutare se aprire una card
-> per il bug 2b (Jaccard lega atti scorrelati anche in dominio, noto da TAL-59);
-> TAL-3 (PDF scansionato campione); backlog P2/P3 (TAL-51, TAL-41, TAL-24,
-> TAL-52, TAL-40).
+> **TAL-61** (bug trovato da Dom guardando la tab Panoramica: "non sappiamo
+> nemmeno la provincia di Ragusa?"): `sincronizza_enti_da_registro()` non
+> passava mai `popolazione` e passava `provincia` solo se il registro scraper
+> la conteneva (raro). `data/comuni_sicilia.csv` (rif. anagrafico dei 391
+> comuni) esisteva già ma non era mai stato incrociato con `enti`. Prima del
+> fix: 307/307 enti senza popolazione, 192/307 senza provincia. Corretto +
+> backfill eseguito su `talia.db` reale (backup preso prima:
+> `talia.db.bak-pre-backfill-provincia-pop-20260816`): ora 0/307 senza
+> provincia, 1/307 senza popolazione (residuo: Messina, riga di registro
+> obsoleta da una sessione precedente, non legata a questo fix).
+>
+> **628 test verdi (erano 614 a inizio sessione), ruff pulito.**
+>
+> **Discussione con Dom sui link morti nei red flag** (partita da un'altra
+> segnalazione dal vivo: due link di red flag irraggiungibili, Acate e Aci
+> Bonaccorsi): confermato sistemico, non isolato — su `talia.db` reale, la
+> maggioranza degli atti già scrapati su quasi tutte le piattaforme (halley
+> 77%, portalepa 86%, catania 86%...) ha già superato `data_scadenza`, un
+> campo che catturiamo da sempre e non usiamo mai. Discusse e scartate tre
+> proposte (archiviazione su terzi tipo Wayback Machine → manutenzione che il
+> progetto non si può permettere; disclaimer "link forse scaduto" → cosmetico,
+> non risolve nulla; cattura locale via Playwright → stesso problema di fiducia
+> di una copia self-hosted, il tool di cattura è irrilevante). **Svolta di
+> Dom**: questi atti sono per legge tenuti da qualche parte più a lungo di
+> quanto duri l'Albo Pretorio — la sezione "Amministrazione Trasparente"
+> (D.lgs. 33/2013), già segnalata come target ideale in `talia.md`/
+> `docs/wiki/07-fonti-dati.md` fin dall'inizio del progetto ma **mai
+> implementata da nessuno scraper** (tutti leggono solo l'Albo Pretorio, la
+> bacheca temporanea).
+>
+> **Verifica di fattibilità su jCityGov** (la piattaforma più grande, 85.435
+> atti): confermato con Playwright (curl non basta, è Liferay/JS) che
+> "Amministrazione Trasparente" è un archivio permanente reale — "Bandi di
+> concorso" su Ragusa mostra cartelle per anno **dal 2018**, non i 15-30gg
+> dell'Albo Pretorio. Il contenuto si raggiunge con GET semplici (URL Liferay
+> "render", `p_p_lifecycle=0`), non con azioni POST/sessione come temuto —
+> quindi i permalink dovrebbero essere stabili, non l'ipotesi opposta
+> ipotizzata su Acate. Due complicazioni reali per l'implementazione: (1) l'ID
+> numerico di ogni categoria non è costante tra comuni (Bandi di concorso =
+> pagina 18623 su Ragusa, 38979 su Palma di Montechiaro — va scoperto per
+> tenant); (2) la selezione dell'anno è un `<select>`, non un link diretto,
+> gestione form non ancora verificata. **Non ancora verificato**: il livello
+> più profondo (link al singolo bando dentro un anno) — quello che conta
+> davvero per la stabilità del permalink. **Nota collaterale**: richieste
+> ravvicinate su un singolo tenant (Acate) hanno fatto scattare un WAF
+> (sbloccato su un altro comune) — stesso principio di rate-limiting prudente
+> già usato per jcitygov.py/halley.py.
+>
+> **`playwright` installato in questo venv locale in questa sessione**
+> (`pip install playwright && playwright install chromium`) — era già usato da
+> `agrigento.py`/`serviziolinealbo.py`/`palermo.py` (import lazy dentro le
+> funzioni) ma **non è mai stato dichiarato come dipendenza in `pyproject.toml`**
+> — funzionava solo perché qualcuno l'aveva installato manualmente in passato.
+> Da correggere quando si implementa lo scraper Amministrazione Trasparente
+> (che ne avrà bisogno in modo strutturale, non opzionale come Agrigento).
+>
+> **Prossimi passi concordati con Dom**: commit+push di TAL-60/TAL-61 (questo
+> checkpoint); poi verificare la fattibilità di Amministrazione Trasparente
+> anche su Halley (28.160 atti, seconda piattaforma per dimensione) e le altre
+> famiglie di scraper prima di iniziare l'implementazione — Dom è stato
+> esplicito: "fai tutte le verifiche che servono prima di implementare
+> qualcosa". Poi, non ancora ripreso: TAL-12 (validazione umana ⚖️ LEX sui
+> candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
+> `data/samples/` di TAL-12 scartando i candidati falsi positivi individuati da
+> TAL-59 (3, 9, 10, 11, 12); bug 2b (Jaccard, noto da TAL-59); TAL-3 (PDF
+> scansionato campione); backlog P2/P3 (TAL-51, TAL-41, TAL-24, TAL-52,
+> TAL-40).
 
 ---
 
