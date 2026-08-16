@@ -63,15 +63,50 @@ aperto tutto il filone TAL-62).
   normalizzatore tollerante (converte sia il vecchio sia il nuovo formato) durante
   la transizione, prima che il backfill sui dati esistenti sia completato.
 
+## 🔬 Tentativo 2 — backfill di prova su Acate (41 atti)
+
+**Approccio:** su richiesta di Dom ("prima fammi vedere se funziona"), backfill
+limitato al solo Comune di Acate (41 atti `fonte_scraper='jcitygov'`): estratto
+`pub_id`/`papca_path` da ogni `url_fonte` esistente via regex, ricostruito con
+`_url_dettaglio()` corretta, `UPDATE` diretto (backup preso prima:
+`talia.db.bak-pre-backfill-tal63-acate-20260816`). Verificato con Playwright, 5
+atti a campione, sessione fresca per ciascuno: tutti mostrano il dettaglio vero.
+
+**Esito:** ⚠️ parziale — Dom ha comunque trovato link rotti nella dashboard
+("riapre sempre la stessa pagina").
+**Appreso:** i 41 `atti.url_fonte` erano corretti, ma il tab "Dettaglio comune →
+Segnalazioni per il comune" **non li legge da `atti.url_fonte`** — legge da
+`red_flags.atti_cig`, un campo JSON che **contiene una copia propria dell'URL**,
+scritta al momento in cui il red flag fu calcolato (denormalizzazione, mai
+sincronizzata col backfill su `atti`). Ogni link mostrava quindi ancora il
+vecchio formato rotto — e siccome tutti gli URL rotti danno lo stesso identico
+messaggio di errore, sembrava "sempre la stessa pagina", non semplicemente "link
+diversi tutti rotti".
+
+**Corretto anche questo** per Acate: riletti i 5 `id` in `red_flags.atti_cig`
+(unico red flag per questo comune, `concentrazione_diretti`), sostituito `url`
+con il valore ora corretto di `atti.url_fonte` per lo stesso `id`, `UPDATE` su
+`red_flags`. Riverificato dal vivo con Playwright: tutti e 5 i link ora aprono il
+dettaglio vero. **Implicazione per il backfill completo (85.435 atti)**: non
+basta correggere `atti.url_fonte` — va corretto **anche** `red_flags.atti_cig`
+per ogni voce che referenzia un atto jCityGov (631 red flags totali nel DB, non
+ancora contato quanti abbiano voci jCityGov da correggere).
+
 ## ❓ Non ancora fatto (bloccante prima di poter dire "risolto")
 
-- [ ] **Backfill su `talia.db` reale**: 85.435 atti `fonte_scraper='jcitygov'` hanno
-  oggi un `url_fonte` nel vecchio formato non funzionante. Il codice corretto vale
+- [x] **Acate (41 atti + 1 red flag), come prova**: fatto, verificato dal vivo — vedi
+  Tentativo 2.
+- [ ] **Backfill completo su `talia.db` reale**: 85.435 atti `fonte_scraper='jcitygov'`
+  hanno oggi un `url_fonte` nel vecchio formato non funzionante, **più** un numero
+  non ancora contato di voci in `red_flags.atti_cig` (copia denormalizzata,
+  scoperta nel Tentativo 2 — senza correggere anche questa, la dashboard mostra
+  ancora i link rotti anche dopo aver sistemato `atti`). Il codice corretto vale
   solo per i **prossimi** run scraper — gli atti già scritti restano rotti finché
-  non si riscrivono. Serve uno script di migrazione (estrarre `pub_id` da ogni
-  `url_fonte` esistente via regex, ricostruire con `_url_dettaglio()`) — **non
-  ancora eseguito, in attesa di conferma esplicita di Dom** prima di una modifica
-  così ampia (85k righe) sul DB reale, anche con backup preventivo.
+  non si riscrivono entrambe le tabelle. Script di migrazione non ancora scritto
+  in forma definitiva (la versione usata su Acate era uno script una tantum) —
+  **non ancora eseguito su tutto il DB, in attesa di conferma esplicita di Dom**
+  prima di una modifica così ampia (85k righe + red_flags), anche con backup
+  preventivo (stesso schema già usato per Acate).
 - [ ] Verificare se lo stesso bug esiste su altre piattaforme con un meccanismo di
   dettaglio simile (nessun segnale per ora, ma non controllato sistematicamente).
 
