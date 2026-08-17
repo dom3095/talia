@@ -46,16 +46,12 @@ _DATA_NUMERICA_RE = re.compile(
 # Data testuale: "12 giugno 2026", "1° marzo 2024". L'indicatore ordinale (°/º)
 # è opzionale.
 _DATA_TESTUALE_RE = re.compile(
-    r"\b(?P<g>0?[1-9]|[12]\d|3[01])[°º]?\s+(?P<mese>"
-    + "|".join(_MESI)
-    + r")\s+(?P<a>\d{4})\b",
+    r"\b(?P<g>0?[1-9]|[12]\d|3[01])[°º]?\s+(?P<mese>" + "|".join(_MESI) + r")\s+(?P<a>\d{4})\b",
     re.IGNORECASE,
 )
 
 
-def _entita(
-    tipo: TipoEntita, valore: object, match: re.Match, atto: TestoAtto
-) -> Entita:
+def _entita(tipo: TipoEntita, valore: object, match: re.Match, atto: TestoAtto) -> Entita:
     """Costruisce un'Entita da un match, agganciandola a offset e pagina."""
     return Entita(
         tipo=tipo,
@@ -141,28 +137,81 @@ def _normalizza_importo(grezzo: str) -> Decimal | None:
 # CIG (Codice Identificativo Gara, ANAC): 10 caratteri alfanumerici. Si richiede
 # l'etichetta "CIG" nelle vicinanze per non confondere il codice con numeri di
 # protocollo o altri token di 10 caratteri.
-_CIG_RE = re.compile(r"\bCIG\b[\s:.\-n°]*([0-9A-Za-z]{10})\b", re.IGNORECASE)
+#
+# Accordi quadro/convenzioni: un atto può citare sia il "CIG padre" (o
+# "originario"/"madre" — l'accordo quadro) sia il "CIG derivato" (la specifica
+# adesione/chiamata). Un'unica regex con l'etichetta opzionale è pericolosa:
+# "ORIGINARIO" è lungo esattamente 10 lettere, quindi con un fallback generico
+# verrebbe scambiato per un codice vero (bug reale trovato in TAL-64/65, 127
+# atti nel DB con `cig='ORIGINARIO'`); "PADRE"/"DERIVATO" invece non sono 10
+# caratteri e rompono il match, lasciando `cig` a NULL nonostante il testo
+# contenga due codici veri (368 atti nel DB). Tre pattern distinti invece di
+# uno solo: quello "semplice" ha un lookahead negativo che lo disattiva quando
+# è presente un'etichetta, così non c'è mai un fallback che possa inghiottire
+# la parola etichetta come se fosse il codice.
+_ETICHETTE_CIG_PADRE = "PADRE|MADRE|ORIGINARI[OA]"
+_ETICHETTE_CIG_DERIVATO = "DERIVAT[OA]"
+# Include "[" (alcuni atti scrivono "CIG. ORIGINARIO:[7990085AB8]", il codice
+# tra parentesi quadre) e "." (per "CIG." abbreviato prima dell'etichetta).
+_SEPARATORE_CIG = r"[\s:.\-n°\[]*"
+
+_RE_CIG_PADRE = re.compile(
+    rf"\bCIG{_SEPARATORE_CIG}(?:{_ETICHETTE_CIG_PADRE}){_SEPARATORE_CIG}([0-9A-Za-z]{{10}})\b",
+    re.IGNORECASE,
+)
+_RE_CIG_DERIVATO = re.compile(
+    rf"\bCIG{_SEPARATORE_CIG}(?:{_ETICHETTE_CIG_DERIVATO}){_SEPARATORE_CIG}([0-9A-Za-z]{{10}})\b",
+    re.IGNORECASE,
+)
+_RE_CIG_PLAIN = re.compile(
+    rf"\bCIG\b(?!{_SEPARATORE_CIG}(?:{_ETICHETTE_CIG_PADRE}|{_ETICHETTE_CIG_DERIVATO}))"
+    rf"{_SEPARATORE_CIG}([0-9A-Za-z]{{10}})\b",
+    re.IGNORECASE,
+)
 
 # CUP (Codice Unico di Progetto): 15 caratteri alfanumerici, il primo è una
 # lettera. Anche qui si pretende l'etichetta "CUP".
 _CUP_RE = re.compile(r"\bCUP\b[\s:.\-n°]*([A-Za-z][0-9A-Za-z]{14})\b", re.IGNORECASE)
 
 
+def trova_cig(testo: str | None) -> list[tuple[re.Match[str], bool]]:
+    """Trova tutti i CIG nel testo: ``(match, e_padre)``, ``e_padre`` True se
+    etichettato "padre"/"madre"/"originario" (accordo quadro a monte), False se
+    "derivato" o senza etichetta (il CIG proprio di questo atto). Il match
+    espone codice (`group(1)`) e offset, per chi ha bisogno del contesto."""
+    if not testo:
+        return []
+    trovati = [(m, True) for m in _RE_CIG_PADRE.finditer(testo)]
+    trovati += [(m, False) for m in _RE_CIG_DERIVATO.finditer(testo)]
+    trovati += [(m, False) for m in _RE_CIG_PLAIN.finditer(testo)]
+    return trovati
+
+
+def estrai_cig_gerarchia(testo: str | None) -> tuple[str | None, str | None]:
+    """Ritorna ``(cig_proprio, cig_padre)``: il proprio è il CIG derivato o
+    semplice (specifico di questo atto), il padre è l'eventuale accordo quadro
+    citato insieme. ``None`` per il lato assente."""
+    trovati = trova_cig(testo)
+    proprio = next((m.group(1).upper() for m, e_padre in trovati if not e_padre), None)
+    padre = next((m.group(1).upper() for m, e_padre in trovati if e_padre), None)
+    return proprio, padre
+
+
 def estrai_cig(atto: TestoAtto) -> list[Entita]:
-    """Codici CIG (10 alfanumerici) etichettati, normalizzati in maiuscolo."""
+    """Tutti i codici CIG (padre e derivati) citati nel testo, con offset/pagina."""
     trovati: list[Entita] = []
-    for m in _CIG_RE.finditer(atto.testo):
-        codice = m.group(1).upper()
+    for m, _e_padre in trova_cig(atto.testo):
         trovati.append(
             Entita(
                 tipo=TipoEntita.CIG,
-                valore=codice,
+                valore=m.group(1).upper(),
                 testo_originale=m.group(0),
                 offset_inizio=m.start(1),
                 offset_fine=m.end(1),
                 pagina=atto.pagina_per_offset(m.start(1)),
             )
         )
+    trovati.sort(key=lambda e: e.offset_inizio)
     return trovati
 
 

@@ -141,6 +141,16 @@ def test_estrai_riferimenti_vuoto():
     assert estrai_riferimenti("Testo senza riferimenti specifici.") == []
 
 
+def test_estrai_riferimenti_cig_ignora_cig_padre():
+    # TAL-65: il CIG padre di un accordo quadro è condiviso da molte adesioni
+    # distinte — non va usato come riferimento incrociato, solo il derivato.
+    testo = "Adesione CIG PADRE 8986139C7B E CIG DERIVATO 9200965C81."
+    refs = estrai_riferimenti(testo)
+    cig_refs = [r for r in refs if r.tipo == "cig"]
+    assert len(cig_refs) == 1
+    assert cig_refs[0].valore == "9200965C81"
+
+
 # ---------------------------------------------------------------------------
 # collega_per_cig
 # ---------------------------------------------------------------------------

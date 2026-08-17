@@ -54,6 +54,7 @@ class AttoMetadato:
     url_pdf: str | None = None
     hash_sha256: str | None = None
     cig: str | None = None
+    cig_padre: str | None = None  # CIG dell'accordo quadro, se l'atto ne cita uno (TAL-65)
     oggetto: str | None = None
     importo_euro: float | None = None
     testo_estratto: str | None = None
@@ -87,6 +88,7 @@ CREATE TABLE IF NOT EXISTS atti (
     url_pdf        TEXT,
     hash_sha256    TEXT,
     cig            TEXT,
+    cig_padre      TEXT,
     oggetto        TEXT,
     importo_euro   REAL,
     testo_estratto TEXT,
@@ -174,6 +176,7 @@ def inizializza_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_DDL)
     conn.commit()
     _estendi_enti(conn)
+    _estendi_atti(conn)
 
 
 def _estendi_enti(conn: sqlite3.Connection) -> None:
@@ -186,6 +189,23 @@ def _estendi_enti(conn: sqlite3.Connection) -> None:
     for col in ("modulo", "url_base", "stato_scraper"):
         if col not in colonne:
             conn.execute(f"ALTER TABLE enti ADD COLUMN {col} TEXT")
+    conn.commit()
+
+
+def _estendi_atti(conn: sqlite3.Connection) -> None:
+    """Aggiunge a `atti` la colonna `cig_padre` se mancante (TAL-65).
+
+    Migrazione lazy per i DB `talia.db` esistenti creati prima che il CIG
+    dell'accordo quadro (distinto dal CIG proprio dell'atto) fosse tracciato.
+    """
+    colonne = {row[1] for row in conn.execute("PRAGMA table_info(atti)").fetchall()}
+    if "cig_padre" not in colonne:
+        conn.execute("ALTER TABLE atti ADD COLUMN cig_padre TEXT")
+    # L'indice va creato qui (non nella _DDL statica): su un DB esistente la
+    # colonna non c'era finché la ALTER TABLE sopra non gira in questa stessa
+    # chiamata, quindi un CREATE INDEX in _DDL (eseguito prima di _estendi_atti)
+    # fallirebbe con "no such column" sui DB creati prima di questa migrazione.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_atti_cig_padre ON atti (cig_padre)")
     conn.commit()
 
 
@@ -282,9 +302,9 @@ def inserisci_atto(conn: sqlite3.Connection, atto: AttoMetadato) -> int | None:
             """
             INSERT INTO atti (
                 ente_id, tipo, numero, data_atto, data_pub, data_scadenza,
-                data_accesso, url_fonte, url_pdf, hash_sha256, cig, oggetto,
-                importo_euro, testo_estratto, fonte_scraper, metadati
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                data_accesso, url_fonte, url_pdf, hash_sha256, cig, cig_padre,
+                oggetto, importo_euro, testo_estratto, fonte_scraper, metadati
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 ente_id,
@@ -298,6 +318,7 @@ def inserisci_atto(conn: sqlite3.Connection, atto: AttoMetadato) -> int | None:
                 atto.url_pdf,
                 atto.hash_sha256,
                 atto.cig,
+                atto.cig_padre,
                 atto.oggetto,
                 atto.importo_euro,
                 atto.testo_estratto,

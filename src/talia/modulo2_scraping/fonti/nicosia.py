@@ -45,7 +45,13 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
-from talia.modulo2_scraping.utils import TIPI_ATTO_DEFAULT, estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import (
+    TIPI_ATTO_DEFAULT,
+    estrai_cig,
+    estrai_cig_padre,
+    ora_utc,
+    parse_data_iso,
+)
 from talia.modulo2_scraping.utils import strip_html as _strip
 
 logger = logging.getLogger(__name__)
@@ -109,6 +115,7 @@ def _parse_dettaglio(html: str, url: str, codice_istat: str) -> AttoMetadato | N
         oggetto=oggetto or titolo,
         data_pub=parse_data_iso(m_data.group(1)),
         cig=estrai_cig(oggetto),
+        cig_padre=estrai_cig_padre(oggetto),
     )
 
 

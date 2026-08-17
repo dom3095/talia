@@ -36,6 +36,7 @@ from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig as _estrai_cig
+from talia.modulo2_scraping.utils import estrai_cig_padre as _estrai_cig_padre
 from talia.modulo2_scraping.utils import ora_utc as _ora_utc
 from talia.modulo2_scraping.utils import parse_data_iso as _data_iso
 
@@ -193,18 +194,21 @@ def _parse_pagina(
             _, _, n = numero_raw.rpartition("/")
             numero = n or None
 
-        atti.append(AttoMetadato(
-            ente_codice_istat=codice_istat,
-            tipo=tipo,
-            url_fonte=_url_dettaglio(base_url, papca_path, pub_id),
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=_ora_utc(),
-            numero=numero,
-            oggetto=oggetto,
-            data_pub=data_pub,
-            data_scadenza=data_scad,
-            cig=_estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=codice_istat,
+                tipo=tipo,
+                url_fonte=_url_dettaglio(base_url, papca_path, pub_id),
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=_ora_utc(),
+                numero=numero,
+                oggetto=oggetto,
+                data_pub=data_pub,
+                data_scadenza=data_scad,
+                cig=_estrai_cig(oggetto),
+                cig_padre=_estrai_cig_padre(oggetto),
+            )
+        )
     return atti
 
 
@@ -218,6 +222,7 @@ def _build_opener(skip_ssl: bool = False) -> urllib.request.OpenerDirector:
     handlers: list = [urllib.request.HTTPCookieProcessor(jar)]
     if skip_ssl:
         import ssl
+
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE

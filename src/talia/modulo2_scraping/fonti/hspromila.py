@@ -31,7 +31,13 @@ import urllib.request
 from collections.abc import Iterable, Iterator
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
-from talia.modulo2_scraping.utils import TIPI_ATTO_DEFAULT, estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import (
+    TIPI_ATTO_DEFAULT,
+    estrai_cig,
+    estrai_cig_padre,
+    ora_utc,
+    parse_data_iso,
+)
 from talia.modulo2_scraping.utils import strip_html as _strip
 
 logger = logging.getLogger(__name__)
@@ -82,6 +88,7 @@ def _parse_pagina(html: str, url: str, codice_istat: str) -> list[AttoMetadato]:
                 data_pub=parse_data_iso(cells[8]) if len(cells) > 8 else None,
                 data_scadenza=parse_data_iso(cells[9]) if len(cells) > 9 else None,
                 cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
             )
         )
     return atti

@@ -9,6 +9,7 @@ import pytest
 from talia.modulo2_scraping.db import (
     AttoMetadato,
     EnteMetadato,
+    _estendi_atti,
     _estendi_enti,
     atti_per_ente,
     azzera_info_scraper,
@@ -114,6 +115,56 @@ def test_estendi_enti_idempotente(db):
     _estendi_enti(db)
     colonne = [r[1] for r in db.execute("PRAGMA table_info(enti)").fetchall()]
     assert colonne.count("modulo") == 1
+
+
+def test_estendi_atti_su_db_nuovo(db):
+    """inizializza_db chiama già _estendi_atti: la colonna cig_padre deve esserci (TAL-65)."""
+    colonne = {r[1] for r in db.execute("PRAGMA table_info(atti)").fetchall()}
+    assert "cig_padre" in colonne
+
+
+def test_estendi_atti_su_schema_vecchio_preserva_righe():
+    """Simula un talia.db esistente creato prima di TAL-65 (niente cig_padre):
+    _estendi_atti deve aggiungere la colonna senza perdere dati."""
+    conn = connetti(":memory:")
+    conn.execute(
+        """
+        CREATE TABLE enti (
+            id INTEGER PRIMARY KEY, denominazione TEXT NOT NULL, codice_istat TEXT UNIQUE NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE atti (
+            id INTEGER PRIMARY KEY, ente_id INTEGER NOT NULL, tipo TEXT NOT NULL,
+            url_fonte TEXT NOT NULL, fonte_scraper TEXT NOT NULL, data_accesso TEXT NOT NULL,
+            cig TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO enti (denominazione, codice_istat) VALUES ('Comune Vecchio', '000001')"
+    )
+    conn.execute(
+        "INSERT INTO atti (ente_id, tipo, url_fonte, fonte_scraper, data_accesso, cig) "
+        "VALUES (1, 'determina', 'http://x', 'icity', '2024-01-01', 'A1B2C3D4E5')"
+    )
+    conn.commit()
+
+    _estendi_atti(conn)
+
+    colonne = {r[1] for r in conn.execute("PRAGMA table_info(atti)").fetchall()}
+    assert "cig_padre" in colonne
+    row = conn.execute("SELECT * FROM atti WHERE cig = 'A1B2C3D4E5'").fetchone()
+    assert row["cig_padre"] is None
+
+
+def test_estendi_atti_idempotente(db):
+    _estendi_atti(db)
+    _estendi_atti(db)
+    colonne = [r[1] for r in db.execute("PRAGMA table_info(atti)").fetchall()]
+    assert colonne.count("cig_padre") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +459,14 @@ def test_inserisci_atto_url_diverse(db, ente_palermo):
     inserisci_atto(db, _atto("http://albo.pa.it/det001"))
     inserisci_atto(db, _atto("http://albo.pa.it/det002"))
     assert conta_atti(db) == 2
+
+
+def test_inserisci_atto_cig_padre(db, ente_palermo):
+    """TAL-65: cig_padre viene persistito distinto dal cig proprio."""
+    atto_id = inserisci_atto(db, _atto(cig="9200965C81", cig_padre="8986139C7B"))
+    row = db.execute("SELECT cig, cig_padre FROM atti WHERE id = ?", (atto_id,)).fetchone()
+    assert row["cig"] == "9200965C81"
+    assert row["cig_padre"] == "8986139C7B"
 
 
 def test_inserisci_atto_ente_mancante(db):

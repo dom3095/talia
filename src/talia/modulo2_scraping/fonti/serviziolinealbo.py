@@ -34,7 +34,13 @@ from collections.abc import Iterable, Iterator
 from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, EnteMetadato, inserisci_atto, upsert_ente
-from talia.modulo2_scraping.utils import TIPI_ATTO_DEFAULT, estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import (
+    TIPI_ATTO_DEFAULT,
+    estrai_cig,
+    estrai_cig_padre,
+    ora_utc,
+    parse_data_iso,
+)
 from talia.modulo2_scraping.utils import strip_html as _strip
 
 logger = logging.getLogger(__name__)
@@ -137,6 +143,7 @@ def _parse_html(html: str, codice_istat: str) -> list[AttoMetadato]:
                 oggetto=oggetto,
                 data_atto=parse_data_iso(data_str),
                 cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
             )
         )
     return atti
