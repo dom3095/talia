@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-16 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
+> Aggiornato: 2026-08-18 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
 >
 > **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun
 > commit ancora, in attesa di conferma"):** verificando lo stato reale del repo
@@ -221,6 +221,100 @@
 > Playwright su due campioni casuali indipendenti (14/14 funzionanti).
 > Backup preso prima (`talia.db.bak-pre-backfill-tal63-completo-20260816`).
 > 643 test verdi, tutto committato e pushato (`bf41fe9`).
+>
+> **⚠️ Segnalato da Dom, non ancora approfondito**: "le catene hanno dei
+> problemi" — nessun dettaglio ancora, discussione rimandata esplicitamente
+> a valle della decisione di deduplicazione TAL-62 in corso. Da riprendere
+> chiedendo a Dom cosa ha osservato prima di ipotizzare la causa.
+>
+> **TAL-64 aperta** — deduplicazione atti Albo Pretorio / Amministrazione
+> Trasparente. Spec concordata con Dom (schema `atti`/`atti_fonti`
+> normalizzato, `data_pub` per-fonte non canonica, CIG esatto-o-niente) ma
+> **non ancora implementata**: prima, su richiesta di Dom, un esperimento coi
+> dati reali. Ingest sperimentale di 1053 atti di Amministrazione Trasparente
+> in tabella di staging separata (`atti_trasparenza_staging`, script
+> `scripts/tal64_staging_trasparenza.py`, non tocca `atti`) su 7 comuni
+> jCityGov + 1 Halley (Aci Bonaccorsi). Trovato: le categorie di default non
+> generalizzano (riforma ANAC 2023 ha frammentato "Bandi di gara e
+> contratti" in sotto-categorie su jCityGov; su Halley nessun tenant tranne
+> Aci Bonaccorsi ha categorie con "bandi" nel nome), `data_atto` è 0/1053
+> (la chiave di fallback `tipo+numero+data_atto` della spec va rivista senza
+> `data_atto`), `numero="0"` è una sentinella in 135/1053 righe (esclusa dal
+> matching). Matching CIG/numero+tipo su jCityGov: 479/928 confermati (0
+> falsi positivi), ma tutti con lo stesso `url_fonte` (dedup già gratuita
+> lì) — non ancora testato il caso interessante URL-diverso-stesso-atto.
+> **Halley: 0/125 match — indagato (Tentativo 2)**: non è un bug del parser,
+> le righe di Amministrazione Trasparente su Halley espongono **solo**
+> descrizione + data inserimento, nessun campo numero/CIG in HTML (a
+> differenza dell'Albo Pretorio, che il "Numero atto" ce l'ha); il link
+> apre un **PDF diretto**, non una pagina di dettaglio — CIG/numero
+> recuperabili solo scaricando e leggendo il PDF, la stessa decisione
+> aperta di TAL-62 (#2, persistenza del testo). Per Halley l'identità
+> dovrà appoggiarsi a `oggetto` esatto + `data_pub`, o restare senza
+> deduplicazione automatica — non ancora deciso.
+>
+> **Notebook `notebooks/tal64_dedup_jcitygov.ipynb`** (su richiesta di Dom,
+> per rendere l'esperimento ripetibile): trovato che la conclusione "CIG: 0
+> falsi positivi" del primo giro era sbagliata — controllava solo se un
+> match esisteva, non se fosse quello giusto. Rifatto con precisione: **il
+> 40% dei CIG copre più di un atto reale** (una gara produce più atti nel
+> tempo, tutti con lo stesso CIG), il CIG da solo fonderebbe atti distinti.
+> Chiave rivista: `(ente_id, cig, numero)`, ambigua solo nel 6,2% dei casi.
+> Il caso vero da deduplicare (stesso atto, URL diverso) esiste ma è raro:
+> **1 solo caso su 1048** atti di staging (148 erano già dedup gratuita via
+> URL condiviso). Trovato anche un bug collaterale: il campo `cig` a volte
+> contiene la stringa `"ORIGINARIO"` invece di un CIG vero (91 atti su un
+> comune) — non ancora indagato, non bloccante.
+>
+> **Verificato che le gare Halley sono già nell'Albo Pretorio** (non altrove,
+> ipotesi di Dom controllata e non confermata): 3626/28160 atti Halley hanno
+> già CIG. Il gap reale che Amministrazione Trasparente colma sono i
+> **concorsi**, che non hanno mai CIG per natura — nessuna terza sezione
+> trovata sui siti istituzionali testati.
+>
+> **Fattibilità download+estrazione PDF per Halley confermata** (5 PDF di
+> prova, Aci Bonaccorsi): `engine.pdf_text.estrai_testo()` (già esistente,
+> nessuna nuova dipendenza) estrae il numero atto su 3/5 PDF (es.
+> "Determinazione n. 1217"); CIG assente in tutti e 5, atteso (concorsi).
+> Conferma che vale la pena decidere la persistenza del testo (TAL-62 #2)
+> almeno per questo caso — non ancora implementato in produzione.
+>
+> Todo list completa dei prossimi passi in
+> [TAL-64](docs/cards/TAL-64.md#-task). Tabella di staging lasciata nel DB
+> reale (1048 jCityGov + 125 Halley) per proseguire senza riscaricare.
+>
+> **TAL-65 (P1) — bug reale trovato e risolto**: Dom ha notato "i CIG possono
+> avere dei CIG padre e figli" — verificato su `talia.db`: 578 atti citano
+> pattern "CIG padre"/"CIG derivato"/"CIG originario" (accordi quadro,
+> convenzioni CONSIP), e `estrai_cig()` — **usata da 14 scraper su 14**, più
+> due copie quasi identiche in `engine/entita.py` (Modulo 1) e
+> `engine/catena.py` (collegamento catene) — li estraeva quasi sempre male:
+> 127 falsi positivi (`cig` valorizzato con la parola `"ORIGINARIO"`, che è
+> lunga esattamente 10 lettere e ingannava il fallback generico), 368 falsi
+> negativi (`cig` NULL nonostante il testo avesse due codici veri). Corretto
+> con tre regex distinte (padre/derivato/semplice, lookahead negativo per
+> evitare che il fallback inghiottisca la parola etichetta) invece di una
+> sola con etichetta opzionale. Nuova colonna `atti.cig_padre` (migrazione
+> lazy `_estendi_atti()`, stesso pattern di `_estendi_enti`), tutti i 14
+> scraper aggiornati meccanicamente. `catena.py::estrai_riferimenti()` ora
+> scarta esplicitamente i CIG padre dai riferimenti incrociati (un CIG padre
+> è condiviso da molte adesioni distinte — usarlo collegherebbe atti non
+> correlati, probabile causa non confermata di "le catene hanno dei
+> problemi"). 12 nuovi test, **655 test verdi (erano 643)**.
+>
+> **Backfill completo su `talia.db` reale** (backup preso prima:
+> `talia.db.bak-pre-fix-cig-padre-tal65-20260818`): ricalcolato `cig`/
+> `cig_padre` da `atti.oggetto` già in DB (nessuna nuova richiesta HTTP) su
+> 132.317 righe. Primo giro: 3585 corrette, ma 3 residue con un pattern non
+> previsto (codice tra parentesi quadre + "CIG." abbreviato) — corretta la
+> regex, rieseguito (idempotente): altre 235 corrette. **Risultato finale:
+> 0 righe con CIG-garbage residuo, 38.560 atti con CIG, 200 con CIG padre.**
+> Card [TAL-65](docs/cards/TAL-65.md), Stato: Done.
+>
+> **Non ancora fatto**: verificare l'impatto reale su `catena.py` (quante
+> catene cambiano ora che `cig` è pulito) — è il collegamento diretto con la
+> segnalazione di Dom su "le catene hanno dei problemi", ancora da
+> approfondire specificamente con lui prima di concludere che sia risolta.
 >
 > **Prossimi passi** (da riprendere con Dom): le due domande bloccanti di
 > TAL-62 (dedup — con i numeri già raccolti, non più a intuito — e

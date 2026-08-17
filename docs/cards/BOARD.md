@@ -50,6 +50,7 @@ Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 20
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
+| [TAL-64](TAL-64.md) | Deduplicazione atti: schema normalizzato `atti`/`atti_fonti` | E2 | 🕷️ SCR | P1 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
@@ -66,6 +67,7 @@ Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 20
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| [TAL-65](TAL-65.md) | `estrai_cig()`: CIG padre/derivato scambiati o persi, colonna `cig_padre` | Trovato durante TAL-64 (Dom: "i CIG possono avere CIG padre e figli"); bug in 3 punti (`utils.py`, `entita.py`, `catena.py`), usato da 14/14 scraper — 578 atti con pattern padre/derivato, 127 falsi positivi (`cig='ORIGINARIO'`), 368 falsi negativi (`cig` NULL); tre regex distinte con lookahead invece di un'unica etichetta opzionale; nuova colonna `atti.cig_padre` + migrazione lazy; **backfill completo su talia.db reale**: 3820 atti corretti, 0 garbage residuo, 200 con `cig_padre` popolato; 12 nuovi test, 655 verdi (erano 643) |
 | [TAL-63](TAL-63.md) | jCityGov: `url_fonte` mai stato un permalink funzionante | P0, esplicabilità; segnalato da Dom cliccando un link reale; formato `mostraDettaglio` dava sempre errore server-side (verificato con Playwright, freddo e con sessione, e curl puro), formato vero `/display/<id>` trovato cliccando davvero il bottone del portale; **backfill completo eseguito e verificato**: 85.394 atti + 2019 voci in 341 `red_flags.atti_cig` (copia denormalizzata dell'URL, scoperta durante il backfill di prova su Acate) corrette, 14/14 campione casuale funzionante dopo il fix; Halley controllata in parallelo, nessun bug analogo |
 | [TAL-61](TAL-61.md) | `enti` senza provincia/popolazione: mai incrociati con l'anagrafica comuni | segnalato da Dom su tab Panoramica; `sincronizza_enti_da_registro()` ora incrocia `data/comuni_sicilia.csv`; backfill su `talia.db` reale: 0/307 senza provincia (era 192), 1/307 senza popolazione (era 307); 3 nuovi test |
 | [TAL-59](TAL-59.md) | Falsi positivi in riapertura_dopo_revoca: tag "[annullato]" + dominio mancante | PR #18 mergiata (2026-08-13); 3 commit (fix dominio a frasi, verifica critica su campione casuale di 40 procedimenti mai ispezionati, guardia minori/tutela da code review); verificato dal vivo su `talia.db` reale: 82→23→10→8 flag; 614 test verdi (erano 598) |
