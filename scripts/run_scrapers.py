@@ -547,7 +547,21 @@ def _run_urbi_comune(
 
     inseriti = duplicati = consecutivi_dup = 0
     dates: list[str] = []
+    # Sui tenant che pretendono una Tipologia esplicita (TAL-68) lo scraper
+    # scandisce una tipologia alla volta e la marca sull'atto. Lo stop-on-known
+    # va allora applicato *dentro* ciascuna tipologia: fermarsi del tutto alla
+    # prima già nota lascerebbe le successive mai scandite, e lo scraper
+    # tornerebbe muto dal secondo run in poi.
+    tipologia_corrente: str | None = None
+    salta_tipologia = False
     for atto in scarica_atti(base_url, qs_base, codice_istat, ente_mittente, max_pagine=max_pagine):
+        tipologia = atto.metadati.get("tipologia_ricerca")
+        if tipologia != tipologia_corrente:
+            tipologia_corrente = tipologia
+            consecutivi_dup = 0
+            salta_tipologia = False
+        if salta_tipologia:
+            continue
         if inserisci_atto(conn, atto) is not None:
             inseriti += 1
             consecutivi_dup = 0
@@ -557,7 +571,9 @@ def _run_urbi_comune(
             duplicati += 1
             consecutivi_dup += 1
         if not no_stop and consecutivi_dup >= _STOP_CONSECUTIVI:
-            break
+            if tipologia is None:
+                break  # tenant normale: una sola scansione, si chiude qui
+            salta_tipologia = True  # riprende alla prossima tipologia
     conn.commit()
 
     n_trovati = inseriti + duplicati

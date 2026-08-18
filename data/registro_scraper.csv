@@ -66,7 +66,7 @@ sancipirello,Comune di San Cipirello,082063,,halley,Halley EG,https://servizi.co
 sancono,Comune di San Cono,087040,,halley,Halley EG,https://servizi.comune.sancono.ct.it,,,,attivo,
 sangiovannigemini,Comune di San Giovanni Gemini,084036,,halley,Halley EG,https://trasparenza.comune.sangiovannigemini.ag.it,,,,attivo,
 sangiovannilapunta_halley,Comune di San Giovanni la Punta,087041,,halley,Halley EG,https://servizi.comune.sangiovannilapunta.ct.it,,,,attivo,
-sangiuseppejato,Comune di San Giuseppe Jato,082064,,halley,Halley EG,https://servizi.comune.sangiuseppejato.pa.it,,,,attivo,
+sangiuseppejato,Comune di San Giuseppe Jato,082064,,halley,Halley EG,https://servizi.comune.sangiuseppejato.pa.it,,,true,attivo,skip_ssl=true (catena cert incompleta — stessa causa di Siculiana; rilevato dal run del 2026-08-18)
 sanmaurocastelverde,Comune di San Mauro Castelverde,082065,,halley,Halley EG,https://servizionline.comune.sanmaurocastelverde.pa.it,,,,attivo,
 sanpierniceto,Comune di San Pier Niceto,083080,,halley,Halley EG,https://servizi.comune.sanpierniceto.me.it,,,,attivo,
 sanpieropatti,Comune di San Piero Patti,083081,,halley,Halley EG,https://servizi.comune.sanpieropatti.me.it,,,,attivo,
