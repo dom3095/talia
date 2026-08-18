@@ -96,6 +96,20 @@ tre condizioni che hanno cause diverse e vanno lette diversamente:
 
 Lo stato *muto* è la fragilità nota già elencata in `CLAUDE.md` ("fallimento
 silenzioso a 0 atti"): uno scraper rotto continua a "riuscire" per settimane.
+È così che è stato trovato Caccamo, fermo a 0 atti dal 2026-07-14 senza mai
+un errore ([TAL-68](../cards/TAL-68.md)).
+
+**Cosa *non* viene segnalato, di proposito:** gli scraper non previsti dal run
+(`bloccato` nel registro come Corleone e Messina, o esclusi dal default come
+ANAC che richiede `--anac-file`). Il loro ultimo run è vecchio e fallito *per
+definizione*: contarli farebbe scattare la notifica ogni singola notte, e una
+notifica che suona sempre è una notifica che si impara a ignorare. Compaiono
+come nota informativa in fondo al report, senza incidere sull'exit code.
+
+Gli extra del run notturno (`agrigento`, `pachino`, `barrafranca`) vanno
+passati **anche** a `report_run.py` (`--extra-scrapers`, già fatto da
+`run_daily.sh`): altrimenti risulterebbero "non previsti" e i loro fallimenti
+non verrebbero mai segnalati.
 
 Il report segnala inoltre in modo esplicito quando l'ultimo run è più vecchio
 di 15 giorni, con il motivo (finestra di pubblicazione dell'albo superata).

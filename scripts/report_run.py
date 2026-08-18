@@ -51,6 +51,18 @@ def _parse_args() -> argparse.Namespace:
         help=f"Giorni oltre i quali uno scraper è 'fermo' (default: {GIORNI_STALE_DEFAULT})",
     )
     p.add_argument(
+        "--extra-scrapers",
+        nargs="+",
+        default=[],
+        dest="extra_scrapers",
+        metavar="SCRAPER",
+        help=(
+            "Slug aggiuntivi da considerare 'attesi', oltre al default del registro"
+            " — vanno tenuti allineati a quelli passati a run_scrapers.py,"
+            " altrimenti risultano 'non previsti' invece che monitorati"
+        ),
+    )
+    p.add_argument(
         "--no-registro",
         action="store_true",
         dest="no_registro",
@@ -69,7 +81,7 @@ def main() -> int:
     attesi = None
     if not args.no_registro:
         try:
-            attesi = entries_default(carica_registro())
+            attesi = [*entries_default(carica_registro()), *args.extra_scrapers]
         except Exception as exc:  # registro malformato: il report resta utile lo stesso
             print(f"Attenzione: registro non caricato ({exc})", file=sys.stderr)
 

@@ -119,7 +119,10 @@ notifica() {
     # --- Report -------------------------------------------------------------
     echo
     echo "--- report_run.py ---"
-    TALIA_DB="$DB_PATH" "$PYTHON" scripts/report_run.py --db "$DB_PATH" --output "$REPORT_FILE"
+    # Gli stessi extra passati al runner, altrimenti il report li considererebbe
+    # "non previsti" e non ne segnalerebbe mai i fallimenti.
+    TALIA_DB="$DB_PATH" "$PYTHON" scripts/report_run.py --db "$DB_PATH" \
+        --output "$REPORT_FILE" ${EXTRA_SCRAPERS:+--extra-scrapers $EXTRA_SCRAPERS}
     ESITO_REPORT=$?
 
     # --- Rotazione ----------------------------------------------------------

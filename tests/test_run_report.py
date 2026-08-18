@@ -181,3 +181,51 @@ def test_markdown_tronca_anche_i_mai_eseguiti(conn):
     attesi = ["alfa"] + [f"s{i:02d}" for i in range(MAX_ELENCO + 3)]
     testo = formatta_markdown(riepiloga(conn, scraper_attesi=attesi))
     assert "e altri 3" in testo
+
+
+# ---------------------------------------------------------------------------
+# Scraper non previsti dal run automatico (TAL-68)
+# ---------------------------------------------------------------------------
+
+
+def test_scraper_non_previsto_non_e_un_problema(conn):
+    """Corleone/Messina sono `bloccato` nel registro, ANAC richiede --anac-file.
+
+    Il loro ultimo run è vecchio e fallito *per definizione*: contarli farebbe
+    scattare la notifica ogni singola notte.
+    """
+    _run(conn, "alfa")
+    _run(conn, "corleone", giorni_fa=12, errore="URLError: host unreachable")
+    _run(conn, "anac", giorni_fa=41, trovati=0, inseriti=0)
+
+    r = riepiloga(conn, scraper_attesi=["alfa"])
+    assert not r.ha_problemi
+    assert [s.scraper_id for s in r.non_previsti] == ["anac", "corleone"]
+    assert r.falliti == [] and r.muti == [] and r.fermi == []
+    assert r.totale == 1  # solo gli attesi
+
+
+def test_scraper_non_previsti_elencati_come_informativi(conn):
+    _run(conn, "alfa")
+    _run(conn, "corleone", giorni_fa=12, errore="URLError")
+    testo = formatta_markdown(riepiloga(conn, scraper_attesi=["alfa"]))
+    assert "Nessun problema" in testo
+    assert "Non previsti dal run automatico (1)" in testo
+    assert "`corleone`" in testo
+
+
+def test_extra_scraper_atteso_torna_monitorato(conn):
+    """Agrigento è `escluso_default` ma il run notturno lo include: i suoi
+    fallimenti devono essere segnalati."""
+    _run(conn, "alfa")
+    _run(conn, "agrigento", errore="TimeoutError: timed out")
+    assert not riepiloga(conn, scraper_attesi=["alfa"]).ha_problemi
+    r = riepiloga(conn, scraper_attesi=["alfa", "agrigento"])
+    assert [s.scraper_id for s in r.falliti] == ["agrigento"]
+
+
+def test_senza_scraper_attesi_non_si_filtra_nulla(conn):
+    _run(conn, "corleone", giorni_fa=12, errore="URLError")
+    r = riepiloga(conn)
+    assert r.non_previsti == []
+    assert [s.scraper_id for s in r.falliti] == ["corleone"]

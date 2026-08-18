@@ -66,6 +66,9 @@ class RiepilogoRun:
     muti: list[StatoScraper] = field(default_factory=list)
     fermi: list[StatoScraper] = field(default_factory=list)
     mai_eseguiti: list[str] = field(default_factory=list)
+    #: Scraper con run in DB ma non più previsti (bloccati o esclusi dal
+    #: default): informativi, mai contati come problemi — vedi `riepiloga`.
+    non_previsti: list[StatoScraper] = field(default_factory=list)
     atti_inseriti: int = 0
     ultimo_run: str | None = None
     giorni_da_ultimo_run: float | None = None
@@ -121,15 +124,29 @@ def riepiloga(
 ) -> RiepilogoRun:
     """Costruisce il riepilogo dello stato dei run.
 
-    ``scraper_attesi`` è la lista degli slug che *dovrebbero* girare (di norma
-    il default del registro): serve a distinguere "mai eseguito" da "non
-    previsto". Se omessa, si guardano solo gli scraper già presenti nel DB.
+    ``scraper_attesi`` è la lista degli slug che *dovrebbero* girare (il
+    default del registro più gli eventuali extra del run automatico). Serve a
+    due cose:
+
+    * distinguere "mai eseguito" da "non previsto";
+    * **non segnalare come problema ciò che è rotto per scelta.** Gli scraper
+      `bloccato` (Corleone, Messina) o esclusi dal default (ANAC, che richiede
+      `--anac-file`) hanno un ultimo run vecchio e fallito *per definizione*:
+      contarli farebbe scattare la notifica ogni singola notte, e una notifica
+      che suona sempre è una notifica che si impara a ignorare.
+
+    Se ``scraper_attesi`` è omessa non si filtra nulla (si guardano tutti gli
+    scraper presenti nel DB).
     """
     ultimi = _ultimi_run(conn)
+    attesi = set(scraper_attesi) if scraper_attesi else None
     riepilogo = RiepilogoRun(totale=len(ultimi))
 
     for stato in sorted(ultimi.values(), key=lambda s: s.scraper_id):
         riepilogo.atti_inseriti += stato.n_inseriti
+        if attesi is not None and stato.scraper_id not in attesi:
+            riepilogo.non_previsti.append(stato)
+            continue
         if stato.fallito:
             riepilogo.falliti.append(stato)
         elif stato.muto:
@@ -139,8 +156,9 @@ def riepiloga(
         if stato.giorni_fa is not None and stato.giorni_fa > giorni_stale:
             riepilogo.fermi.append(stato)
 
-    if scraper_attesi:
-        riepilogo.mai_eseguiti = sorted(set(scraper_attesi) - set(ultimi))
+    riepilogo.totale -= len(riepilogo.non_previsti)
+    if attesi:
+        riepilogo.mai_eseguiti = sorted(attesi - set(ultimi))
 
     riga = conn.execute(
         "SELECT MAX(avviato_a), (julianday('now') - julianday(MAX(avviato_a))) FROM scraper_runs"
@@ -229,4 +247,18 @@ def formatta_markdown(riepilogo: RiepilogoRun, *, giorni_stale: int = GIORNI_STA
 
     if not riepilogo.ha_problemi:
         righe.append("✅ Nessun problema rilevato.")
+
+    if riepilogo.non_previsti:
+        # Informativi: non concorrono all'exit code né alla notifica.
+        righe += [
+            "",
+            f"<sub>Non previsti dal run automatico ({len(riepilogo.non_previsti)}): "
+            + ", ".join(f"`{s.scraper_id}`" for s in riepilogo.non_previsti[:MAX_ELENCO])
+            + (
+                f" … e altri {len(riepilogo.non_previsti) - MAX_ELENCO}"
+                if len(riepilogo.non_previsti) > MAX_ELENCO
+                else ""
+            )
+            + " — bloccati nel registro o esclusi dal default.</sub>",
+        ]
     return "\n".join(righe).rstrip() + "\n"
