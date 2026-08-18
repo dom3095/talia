@@ -302,8 +302,15 @@ def ingestione_giornaliera(
     omessi: un buco nella serie è esattamente l'informazione che interessa
     (nessun run è girato quel giorno), e un grafico che salta i giorni vuoti lo
     nasconde.
+
+    La finestra è in **UTC**, come ``data_accesso`` (scritto da ``ora_utc()``):
+    fra mezzanotte e le 2 di notte in Italia l'ultimo giorno della serie è
+    ancora quello precedente. Il limite superiore è esplicito e uguale a quello
+    dell'asse: senza, un atto con ``data_accesso`` oltre "oggi UTC" verrebbe
+    contato dall'aggregazione ma non avrebbe una casella nell'asse, sparendo
+    dal grafico senza che nessuno se ne accorga.
     """
-    dove = ["date(a.data_accesso) >= date('now', ?)"]
+    dove = ["date(a.data_accesso) >= date('now', ?)", "date(a.data_accesso) <= date('now')"]
     parametri: list[object] = [f"-{giorni - 1} days"]
     filtri, par_filtri = _filtri_territorio(provincia, ente_id)
     dove += filtri

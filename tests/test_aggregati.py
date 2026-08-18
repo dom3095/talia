@@ -46,6 +46,11 @@ def _atto(
     )
 
 
+def _oggi_utc(conn) -> str:
+    """ "Oggi" secondo SQLite (UTC), non secondo il fuso locale del runner."""
+    return conn.execute("SELECT date('now')").fetchone()[0]
+
+
 @pytest.fixture()
 def conn():
     c = connetti(":memory:")
@@ -203,17 +208,21 @@ def test_atti_senza_alcuna_data_esclusi(conn):
 
 
 def test_ingestione_giornaliera_esplicita_gli_zeri(conn):
-    oggi = date.today()
-    inserisci_atto(conn, _atto("084001", 1, data_accesso=oggi.isoformat()))
+    # `date('now')` di SQLite è in UTC, `date.today()` di Python è locale: fra
+    # mezzanotte e le 2 in Italia differiscono di un giorno, e un test scritto
+    # sull'ora locale fallirebbe solo in quella finestra. Si usa la nozione di
+    # "oggi" del DB, la stessa su cui lavora la funzione.
+    oggi = _oggi_utc(conn)
+    inserisci_atto(conn, _atto("084001", 1, data_accesso=oggi))
     serie = agg.ingestione_giornaliera(conn, giorni=5)
     assert len(serie) == 5
-    assert serie[-1].periodo == oggi.isoformat()
+    assert serie[-1].periodo == oggi
     assert serie[-1].n_atti == 1
     assert [p.n_atti for p in serie[:-1]] == [0, 0, 0, 0]
 
 
 def test_ingestione_giornaliera_filtrata_per_provincia(conn):
-    oggi = date.today().isoformat()
+    oggi = _oggi_utc(conn)
     inserisci_atto(conn, _atto("084001", 1, data_accesso=oggi))
     inserisci_atto(conn, _atto("087001", 2, data_accesso=oggi))
     serie = agg.ingestione_giornaliera(conn, giorni=3, provincia="AG")
@@ -249,3 +258,19 @@ def test_aggregati_per_comune_filtrati_per_provincia(conn_serie):
 
 def test_province_disponibili(conn_serie):
     assert agg.province_disponibili(conn_serie) == ["AG", "CT"]
+
+
+def test_ingestione_giornaliera_non_perde_atti_oltre_oggi_utc(conn):
+    """L'asse e l'aggregazione devono avere lo stesso limite superiore.
+
+    Senza il limite esplicito sull'aggregazione, un atto con `data_accesso`
+    oltre "oggi UTC" veniva contato ma non aveva una casella nell'asse:
+    spariva dal grafico in silenzio.
+    """
+    oggi = _oggi_utc(conn)
+    domani = conn.execute("SELECT date('now', '+1 day')").fetchone()[0]
+    inserisci_atto(conn, _atto("084001", 1, data_accesso=oggi))
+    inserisci_atto(conn, _atto("084001", 2, data_accesso=domani))
+    serie = agg.ingestione_giornaliera(conn, giorni=3)
+    assert [p.periodo for p in serie][-1] == oggi
+    assert sum(p.n_atti for p in serie) == 1  # quello di "domani" resta fuori
