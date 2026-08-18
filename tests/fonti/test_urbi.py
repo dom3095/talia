@@ -256,3 +256,61 @@ class _OpenerFinto:
 
     def open(self, *_args, **_kwargs):
         return _RispostaFinta(_HTML_FORM_CON_TIPOLOGIE)
+
+
+def test_tetto_pagine_per_tipologia(monkeypatch):
+    """Senza tetto, 26 tipologie × 50 pagine sono ~40 min per un solo comune.
+
+    Sicuro perché dentro ogni tipologia l'albo elenca dal più recente: il tetto
+    taglia la coda storica, mai le novità.
+    """
+    from talia.modulo2_scraping.fonti import urbi
+
+    pagine_per_tipologia: dict[str, int] = {}
+
+    def _fake_post(_opener, url, dati):
+        if "StwEvent=910001" in url:
+            tipologia = dati.get("Tipologia", "")
+            if not tipologia:
+                return _HTML_AVVISO_TIPOLOGIA
+            pagine_per_tipologia[tipologia] = 1
+            return _HTML_PAGINA
+        # pagina successiva: attribuita alla tipologia in corso
+        corrente = max(pagine_per_tipologia, key=lambda k: pagine_per_tipologia[k], default=None)
+        ultima = list(pagine_per_tipologia)[-1]
+        pagine_per_tipologia[ultima] += 1
+        assert corrente is not None
+        return _HTML_PAGINA.replace(
+            "IdMePubblica=1", f"IdMePubblica=9{pagine_per_tipologia[ultima]}"
+        )
+
+    monkeypatch.setattr(urbi, "_post", _fake_post)
+    monkeypatch.setattr(urbi, "_PAUSA_SECONDI", 0)
+    monkeypatch.setattr(urbi.urllib.request, "build_opener", lambda *_a, **_k: _OpenerFinto())
+
+    list(urbi.scarica_atti(_BASE, _QS, _ISTAT, _ENTE, max_pagine=50, max_pagine_per_tipologia=3))
+    assert set(pagine_per_tipologia) == {"83", "44"}
+    assert all(n <= 3 for n in pagine_per_tipologia.values()), pagine_per_tipologia
+
+
+def test_tetto_disattivabile_per_backfill(monkeypatch):
+    from talia.modulo2_scraping.fonti import urbi
+
+    pagine = {"n": 0}
+
+    def _fake_post(_opener, url, dati):
+        if "StwEvent=910001" in url:
+            if not dati.get("Tipologia", ""):
+                return _HTML_AVVISO_TIPOLOGIA
+            pagine["n"] += 1
+            return _HTML_PAGINA
+        pagine["n"] += 1
+        return _HTML_PAGINA.replace("IdMePubblica=1", f"IdMePubblica=9{pagine['n']}")
+
+    monkeypatch.setattr(urbi, "_post", _fake_post)
+    monkeypatch.setattr(urbi, "_PAUSA_SECONDI", 0)
+    monkeypatch.setattr(urbi.urllib.request, "build_opener", lambda *_a, **_k: _OpenerFinto())
+
+    list(urbi.scarica_atti(_BASE, _QS, _ISTAT, _ENTE, max_pagine=6, max_pagine_per_tipologia=None))
+    # 2 tipologie × 6 pagine: nessun tetto applicato.
+    assert pagine["n"] == 12

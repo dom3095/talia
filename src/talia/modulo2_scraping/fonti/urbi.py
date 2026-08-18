@@ -67,6 +67,16 @@ _RE_SELECT_TIPOLOGIA = re.compile(
 )
 _RE_OPTION_VALUE = re.compile(r'<option[^>]*value="([^"]*)"')
 
+# Tetto di pagine per singola tipologia sui tenant che ne pretendono una
+# esplicita. Serve perché lì la ricerca attraversa l'**archivio**, non solo gli
+# atti in pubblicazione: su Caccamo la sola tipologia "ALBO/ELENCO ELETTORALE"
+# supera le 50 pagine (≥499 atti), e 26 tipologie a 50 pagine sono ~40 minuti
+# per un solo comune dentro un run notturno che ne ha 260 (misurato).
+# È sicuro perché dentro ogni tipologia l'albo elenca dal più recente
+# (verificato sui dati: 2021-08-12, 2020-08-20, 2020-08-10, …): il tetto
+# taglia la coda storica, mai le novità. Il backfill lo disattiva con `None`.
+MAX_PAGINE_PER_TIPOLOGIA = 3
+
 _RE_ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.DOTALL)
 _RE_ID = re.compile(r"IdMePubblica=(\d+)")
 _RE_ENTE = re.compile(r"Ente Mittente\s*<strong>([^<]*)</strong>")
@@ -191,6 +201,7 @@ def scarica_atti(
     ente_mittente: str,
     *,
     max_pagine: int = 100,
+    max_pagine_per_tipologia: int | None = MAX_PAGINE_PER_TIPOLOGIA,
 ) -> Iterator[AttoMetadato]:
     """Scarica gli atti in pubblicazione da un albo pretorio URBI (Cloud o self-hosted).
 
@@ -201,6 +212,9 @@ def scarica_atti(
         ente_mittente: nome esatto dell'ente da tenere (es. "COMUNE DI FAVARA"),
                        per scartare atti di altri enti ospitati sullo stesso albo.
         max_pagine:   numero massimo di pagine da scaricare.
+        max_pagine_per_tipologia: tetto di pagine per ciascuna tipologia, usato
+                      solo sui tenant che pretendono una `Tipologia` esplicita
+                      (vedi sotto). `None` lo disattiva, per il backfill.
 
     Si ferma alla prima pagina senza righe o quando una pagina ripete gli
     stessi id della precedente (il portale ripropone l'ultima pagina se
@@ -218,11 +232,11 @@ def scarica_atti(
     visti: set[str] = set()
     tipologia_richiesta = False
 
-    def _ricerca(form: dict[str, str]) -> Iterator[AttoMetadato]:
+    def _ricerca(form: dict[str, str], tetto_pagine: int) -> Iterator[AttoMetadato]:
         """Una ricerca completa (POST 910001 + paginazione), con i suoi contatori."""
         nonlocal totale, scartati, tipologia_richiesta
         ids_precedenti: set[str] = set()
-        for pagina in range(1, max_pagine + 1):
+        for pagina in range(1, tetto_pagine + 1):
             if pagina == 1:
                 html = _post(opener, f"{base_url}?{qs_base}&StwEvent=910001", form)
                 if _RE_TIPOLOGIA_OBBLIGATORIA.search(html):
@@ -254,7 +268,7 @@ def scarica_atti(
             yield from nuovi
             time.sleep(_PAUSA_SECONDI)
 
-    yield from _ricerca(_FORM_RICERCA)
+    yield from _ricerca(_FORM_RICERCA, max_pagine)
 
     if tipologia_richiesta:
         # Il tenant pretende una tipologia esplicita: si riprova una ricerca
@@ -263,13 +277,20 @@ def scarica_atti(
         # non deve far partire 26 ricerche inutili ad ogni run.
         tipologie = estrai_tipologie(html_form)
         if tipologie:
+            tetto = (
+                max_pagine
+                if max_pagine_per_tipologia is None
+                else min(max_pagine, max_pagine_per_tipologia)
+            )
             logger.info(
-                "urbi %s: ricerca senza tipologia vuota — riprovo su %d tipologie",
+                "urbi %s: ricerca senza tipologia rifiutata — riprovo su %d tipologie"
+                " (max %d pagine ciascuna)",
                 base_url,
                 len(tipologie),
+                tetto,
             )
             for t in tipologie:
-                for atto in _ricerca({**_FORM_RICERCA, "Tipologia": t}):
+                for atto in _ricerca({**_FORM_RICERCA, "Tipologia": t}, tetto):
                     # Marca la tipologia di provenienza: il runner usa questo
                     # confine per azzerare il contatore dello stop-on-known.
                     # Senza, la prima tipologia tutta già nota interromperebbe

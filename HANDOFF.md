@@ -148,7 +148,20 @@ subdolo perché con atti in DB a dare l'impressione che funzionasse.
 da `salta_tipologia` (riprende dalla tipologia successiva). 2 test di
 regressione dedicati.
 
-**706 test verdi (erano 699), ruff pulito.**
+**Costo a regime misurato prima di lasciarlo nel run notturno** — e non
+andava bene: il fix funzionava ma Caccamo costava **40 minuti** (2500s il
+primo run con 547 atti nuovi, 2412s il secondo con 0 inserimenti: lo
+stop-on-known filtra gli atti ma non ferma la paginazione, perché il
+generatore non conosce lo stato del DB). Un'ipotesi è stata scartata dalla
+misura invece che seguita: pensavo si scaricassero righe di altri enti per
+tenerne poche (la select `EnteMittente` ha 304 voci) e che bastasse filtrare
+server-side — misurato, pagine 2-6 danno 48 righe su 50 già di Caccamo, con e
+senza filtro. Il tempo è archivio vero (la sola tipologia elettorale supera
+le 50 pagine). Rimedio: tetto di 3 pagine per tipologia, disattivato dal
+backfill `--no-stop`, sicuro perché dentro ogni tipologia l'albo elenca dal
+più recente (verificato sui dati). **2412s → 152s.**
+
+**713 test verdi (erano 699), ruff pulito.**
 
 ### Problemi misurati e segnalati a Dom (non affrontati in questa sessione)
 

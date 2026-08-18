@@ -535,7 +535,7 @@ def _run_urbi_comune(
     **_kwargs,
 ):
     from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
-    from talia.modulo2_scraping.fonti.urbi import scarica_atti
+    from talia.modulo2_scraping.fonti.urbi import MAX_PAGINE_PER_TIPOLOGIA, scarica_atti
 
     upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
     stop_label = " [backfill, stop disabilitato]" if no_stop else ""
@@ -554,7 +554,15 @@ def _run_urbi_comune(
     # tornerebbe muto dal secondo run in poi.
     tipologia_corrente: str | None = None
     salta_tipologia = False
-    for atto in scarica_atti(base_url, qs_base, codice_istat, ente_mittente, max_pagine=max_pagine):
+    for atto in scarica_atti(
+        base_url,
+        qs_base,
+        codice_istat,
+        ente_mittente,
+        max_pagine=max_pagine,
+        # In backfill si vuole tutto l'archivio, tetto per tipologia incluso.
+        max_pagine_per_tipologia=None if no_stop else MAX_PAGINE_PER_TIPOLOGIA,
+    ):
         tipologia = atto.metadati.get("tipologia_ricerca")
         if tipologia != tipologia_corrente:
             tipologia_corrente = tipologia

@@ -198,8 +198,10 @@ def test_runner_halley_propaga_skip_ssl_da_entry(rs, monkeypatch, db):
 def test_runner_urbi_propaga_qs_base_e_ente_mittente(rs, monkeypatch, db):
     chiamate = []
 
-    def _finto_scarica_atti(base_url, qs_base, codice_istat, ente_mittente, max_pagine=50):
-        chiamate.append((base_url, qs_base, codice_istat, ente_mittente))
+    def _finto_scarica_atti(
+        base_url, qs_base, codice_istat, ente_mittente, max_pagine=50, **kwargs
+    ):
+        chiamate.append((base_url, qs_base, codice_istat, ente_mittente, kwargs))
         return iter([])
 
     monkeypatch.setattr("talia.modulo2_scraping.fonti.urbi.scarica_atti", _finto_scarica_atti)
@@ -213,9 +215,33 @@ def test_runner_urbi_propaga_qs_base_e_ente_mittente(rs, monkeypatch, db):
     runner = rs._make_urbi_runner(entry)
     runner(db, max_pagine=1)
 
+    from talia.modulo2_scraping.fonti.urbi import MAX_PAGINE_PER_TIPOLOGIA
+
     assert chiamate == [
-        ("https://test.example.com", "DB_NAME=abc123&w3cbt=S", "999999", "COMUNE DI TEST")
+        (
+            "https://test.example.com",
+            "DB_NAME=abc123&w3cbt=S",
+            "999999",
+            "COMUNE DI TEST",
+            {"max_pagine_per_tipologia": MAX_PAGINE_PER_TIPOLOGIA},
+        )
     ]
+
+
+def test_runner_urbi_backfill_disattiva_il_tetto_per_tipologia(rs, monkeypatch, db):
+    """`--no-stop` significa "voglio tutto l'archivio", tetto incluso."""
+    chiamate = []
+
+    def _finto_scarica_atti(*_a, **kwargs):
+        chiamate.append(kwargs.get("max_pagine_per_tipologia"))
+        return iter([])
+
+    monkeypatch.setattr("talia.modulo2_scraping.fonti.urbi.scarica_atti", _finto_scarica_atti)
+    runner = rs._make_urbi_runner(
+        _entry(slug="comune_urbi", modulo="urbi", qs_base="DB_NAME=x", ente_mittente="COMUNE X")
+    )
+    runner(db, max_pagine=1, no_stop=True)
+    assert chiamate == [None]
 
 
 # ---------------------------------------------------------------------------

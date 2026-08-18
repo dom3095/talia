@@ -81,15 +81,42 @@ normali (una sola scansione), `salta_tipologia` per quelli con tipologie, che
 riprende dalla successiva. 2 test di regressione dedicati, uno per ciascun
 comportamento.
 
+### 2026-08-18 — Tentativo 2
+**Approccio:** misurare il costo a regime del fix prima di lasciarlo nel run
+notturno, invece di fidarsi del fatto che "funziona".
+**Esito:** ❌ il fix funzionava ma costava **40 minuti per un solo comune**.
+**Appreso:** il primo run (547 atti nuovi) ha impiegato 2500s, e il secondo —
+con lo stop-on-known attivo e 0 inserimenti — **2412s**, praticamente uguale:
+lo stop-on-known filtra gli atti ma non ferma la paginazione, perché il
+generatore non sa nulla dello stato del DB. Con 26 tipologie da 50 pagine
+l'ordine di grandezza è quello, dentro un run che ha altri 259 comuni.
+
+Ipotesi sbagliata, scartata dalla misura: pensavo si scaricassero migliaia di
+righe di altri enti per tenerne poche (la select `EnteMittente` ha 304 voci),
+e che bastasse filtrare server-side. Misurato: pagine 2-6 danno 50 righe di
+cui **48 già di Caccamo**, con e senza filtro — il tenant ospita di fatto solo
+i propri atti, il filtro non serve a niente. Il tempo è archivio vero: la sola
+tipologia "ALBO/ELENCO ELETTORALE" supera le 50 pagine (≥499 atti).
+
+**Rimedio scelto:** tetto di pagine per tipologia
+(`MAX_PAGINE_PER_TIPOLOGIA = 3`), disattivato dal backfill (`--no-stop`).
+È sicuro perché dentro ogni tipologia l'albo elenca **dal più recente** —
+verificato sui dati raccolti (2021-08-12, 2020-08-20, 2020-08-10, …): il tetto
+taglia la coda storica, mai le novità. **Misura finale: 2412s → 152s**, con
+173 atti recenti comunque esaminati.
+
 ## ✅ Task
 
 - [x] `skip_ssl=true` per `sangiuseppejato` nel registro (verificato: 14 atti)
 - [x] `estrai_tipologie()` + fallback in `urbi.py`
 - [x] `_run_urbi_comune`: stop-on-known per tipologia
-- [x] 5 test nuovi (3 in `tests/fonti/test_urbi.py`, 2 in
-      `tests/test_run_scrapers_registry.py`) — **706 verdi** (erano 699)
+- [x] 8 test nuovi (5 in `tests/fonti/test_urbi.py`, 3 in
+      `tests/test_run_scrapers_registry.py`) — **713 verdi** (erano 699)
 - [x] Nessuna regressione sui tenant URBI funzionanti (verificato dal vivo)
-- [ ] Run dei due scraper sul DB reale — in corso alla stesura della card
+- [x] Tetto pagine per tipologia + disattivazione in backfill (2 test)
+- [x] Run dei due scraper sul DB reale: **Caccamo +547 atti**, **San Giuseppe
+      Jato +127**
+- [x] Costo a regime misurato e rientrato: **152s** (era 2412s)
 
 ## 📎 Note per il futuro
 
