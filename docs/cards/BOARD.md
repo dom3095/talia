@@ -51,6 +51,7 @@ Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 20
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
 | [TAL-64](TAL-64.md) | Deduplicazione atti: schema normalizzato `atti`/`atti_fonti` | E2 | 🕷️ SCR | P1 |
+| [TAL-69](TAL-69.md) | Scraper "stagnanti": righe sì, nessun atto nuovo da settimane | E2 | 🕷️ SCR + ⚙️ OPS | P1 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |

@@ -163,6 +163,52 @@ più recente (verificato sui dati). **2412s → 152s.**
 
 **713 test verdi (erano 699), ruff pulito.**
 
+### Audit di copertura del run notturno (2026-08-19, richiesto da Dom)
+
+Domande: *"abbiamo collegato Agrigento? ci sono scraper scollegati e/o non
+verificati?"* e *"hai tenuto traccia degli scraper che non funzionano e dei
+comuni che non tornano righe da qualche giorno?"*
+
+**Copertura**: **263 dei 264 scraper eseguibili** sono nel run notturno
+(Agrigento incluso, via `--extra-scrapers`, sia nel runner sia nel report).
+Zero mai eseguiti, zero che non abbiano mai inserito nulla. L'unico
+eseguibile escluso è `anac` (richiede `--anac-file`).
+
+**Fuori dal run, per stato di registro**:
+- **38 `pending` senza modulo** — comuni censiti in TAL-51, nessuno scraper
+  mai scritto (comuni piccoli);
+- **8 `pending` con piattaforma riconosciuta ma 0 atti estratti**
+  (`acquavivaplatani`, `cianciana`, `floresta`, `monterossoalmo`,
+  `novaradisicilia`, `oliveri`, `sanmichelediganzaria`,
+  `valguarneracaropepe`) — **stessa classe di Caccamo/TAL-68**: piattaforma
+  giusta, estrazione vuota, accantonati a luglio/agosto senza diagnosi;
+- **2 `bloccato`** (Messina, Corleone).
+
+**Fuori dal registro**: Amministrazione Trasparente (TAL-62) resta non
+collegata a `run_scrapers.py` — deliberato, non dimenticato.
+
+**Nota importante sul primo scatto automatico**: alle 00:24 del 19/08
+l'agente risultava `runs = 0`. Non è un guasto — le 03:30 non erano ancora
+arrivate; il trigger è correttamente armato (`watching = 1`, Hour 3 /
+Minute 30). **Il primo run automatico vero non è ancora stato osservato**:
+va verificato.
+
+**Tracciamento — risposta onesta: parziale.** Falliti, muti e fermi sono
+tracciati (storico completo in `scraper_runs`: 1484 run dal 26/06, 67 errori
+conservati) e mostrati dal report. Gli **stagnanti** (righe restituite ma
+nessun atto nuovo da settimane) **non erano tracciati da niente**: trovati
+con una query a mano durante questo audit. Ora sono una card,
+[TAL-69](docs/cards/TAL-69.md): **20 scraper su 263**, di cui 11 fermi da 42
+giorni; i due senza spiegazione benigna sono `rometta` (atto più recente
+**2023-09-27**) e `paceco` (**2025-07-04**), entrambi che continuano a
+restituire 20 righe ad ogni run. Nota metodologica: la prima metrica provata
+(run consecutivi a 0 inserimenti) era falsata dai run manuali ripetuti del
+18/08 — sostituita con i giorni dall'ultimo inserimento.
+
+Debito collegato emerso qui: **`atti.fonte_scraper` contiene il modulo (13
+valori), non lo slug (263)** — per i 5 comuni con scraper gemelli (TAL-52) è
+impossibile capire quale dei due funzioni.
+
 ### Problemi misurati e segnalati a Dom (non affrontati in questa sessione)
 
 Numeri presi su `talia.db` reale il 2026-08-18, prima del run di recupero:
