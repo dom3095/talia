@@ -1,7 +1,114 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-18 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
->
+> Aggiornato: 2026-08-18 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
+> `main`). La sessione precedente (`feat/TAL-60-streamlit-modulo1`, TAL-60…65)
+> è stata mergiata in `main` come **PR #19** (`520d697`) — il resoconto
+> dettagliato di quella sessione resta più sotto.
+
+---
+
+## Sessione 2026-08-18 (2) — TAL-66 run giornaliero automatico + TAL-67 aggregati dashboard
+
+**Richiesta di Dom:** wiring per i run degli scraper, automazione giornaliera
+"come su Pathosphere", dashboard con aggregati mensili/settimanali/trimestrali/
+semestrali per comune e provincia + dettaglio giornaliero dei documenti
+ingeriti. Più: "credi ci sia altro che valga la pena fare? ci sono problemi da
+affrontare che non possiamo rimandare".
+
+### Il problema urgente trovato leggendo lo stato (TAL-66, P0)
+
+**L'ultimo run scraper era del 2026-08-06: 12 giorni prima.** La cadenza reale
+dei run è "quando qualcuno se ne ricorda" (5-11 giorni di intervallo). Non è
+un problema di igiene: quasi tutti gli scraper leggono l'**Albo Pretorio**,
+che espone solo gli atti *in pubblicazione* (finestra 15-30 giorni). Gli atti
+usciti dalla finestra **non sono più raccoglibili da lì, nessun backfill li
+recupera**. Il grafico di ingestione giornaliera della nuova tab lo mostra a
+colpo d'occhio: 13 giorni consecutivi a zero.
+
+### Fatto — TAL-66 (automazione)
+
+- **`scripts/run_daily.sh`**: lock (`mkdir` atomico + PID, con riconoscimento
+  del lock orfano — un run completo dura ~4h40m su 260 scraper e due run
+  sovrapposti si contenderebbero lo stesso SQLite), `caffeinate -i`, backup
+  del DB via `sqlite3 .backup` (consistente in WAL, a differenza di `cp`),
+  rotazione log/backup, notifica macOS su problemi.
+- **`scripts/setup_launchd.sh`**: agente `com.talia.scrapers`
+  (`--ora/--minuto/--status/--uninstall`). **Installato e caricato: 03:30 ora
+  locale, ogni giorno.**
+- **`src/talia/modulo2_scraping/run_report.py`** + **`scripts/report_run.py`**:
+  riepilogo con exit code non-zero sui problemi, che tiene **distinti** tre
+  stati con cause diverse — *fallito* (eccezione), *muto* (completato con 0
+  atti trovati: la fragilità nota "fallimento silenzioso" di CLAUDE.md, che
+  nessun exit code intercetterebbe) e *fermo* (attivo nel registro ma non
+  eseguito da N giorni: esattamente la condizione che ha prodotto questo
+  ritardo). Segnala esplicitamente quando l'ultimo run supera i 15 giorni.
+- **Due difetti dello schema Pathosphere non riportati qui**: il suo plist usa
+  `StartInterval` insieme a `KeepAlive true`, che su un job che *termina*
+  significa rilancio immediato in loop — su un run di 4-5h verso 260 server
+  comunali sarebbe stato un martellamento. Qui `StartCalendarInterval` +
+  `KeepAlive false` + `RunAtLoad false`, più `Nice`/`ProcessType Background`.
+- **Fix collaterale trovato guardando l'output reale, non i test**:
+  `scraper_runs.errore` conservava i *primi* 500 caratteri del traceback,
+  cioè quasi sempre senza la riga che nomina l'eccezione — il riepilogo
+  mostrava `esito = fn(` invece di `ConnectionRefusedError: ...`. Ora
+  l'eccezione è messa in testa prima di troncare, e `sintesi_errore()` sa
+  leggere anche il formato vecchio già in DB.
+- **Run reale di recupero lanciato** il 2026-08-18 alle 13:44 (backup preso
+  prima: `backups/talia.db.20260818`).
+
+### Fatto — TAL-67 (aggregati dashboard)
+
+- **`src/talia/modulo3_dashboard/aggregati.py`**: funzioni pure, nessun import
+  di Streamlit (testabili senza avviare l'app). Granularità giornaliera /
+  settimanale / mensile / trimestrale / semestrale, filtri per provincia e
+  comune, intervallo `da`/`a`.
+- **Due assi temporali tenuti esplicitamente distinti**: `atto`
+  (`COALESCE(data_atto, data_pub)` — l'80% degli atti reali ha `data_atto`
+  NULL, la trappola già costata un bug in TAL-48) e `ingestione`
+  (`date(data_accesso)`, salute della pipeline). La UI avvisa che sull'asse di
+  ingestione un backfill storico concentra anni di atti in un giorno solo.
+- Settimana ancorata al **lunedì** (`date(d,'weekday 0','-6 days')`) invece di
+  `strftime('%W')`: etichetta = data vera, ordinabile, senza ambiguità a
+  cavallo d'anno.
+- Date non plausibili escluse (sul DB reale esiste `0202-06-16`), ma il limite
+  superiore è oggi+90gg e non "oggi": `data_pub` è la data di *inizio*
+  pubblicazione e alcuni albi pubblicano con decorrenza futura — confermato
+  sui dati veri (una settimana `2026-08-31` con 1 atto).
+- **Tab 📅 Aggregati** in `app.py`: selettori territorio/granularità/asse,
+  serie con variazione sul periodo precedente, dettaglio giornaliero di
+  ingestione **con gli zeri espliciti** (un giorno omesso dal grafico
+  nasconderebbe proprio l'informazione utile), classifiche per provincia e per
+  comune, sezione "Stato degli scraper" che riusa `run_report`.
+- Nessuna nuova dipendenza: `st.bar_chart` con lista di dict + `x=`/`y=`.
+
+**698 test verdi (erano 655), ruff pulito.** Verificato dal vivo con
+`AppTest.from_file` su `talia.db` reale: 0 eccezioni.
+
+### Documentazione
+
+Nuova wiki [`docs/wiki/15-run-automatico.md`](docs/wiki/15-run-automatico.md)
+(perché locale e non CI, perché la continuità è critica, come si installa,
+cosa guardare quando qualcosa non torna). Card
+[TAL-66](docs/cards/TAL-66.md) e [TAL-67](docs/cards/TAL-67.md), entrambe in
+Review. TAL-60 spostata da Review a Done (PR #19 mergiata).
+
+### Non fatto / da decidere con Dom
+
+- **Nessuna PR aperta**: commit e push, come da convenzione il merge lo
+  conferma Dom.
+- **`--llm-modello` non è nel run automatico**: la classificazione LLM dei
+  procedimenti resta opt-in manuale.
+- **Amministrazione Trasparente ancora scollegata** dal run (TAL-62, due
+  decisioni aperte) — è la mitigazione strutturale del problema della
+  finestra di pubblicazione, non solo un'estensione di copertura.
+- **Se il Mac è spento, non gira niente.** launchd recupera il run al
+  risveglio, ma un Mac spento due settimane riproduce lo stesso buco.
+- **`anac` è muto da 41 giorni** (0 atti trovati, nessun errore): è il WAF
+  ANAC noto, che richiede `--anac-file`. Nel run automatico continuerà a
+  risultare "muto" finché non si decide se escluderlo dal default o
+  automatizzare il download.
+
+---
 > **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun
 > commit ancora, in attesa di conferma"):** verificando lo stato reale del repo
 > a inizio sessione è emerso che TAL-59 era in realtà già stato completato,

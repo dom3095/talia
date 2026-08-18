@@ -116,6 +116,26 @@ Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`atti.data_atto` spesso NULL**: molti scraper (jCityGov, catania, urbi, hspromila, ribera — 80% degli atti nel DB) leggono solo la pagina-lista dell'albo, che espone la finestra di pubblicazione (`data_pub`), non la data dell'atto vero. Qualunque nuova query su date degli atti va scritta con `COALESCE(data_atto, data_pub)`, altrimenti funziona sui test (fixture con `data_atto` sempre valorizzato) e produce zero risultati/date NULL sul DB reale (scoperto in TAL-48, 2026-07-20: bug esteso a `engine/catena.py` + 3 red flag).
 - **jCityGov, `url_fonte` non era un permalink funzionante** (TAL-63, 2026-08-16, P0): il formato `?p_p_id=...&_..._action=mostraDettaglio` generato da `_url_dettaglio()` dà sempre errore server-side ("contattare l'amministratore del Portale"), verificato con Playwright a sessione fredda e con sessione attiva, su due tenant diversi — non un problema di cookie. Corretto con il formato `/-/papca/display/<id>?p_p_state=pop_up` (quello che l'interfaccia del portale genera davvero per "Apri Dettaglio"), verificato funzionante a freddo. **Backfill sugli 85.435 atti già in `talia.db` con il vecchio formato non ancora eseguito** — il codice corretto vale solo per i run futuri finché non si esegue la migrazione.
 
+### Run automatico giornaliero
+
+Dal 2026-08-18 gli scraper girano ogni notte alle 03:30 via **launchd**
+(agente `com.talia.scrapers` → `scripts/run_daily.sh`). In locale e non su
+GitHub Actions: il WAF Akamai di portalepa blocca gli IP dei runner GitHub.
+Dettagli in [`docs/wiki/15-run-automatico.md`](docs/wiki/15-run-automatico.md).
+
+```bash
+./scripts/setup_launchd.sh --status   # l'agente gira? ultimo esito?
+cat logs/ultimo_report.md             # cosa è fallito nell'ultimo run
+python scripts/report_run.py          # riepilogo on-demand
+./scripts/run_daily.sh                # run manuale identico a quello schedulato
+```
+
+⚠️ **La continuità non è un dettaglio**: l'Albo Pretorio espone solo gli atti
+in pubblicazione (15-30 giorni). Ogni giorno senza run è copertura persa in
+modo definitivo — nessun backfill la recupera. Se si nota che l'ultimo run è
+vecchio di più di qualche giorno, è una priorità, non un'attività di
+manutenzione.
+
 ### Come testare uno scraper
 
 ```bash

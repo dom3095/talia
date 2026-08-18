@@ -60,6 +60,19 @@ _STOP_CONSECUTIVI = 20
 # ---------------------------------------------------------------------------
 
 
+def _errore_db(traceback_completo: str, max_len: int = 500) -> str:
+    """Traceback compattato per `scraper_runs.errore`, con l'eccezione in testa.
+
+    Il campo è troncato a 500 caratteri, e un traceback tagliato in coda perde
+    proprio la riga che serve (`ConnectionRefusedError: ...`): senza quella, il
+    riepilogo dei run mostra una riga di codice a caso invece della causa.
+    """
+    righe = [r for r in traceback_completo.strip().splitlines() if r.strip()]
+    if not righe:
+        return "errore sconosciuto"
+    return f"{righe[-1].strip()}\n{traceback_completo}"[:max_len]
+
+
 def _date_range(atti) -> tuple[str | None, str | None]:
     dates = [a.data_pub or a.data_atto for a in atti if a.data_pub or a.data_atto]
     return (min(dates) if dates else None, max(dates) if dates else None)
@@ -820,7 +833,9 @@ def main() -> int:
         except Exception:
             msg = traceback.format_exc()
             print(f"  ERRORE:\n{msg}", file=sys.stderr)
-            termina_run(conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=msg[:500])
+            termina_run(
+                conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=_errore_db(msg)
+            )
             risultati[nome] = "ERRORE"
             errori += 1
 
