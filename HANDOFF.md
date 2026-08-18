@@ -117,6 +117,39 @@ Review. TAL-60 spostata da Review a Done (PR #19 mergiata).
   risultare "muto" finché non si decide se escluderlo dal default o
   automatizzare il download.
 
+### TAL-68 — due scraper rotti, emersi dal primo report automatico
+
+Non cercati: sono comparsi da soli nel primo `report_run.py` eseguito dopo un
+run vero, che è precisamente il motivo per cui è stato scritto.
+
+- **`caccamo`** era **muto da almeno il 2026-07-14**: 5 run consecutivi con
+  `n_trovati=0`, `n_inseriti=0` e **mai un errore**. Causa: il portale URBI di
+  quel tenant risponde HTTP 200 con *"Attenzione: per procedere occorre
+  selezionare la tipologia"* e tabella vuota — `Tipologia=""` significa
+  "Tutte" per ogni altro tenant URBI (ed è anche l'etichetta della sua prima
+  `<option>`), ma questo la rifiuta. Verificato per confronto a parità di
+  codice: Raffadali 10 atti, Caccamo 0; con `Tipologia=44` Caccamo 7.
+  `urbi.py` ora scopre le tipologie dalla `<select>` e ripete una ricerca per
+  ciascuna — **da 0 a 181 atti**. La condizione di attivazione è il messaggio
+  del portale, non "zero atti": legarla a zero atti farebbe partire 26
+  ricerche inutili ad ogni run su un albo genuinamente vuoto. Nessun fallback
+  per i tenant che già funzionano, verificato dal vivo (Raffadali 20, Favara
+  19).
+- **`sangiuseppejato`**: `CERTIFICATE_VERIFY_FAILED`, catena servita
+  incompleta — stessa causa già nota per Siculiana/Joppolo/Mirabella.
+  `skip_ssl=true` nel registro, verificato: 14 atti.
+
+**Difetto del mio primo fix, trovato dal test e non dal run**: azzerare il
+contatore stop-on-known al confine di tipologia non bastava, perché lo stop
+scattava *prima* di arrivarci e `break` usciva dall'intera scansione — dal
+secondo run in poi lo scraper sarebbe tornato muto, stavolta in modo più
+subdolo perché con atti in DB a dare l'impressione che funzionasse.
+`_run_urbi_comune` ora distingue `break` (tenant normali, una sola scansione)
+da `salta_tipologia` (riprende dalla tipologia successiva). 2 test di
+regressione dedicati.
+
+**706 test verdi (erano 699), ruff pulito.**
+
 ### Problemi misurati e segnalati a Dom (non affrontati in questa sessione)
 
 Numeri presi su `talia.db` reale il 2026-08-18, prima del run di recupero:

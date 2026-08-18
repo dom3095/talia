@@ -109,7 +109,8 @@ Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 
 ### Fragilità comuni
 
-- **Fallimento silenzioso a 0 atti**: quasi nessuno scraper logga WARNING esplicito se il parsing ritorna zero righe (Trapani ✅ fatto). Sempre aggiungere un log quando `len(atti) == 0`.
+- **Fallimento silenzioso a 0 atti**: quasi nessuno scraper logga WARNING esplicito se il parsing ritorna zero righe (Trapani ✅ fatto). Sempre aggiungere un log quando `len(atti) == 0`. **Il log da solo non basta**: `caccamo` ha loggato il WARNING per 5 run consecutivi (dal 2026-07-14) senza che nessuno lo leggesse — serve il riepilogo automatico (`scripts/report_run.py`, categoria "muto", TAL-66/TAL-68).
+- **Form di ricerca con campi obbligatori solo su alcuni tenant**: un portale può rispondere **HTTP 200** con un avviso e zero righe invece di un errore. URBI/Caccamo pretende una `Tipologia` esplicita mentre `Tipologia=""` ("Tutte") va bene per tutti gli altri tenant della stessa piattaforma (TAL-68). Prima di dare per buono un "0 atti", leggere il *corpo* della risposta, non solo lo status.
 - **Nessun retry su HTTPError**: `jcitygov.py` gestisce solo `TimeoutError`; errori 4xx/5xx propagano senza retry.
 - **Regex fragili sull'HTML**: `_RE_PANEL` (Trapani) e `_RE_NEXT` (jCityGov) falliscono silenziosamente a struttura cambiata.
 - **Filtri data server-side controintuitivi**: e-pal.it esclude gli atti la cui pubblicazione termina dopo `dataPubblicazioneAl` — con `al=oggi` si perdono i più recenti (era BUG-4). Non fidarsi dei default "dal/al=oggi".
