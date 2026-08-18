@@ -12,6 +12,8 @@ from talia.modulo2_scraping.fonti.jcitygov import (
     _scopri_risorse_alternative,
     _url_dettaglio,
     scarica_atti,
+    scarica_atti_trasparenza,
+    scopri_categorie_trasparenza,
 )
 
 # ---------------------------------------------------------------------------
@@ -123,11 +125,15 @@ def test_parse_date_cella_vuota():
 # ---------------------------------------------------------------------------
 
 
-def test_url_dettaglio_contiene_id():
-    url = _url_dettaglio(_BASE, "4721119")
-    assert "4721119" in url
-    assert _BASE in url
-    assert "mostraDettaglio" in url
+def test_url_dettaglio_usa_il_formato_display_funzionante():
+    # Regressione TAL-63: il vecchio formato (?...action=mostraDettaglio) non
+    # è un permalink funzionante — verificato dal vivo, mostra sempre
+    # "Errore! Errore: contattare l'amministratore del Portale" indipendentemente
+    # da sessione/cookie. Il formato corretto (/-/papca/display/<id>) è quello
+    # che l'interfaccia del portale genera davvero per il bottone "Apri Dettaglio".
+    url = _url_dettaglio(_BASE, "/web/trasparenza/papca-g", "4721119")
+    assert url == f"{_BASE}/web/trasparenza/papca-g/-/papca/display/4721119?p_p_state=pop_up"
+    assert "mostraDettaglio" not in url
 
 
 # ---------------------------------------------------------------------------
@@ -276,3 +282,137 @@ def test_scarica_atti_prova_storico_atti_se_albo_pretorio_vuoto():
     opener = _FakeOpener(responses)
     atti = list(scarica_atti(base, "084029", limit=10, _opener=opener, delay=0))
     assert len(atti) == 2
+
+
+# ---------------------------------------------------------------------------
+# Amministrazione Trasparente (TAL-62)
+#
+# Stesso motore "igrid" dell'Albo Pretorio (verificato dal vivo su Ragusa/
+# Acate, 2026-08-16): la scoperta delle categorie riusa la stessa tecnica
+# data-resource/data-mainurl di _scopri_risorse_alternative, solo puntata su
+# .../trasparenza invece che su .../albo-pretorio.
+# ---------------------------------------------------------------------------
+
+_HTML_MENU_TRASPARENZA = (
+    '<a data-resource="Bandi di concorso" '
+    'data-mainurl="/web/trasparenza/papca-g/-/papca/igrid/1163155"></a>'
+    '<a data-resource="Bandi di gara e contratti" '
+    'data-mainurl="/web/trasparenza/papca-g/-/papca/igrid/1163156"></a>'
+    # Categoria "Soggetti" (registro persone/incarichi, non atti): esclusa
+    # perché il path non è nella famiglia "papca" (verificato dal vivo su
+    # Acate: stessa regex di riga, 0 righe, portlet diverso).
+    '<a data-resource="Titolari di incarichi" '
+    'data-mainurl="/web/trasparenza/pas/-/pas/igrid/13991"></a>'
+)
+
+_HTML_LISTA_CON_NEXT = _HTML_LISTA.replace(
+    "</tbody>",
+    '</tbody><a href="?paginationAction=NEXT&amp;'
+    '_jcitygovalbopubblicazioni_WAR_jcitygovalbiportlet_action=mostraLista">Successiva</a>',
+)
+
+_HTML_LISTA_PAGINA_2 = """
+<table>
+<thead><tr><th>Tipo Atto</th><th><span>Anno e Numero Registro</span></th>
+<th>Oggetto</th><th>Periodo Pubblicazioneda - a</th><th>&nbsp;</th></tr></thead>
+<tbody>
+<tr class="master-detail-list-line master-detail-list-line-odd" data-id="9999001">
+  <td class="categoria text"><span class="categoria_categoria">BANDI</span></td>
+  <td class="annonumero number">2025/7</td>
+  <td class="oggetto text">BANDO DI CONCORSO PUBBLICO PER ESAMI.</td>
+  <td class="date">10/01/2025  31/12/2030</td>
+  <td class="allegati">2</td>
+</tr>
+</tbody></table>
+"""
+
+
+def test_scopri_categorie_trasparenza_filtra_famiglia_papca():
+    opener = _FakeOpener({"/web/trasparenza/trasparenza": _HTML_MENU_TRASPARENZA})
+    categorie = scopri_categorie_trasparenza(
+        "https://ragusa.trasparenza-valutazione-merito.it", _opener=opener
+    )
+    assert categorie == {
+        "Bandi di concorso": "/web/trasparenza/papca-g/-/papca/igrid/1163155",
+        "Bandi di gara e contratti": "/web/trasparenza/papca-g/-/papca/igrid/1163156",
+    }
+    assert "Titolari di incarichi" not in categorie
+
+
+def test_scopri_categorie_trasparenza_menu_senza_categorie_papca():
+    opener = _FakeOpener({"/web/trasparenza/trasparenza": "<html>niente qui</html>"})
+    categorie = scopri_categorie_trasparenza(
+        "https://x.trasparenza-valutazione-merito.it", _opener=opener
+    )
+    assert categorie == {}
+
+
+def test_scarica_atti_trasparenza_categoria_singola():
+    base = "https://ragusa.trasparenza-valutazione-merito.it"
+    responses = {
+        "/web/trasparenza/trasparenza": _HTML_MENU_TRASPARENZA,
+        "igrid/1163155": _HTML_LISTA,
+    }
+    opener = _FakeOpener(responses)
+    atti = list(
+        scarica_atti_trasparenza(
+            base, "088009", categorie=["Bandi di concorso"], _opener=opener, delay=0
+        )
+    )
+    assert len(atti) == 2
+    assert all(a.fonte_scraper == "jcitygov_trasparenza" for a in atti)
+    assert atti[0].data_scadenza == "2031-12-31"
+
+
+def test_scarica_atti_trasparenza_categoria_non_trovata_non_crasha():
+    base = "https://ragusa.trasparenza-valutazione-merito.it"
+    opener = _FakeOpener({"/web/trasparenza/trasparenza": _HTML_MENU_TRASPARENZA})
+    atti = list(
+        scarica_atti_trasparenza(
+            base, "088009", categorie=["Categoria Inesistente"], _opener=opener, delay=0
+        )
+    )
+    assert atti == []
+
+
+def test_scarica_atti_trasparenza_segue_paginazione():
+    base = "https://ragusa.trasparenza-valutazione-merito.it"
+    responses = {
+        "/web/trasparenza/trasparenza": _HTML_MENU_TRASPARENZA,
+        "paginationAction=NEXT": _HTML_LISTA_PAGINA_2,
+        "igrid/1163155": _HTML_LISTA_CON_NEXT,
+    }
+    opener = _FakeOpener(responses)
+    atti = list(
+        scarica_atti_trasparenza(
+            base,
+            "088009",
+            categorie=["Bandi di concorso"],
+            limit_per_categoria=10,
+            _opener=opener,
+            delay=0,
+        )
+    )
+    # 2 dalla prima pagina + 1 dalla seconda (raggiunta via paginationAction=NEXT)
+    assert len(atti) == 3
+    assert atti[-1].oggetto == "BANDO DI CONCORSO PUBBLICO PER ESAMI."
+
+
+def test_scarica_atti_trasparenza_rispetta_limit_per_categoria():
+    base = "https://ragusa.trasparenza-valutazione-merito.it"
+    responses = {
+        "/web/trasparenza/trasparenza": _HTML_MENU_TRASPARENZA,
+        "igrid/1163155": _HTML_LISTA,  # 2 atti
+    }
+    opener = _FakeOpener(responses)
+    atti = list(
+        scarica_atti_trasparenza(
+            base,
+            "088009",
+            categorie=["Bandi di concorso"],
+            limit_per_categoria=1,
+            _opener=opener,
+            delay=0,
+        )
+    )
+    assert len(atti) == 1

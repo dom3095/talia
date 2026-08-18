@@ -19,8 +19,11 @@ from talia.modulo2_scraping.db import (
 from talia.modulo2_scraping.fonti.halley import (
     FONTE_SCRAPER,
     _parse_pagina,
+    _parse_pagina_trasparenza,
     salva_atti,
     scarica_atti,
+    scarica_atti_trasparenza,
+    scopri_categorie_trasparenza,
 )
 
 _BASE = "https://trasparenza.comune.vittoria.rg.it"
@@ -273,3 +276,199 @@ def test_scarica_atti_rilancia_dopo_retry_esaurito(monkeypatch):
         raise AssertionError("doveva sollevare TimeoutError")
     except TimeoutError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Amministrazione Trasparente (TAL-62)
+#
+# Applicazione separata (Zend Framework, /zf/index.php/trasparenza/...):
+# HTML completamente diverso dall'Albo Pretorio, fixture ricalcate su quello
+# reale (Aci Bonaccorsi, verificato dal vivo 2026-08-16).
+# ---------------------------------------------------------------------------
+
+_HTML_MENU_TRASPARENZA = (
+    "<li id='halley-menu-item-346'>"
+    "<a href='/zf/index.php/trasparenza/index/index/categoria/184' target='_self'>"
+    "Bandi di concorso</a></li>"
+    "<li id='halley-menu-item-347'>"
+    "<a href='/zf/index.php/trasparenza/index/index/categoria/185' target='_self'>"
+    "Bandi di gara e contratti</a></li>"
+)
+
+_DOC_PATH = "/zf/index.php/trasparenza/index/visualizza-documento-generico/categoria/184"
+
+_HTML_PAGINA_TRASPARENZA = f"""
+<table>
+<tbody>
+<tr data-href="{_DOC_PATH}/documento/1149" data-target='_blank'>
+  <td class=" break-all">
+    <a href="{_DOC_PATH}/documento/1149" target='_blank' class="prevent-default">
+      Schema di Contratto - Assunzione CIG A1B2C3D4E5 personale tecnico. (259.92 KB)
+    </a>
+    <div class="small" style="margin-top:10px;">
+      Inserita il 22/12/2025
+    </div>
+    <div class="small">
+      Modificata il 22/12/2025
+    </div>
+  </td>
+</tr>
+<tr data-href="{_DOC_PATH}/documento/1148" data-target='_blank'>
+  <td class=" break-all">
+    <a href="{_DOC_PATH}/documento/1148" target='_blank' class="prevent-default">
+      DETERMINA - Chiusura procedimento selezione comparativa. (1.13 MB)
+    </a>
+    <div class="small" style="margin-top:10px;">
+      Inserita il 19/12/2025
+    </div>
+  </td>
+</tr>
+</tbody>
+</table>
+<a href="/zf/index.php/trasparenza/index/index/categoria/184/page/2">Successiva &rsaquo;</a>
+"""
+
+_HTML_PAGINA_TRASPARENZA_2 = f"""
+<table><tbody>
+<tr data-href="{_DOC_PATH}/documento/900" data-target='_blank'>
+  <td class=" break-all">
+    <a href="{_DOC_PATH}/documento/900" target='_blank' class="prevent-default">
+      BANDO DI CONCORSO PUBBLICO PER ESAMI. (500 KB)
+    </a>
+    <div class="small">Inserita il 10/01/2020</div>
+  </td>
+</tr>
+</tbody></table>
+"""
+
+_HTML_PAGINA_TRASPARENZA_VUOTA = "<table><tbody></tbody></table>"
+
+_BASE_TRASPARENZA = "https://servizi.comune.acibonaccorsi.ct.it"
+_ISTAT_TRASPARENZA = "087001"
+
+
+def test_scopri_categorie_trasparenza(monkeypatch):
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda *a, **k: _RispostaFinta(_HTML_MENU_TRASPARENZA)
+    )
+    categorie = scopri_categorie_trasparenza(_BASE_TRASPARENZA)
+    assert categorie == {
+        "Bandi di concorso": "184",
+        "Bandi di gara e contratti": "185",
+    }
+
+
+def test_scopri_categorie_trasparenza_pagina_assente(monkeypatch):
+    def _urlopen_finto(*_a, **_k):
+        raise urllib.error.URLError("simulato")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    assert scopri_categorie_trasparenza(_BASE_TRASPARENZA) == {}
+
+
+def test_parse_pagina_trasparenza_conta_atti():
+    atti = _parse_pagina_trasparenza(
+        _HTML_PAGINA_TRASPARENZA, _BASE_TRASPARENZA, _ISTAT_TRASPARENZA, "Bandi di concorso"
+    )
+    assert len(atti) == 2
+
+
+def test_parse_pagina_trasparenza_primo_atto():
+    atti = _parse_pagina_trasparenza(
+        _HTML_PAGINA_TRASPARENZA, _BASE_TRASPARENZA, _ISTAT_TRASPARENZA, "Bandi di concorso"
+    )
+    a = atti[0]
+    assert a.ente_codice_istat == _ISTAT_TRASPARENZA
+    assert a.tipo == "bandi di concorso"
+    assert a.fonte_scraper == "halley_trasparenza"
+    assert a.oggetto == "Schema di Contratto - Assunzione CIG A1B2C3D4E5 personale tecnico."
+    assert "(259.92 KB)" not in a.oggetto
+    assert a.cig == "A1B2C3D4E5"
+    assert a.data_pub == "2025-12-22"
+    assert a.url_fonte == (
+        f"{_BASE_TRASPARENZA}/zf/index.php/trasparenza/index/"
+        "visualizza-documento-generico/categoria/184/documento/1149"
+    )
+    # A differenza dell'Albo Pretorio, qui non c'è data di scadenza.
+    assert a.data_scadenza is None
+
+
+def test_parse_pagina_trasparenza_html_vuoto():
+    assert (
+        _parse_pagina_trasparenza(
+            _HTML_PAGINA_TRASPARENZA_VUOTA, _BASE_TRASPARENZA, _ISTAT_TRASPARENZA, "x"
+        )
+        == []
+    )
+
+
+def test_scarica_atti_trasparenza_categoria_singola(monkeypatch):
+    def _urlopen_finto(req, timeout=20, context=None):
+        url = req.full_url
+        if "index/index" in url and "categoria" not in url:
+            return _RispostaFinta(_HTML_MENU_TRASPARENZA)
+        return _RispostaFinta(_HTML_PAGINA_TRASPARENZA_VUOTA)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    atti = list(
+        scarica_atti_trasparenza(
+            _BASE_TRASPARENZA,
+            _ISTAT_TRASPARENZA,
+            categorie=["Bandi di gara e contratti"],
+        )
+    )
+    assert atti == []  # categoria trovata (185) ma pagina vuota: nessun crash
+
+
+def test_scarica_atti_trasparenza_categoria_non_trovata_non_crasha(monkeypatch):
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda *a, **k: _RispostaFinta(_HTML_MENU_TRASPARENZA)
+    )
+    atti = list(
+        scarica_atti_trasparenza(
+            _BASE_TRASPARENZA, _ISTAT_TRASPARENZA, categorie=["Categoria Inesistente"]
+        )
+    )
+    assert atti == []
+
+
+def test_scarica_atti_trasparenza_segue_paginazione(monkeypatch):
+    def _urlopen_finto(req, timeout=20, context=None):
+        url = req.full_url
+        if "categoria/184/page/2" in url:
+            return _RispostaFinta(_HTML_PAGINA_TRASPARENZA_2)
+        if "categoria/184" in url:
+            return _RispostaFinta(_HTML_PAGINA_TRASPARENZA)
+        return _RispostaFinta(_HTML_MENU_TRASPARENZA)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    atti = list(
+        scarica_atti_trasparenza(
+            _BASE_TRASPARENZA, _ISTAT_TRASPARENZA, categorie=["Bandi di concorso"]
+        )
+    )
+    # 2 dalla prima pagina + 1 dalla seconda (raggiunta via "Successiva")
+    assert len(atti) == 3
+    assert atti[-1].oggetto == "BANDO DI CONCORSO PUBBLICO PER ESAMI."
+
+
+def test_scarica_atti_trasparenza_rispetta_max_pagine(monkeypatch):
+    def _urlopen_finto(req, timeout=20, context=None):
+        url = req.full_url
+        if "categoria/184/page/2" in url:
+            return _RispostaFinta(_HTML_PAGINA_TRASPARENZA_2)
+        if "categoria/184" in url:
+            return _RispostaFinta(_HTML_PAGINA_TRASPARENZA)
+        return _RispostaFinta(_HTML_MENU_TRASPARENZA)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    atti = list(
+        scarica_atti_trasparenza(
+            _BASE_TRASPARENZA,
+            _ISTAT_TRASPARENZA,
+            categorie=["Bandi di concorso"],
+            max_pagine_per_categoria=1,
+        )
+    )
+    # Si ferma dopo la prima pagina anche se "Successiva" è presente.
+    assert len(atti) == 2

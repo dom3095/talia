@@ -13,8 +13,9 @@ lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, T
 associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria). I gap di TAL-5/TAL-9
 sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
 PR #17 (TAL-53…TAL-58: Modulo 1 nome↔ruolo/graduatoria + fix RAG/LLM, Modulo 2
-Pachino/Barrafranca, Modulo 3 tab Statistiche/Mappa) mergiata in `main` il 2026-08-09 —
-colonna Review aggiornata di conseguenza (2026-08-13).
+Pachino/Barrafranca, Modulo 3 tab Statistiche/Mappa) mergiata in `main` il 2026-08-09.
+PR #18 (TAL-59: falsi positivi in riapertura_dopo_revoca) mergiata il 2026-08-13 — colonna
+Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 2026-08-16.
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -49,21 +50,27 @@ colonna Review aggiornata di conseguenza (2026-08-13).
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
+| [TAL-64](TAL-64.md) | Deduplicazione atti: schema normalizzato `atti`/`atti_fonti` | E2 | 🕷️ SCR | P1 |
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-62](TAL-62.md) | Scraper "Amministrazione Trasparente" (jCityGov + Halley) | 🕷️ SCR | branch `feat/TAL-60-streamlit-modulo1`; `scarica_atti_trasparenza()` implementata e verificata dal vivo su entrambe le piattaforme (Ragusa/jCityGov, Aci Bonaccorsi/Halley); riusa il motore "igrid" esistente su jCityGov, applicazione separata (Zend Framework) su Halley; **non ancora in produzione**: manca decisione su deduplicazione con l'Albo Pretorio e su download/persistenza del testo, nessun wiring in `run_scrapers.py` |
 | [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti; candidati 2-3 pronti (PDF scaricati via TAL-48) |
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-59](TAL-59.md) | Falsi positivi in riapertura_dopo_revoca: tag "[annullato]" + dominio mancante | 🔤 NLP | branch `feat/TAL-59-fix-riapertura-falsi-positivi`; trovato rileggendo i candidati TAL-12 (sample 11 = variante PRG scambiata per bando); 2 fix (tag stato pubblicazione in `catena.py`, filtro dominio in `riapertura_revoca.py`); verificato dal vivo su `talia.db` reale: 82→23 flag (-72%); limite residuo noto (keyword "lavori" ambigua) documentato, non corretto; 606 test verdi (erano 598) |
+| [TAL-60](TAL-60.md) | UI Streamlit per Modulo 1 (tab "Analisi fascicolo") | 📊 FE | branch `feat/TAL-60-streamlit-modulo1`; catena di box "allega file + descrizione" (un documento alla volta, il successivo compare dopo l'upload) invece di un multi-upload; la descrizione concorre alla classificazione del ruolo (`classifica_ruolo`) e compare nel report, non è solo estetica; nessuna persistenza dei file; bug reale trovato solo con `AppTest.from_file` (import relativi rotti in modalità `streamlit run`) e corretto; drive-by: rimossa doppia esecuzione di tab Statistiche/Mappa in `main()`; 628 test verdi (erano 614) |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
 
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| [TAL-65](TAL-65.md) | `estrai_cig()`: CIG padre/derivato scambiati o persi, colonna `cig_padre` | Trovato durante TAL-64 (Dom: "i CIG possono avere CIG padre e figli"); bug in 3 punti (`utils.py`, `entita.py`, `catena.py`), usato da 14/14 scraper — 578 atti con pattern padre/derivato, 127 falsi positivi (`cig='ORIGINARIO'`), 368 falsi negativi (`cig` NULL); tre regex distinte con lookahead invece di un'unica etichetta opzionale; nuova colonna `atti.cig_padre` + migrazione lazy; **backfill completo su talia.db reale**: 3820 atti corretti, 0 garbage residuo, 200 con `cig_padre` popolato; 12 nuovi test, 655 verdi (erano 643) |
+| [TAL-63](TAL-63.md) | jCityGov: `url_fonte` mai stato un permalink funzionante | P0, esplicabilità; segnalato da Dom cliccando un link reale; formato `mostraDettaglio` dava sempre errore server-side (verificato con Playwright, freddo e con sessione, e curl puro), formato vero `/display/<id>` trovato cliccando davvero il bottone del portale; **backfill completo eseguito e verificato**: 85.394 atti + 2019 voci in 341 `red_flags.atti_cig` (copia denormalizzata dell'URL, scoperta durante il backfill di prova su Acate) corrette, 14/14 campione casuale funzionante dopo il fix; Halley controllata in parallelo, nessun bug analogo |
+| [TAL-61](TAL-61.md) | `enti` senza provincia/popolazione: mai incrociati con l'anagrafica comuni | segnalato da Dom su tab Panoramica; `sincronizza_enti_da_registro()` ora incrocia `data/comuni_sicilia.csv`; backfill su `talia.db` reale: 0/307 senza provincia (era 192), 1/307 senza popolazione (era 307); 3 nuovi test |
+| [TAL-59](TAL-59.md) | Falsi positivi in riapertura_dopo_revoca: tag "[annullato]" + dominio mancante | PR #18 mergiata (2026-08-13); 3 commit (fix dominio a frasi, verifica critica su campione casuale di 40 procedimenti mai ispezionati, guardia minori/tutela da code review); verificato dal vivo su `talia.db` reale: 82→23→10→8 flag; 614 test verdi (erano 598) |
 | [TAL-53](TAL-53.md) | Check 6: associazione nome↔ruolo + incrocio tempistica graduatoria | PR #17 mergiata (2026-08-09); `graduatoria.py` + wiring in check6; 2 bug trovati da `/code-review` e corretti (Tentativo 3); 598 test verdi (erano 572) |
 | [TAL-54](TAL-54.md) | Check 3: retrieval RAG cieco ai temi già individuati dai check deterministici | PR #17 mergiata (2026-08-09); scoperto girando check 3 con Ollama reale sul fascicolo 1 (GDPR mancava dal retrieval nonostante check-7 l'avesse già individuato); fix `_cerca_passaggi_rag()` + istruzione di grounding nel prompt + temperatura fissata a 0 |
 | [TAL-55](TAL-55.md) | Scraper: fallimenti silenziosi in serviziolinealbo.py | PR #17 mergiata (2026-08-09); da `/code-review`; log WARNING su atto scartato/0 atti + test "pagina corrotta" |

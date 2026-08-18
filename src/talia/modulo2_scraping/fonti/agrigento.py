@@ -29,7 +29,7 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, parse_data_iso
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -86,7 +86,7 @@ def _parse_html(html: str) -> list[AttoMetadato]:
 
         span_m = re.search(
             r'<span class="text text-custom p-1">(.*?)</span>',
-            html[max(0, target_idx - 200):target_idx + 800],
+            html[max(0, target_idx - 200) : target_idx + 800],
             re.DOTALL,
         )
         if not span_m:
@@ -101,17 +101,20 @@ def _parse_html(html: str) -> list[AttoMetadato]:
         tipo = _strip(header_m.group(3)).lower() if header_m else "atto"
         data_str = header_m.group(2) if header_m else None
 
-        atti.append(AttoMetadato(
-            ente_codice_istat=CODICE_ISTAT,
-            tipo=tipo,
-            url_fonte=raw_url,
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=ora_utc(),
-            numero=numero,
-            oggetto=oggetto,
-            data_atto=parse_data_iso(data_str),
-            cig=estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=CODICE_ISTAT,
+                tipo=tipo,
+                url_fonte=raw_url,
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=ora_utc(),
+                numero=numero,
+                oggetto=oggetto,
+                data_atto=parse_data_iso(data_str),
+                cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
+            )
+        )
 
     return atti
 
@@ -194,8 +197,11 @@ def prepara_ente(
     denominazione: str = "Comune di Agrigento",
 ) -> None:
     """Upsert del Comune di Agrigento nel DB (prerequisito per inserisci_atto)."""
-    upsert_ente(conn, EnteMetadato(
-        denominazione=denominazione,
-        codice_istat=codice_istat,
-        provincia="AG",
-    ))
+    upsert_ente(
+        conn,
+        EnteMetadato(
+            denominazione=denominazione,
+            codice_istat=codice_istat,
+            provincia="AG",
+        ),
+    )

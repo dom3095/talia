@@ -32,7 +32,7 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, parse_data_iso
 
 logger = logging.getLogger(__name__)
 
@@ -94,18 +94,21 @@ def _parse_pagina(html: str, base_url: str = _BASE_URL) -> list[AttoMetadato]:
         data_pub = parse_data_iso(date[0]) if len(date) > 0 else None
         data_scadenza = parse_data_iso(date[1]) if len(date) > 1 else None
 
-        atti.append(AttoMetadato(
-            ente_codice_istat=CODICE_ISTAT,
-            tipo=_tipo_da_categoria(categoria),
-            url_fonte=f"{base_url}?action=visatto&id={link_m.group(2)}",
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=ora_utc(),
-            numero=protocollo or None,
-            oggetto=oggetto or None,
-            data_pub=data_pub,
-            data_scadenza=data_scadenza,
-            cig=estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=CODICE_ISTAT,
+                tipo=_tipo_da_categoria(categoria),
+                url_fonte=f"{base_url}?action=visatto&id={link_m.group(2)}",
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=ora_utc(),
+                numero=protocollo or None,
+                oggetto=oggetto or None,
+                data_pub=data_pub,
+                data_scadenza=data_scadenza,
+                cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
+            )
+        )
     return atti
 
 
@@ -162,8 +165,11 @@ def prepara_ente(
     denominazione: str = "Comune di Ribera",
 ) -> None:
     """Upsert del Comune di Ribera nel DB (prerequisito per inserisci_atto)."""
-    upsert_ente(conn, EnteMetadato(
-        denominazione=denominazione,
-        codice_istat=codice_istat,
-        provincia="AG",
-    ))
+    upsert_ente(
+        conn,
+        EnteMetadato(
+            denominazione=denominazione,
+            codice_istat=codice_istat,
+            provincia="AG",
+        ),
+    )

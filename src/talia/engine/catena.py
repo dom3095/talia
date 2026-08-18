@@ -32,6 +32,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from .entita import trova_cig
 from .llm import chiama_ollama
 
 _log = logging.getLogger(__name__)
@@ -141,7 +142,6 @@ _RE_RIFERIMENTO_ATTO = re.compile(
     r"del\s+(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})",
     re.IGNORECASE,
 )
-_RE_CIG = re.compile(r"\bCIG\s*[:=]?\s*([A-Z0-9]{10})\b", re.IGNORECASE)
 _RE_CUP = re.compile(r"\bCUP\s*[:=]?\s*([A-Z][A-Z0-9]{14})\b", re.IGNORECASE)
 # Numero atto standalone (es. "Det. n. 35/2025", "Determinazione n. 33/2025")
 _RE_NUM_ATTO = re.compile(
@@ -179,7 +179,13 @@ def estrai_riferimenti(testo: str) -> list[RiferimentoAtto]:
                 contesto=testo[max(0, m.start() - 20) : m.end() + 20].replace("\n", " "),
             )
         )
-    for m in _RE_CIG.finditer(testo):
+    # Solo il CIG proprio dell'atto (derivato o semplice), non l'eventuale CIG
+    # padre: un accordo quadro ha un solo CIG padre condiviso da molte
+    # adesioni distinte — usarlo come riferimento incrociato collegherebbe
+    # atti non correlati (TAL-65).
+    for m, e_padre in trova_cig(testo):
+        if e_padre:
+            continue
         risultati.append(
             RiferimentoAtto(
                 tipo="cig",

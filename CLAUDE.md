@@ -87,6 +87,15 @@ Aggiornato: 2026-07-07.
 
 Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **66 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con atti reali (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`). 6 di questi (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto) richiedono un percorso alternativo (`papca-ap/igrid/<id>`, risorsa "Albo pretorio" o "Storico atti") invece dello standard `papca-g`: `jcitygov.py` lo scopre e usa automaticamente quando il percorso standard ritorna 0 risultati.
 
+**Amministrazione Trasparente (TAL-62, 2026-08-16, non ancora in produzione):**
+`jcitygov.py`/`halley.py` espongono anche `scarica_atti_trasparenza()` — raccoglie
+dalla sezione Amministrazione Trasparente (D.lgs. 33/2013, ritenzione anni, non i
+15-30gg dell'Albo Pretorio) invece che dall'Albo Pretorio, con `fonte_scraper`
+distinto (`jcitygov_trasparenza`/`halley_trasparenza`). Verificato dal vivo su
+Ragusa e Aci Bonaccorsi. **Non collegata a `run_scrapers.py`**: mancano ancora la
+deduplicazione con l'Albo Pretorio (stesso atto, due URL) e la decisione su
+download/persistenza del testo — vedi [TAL-62](docs/cards/TAL-62.md).
+
 Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)
 - **`halley.py`** (Halley Informatica/Halley EG, paginazione stateless `?pag=N`): **93 comuni** — supporta `skip_ssl` opzionale per tenant con catena certificato incompleta (es. Siculiana, Joppolo Giancaxio); retry con backoff 2s su timeout/connessione rifiutata (2026-08-05, host condiviso a volte sovraccarico, stesso pattern di `jcitygov.py`/`hspromila.py`)
@@ -105,6 +114,7 @@ Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **Regex fragili sull'HTML**: `_RE_PANEL` (Trapani) e `_RE_NEXT` (jCityGov) falliscono silenziosamente a struttura cambiata.
 - **Filtri data server-side controintuitivi**: e-pal.it esclude gli atti la cui pubblicazione termina dopo `dataPubblicazioneAl` — con `al=oggi` si perdono i più recenti (era BUG-4). Non fidarsi dei default "dal/al=oggi".
 - **`atti.data_atto` spesso NULL**: molti scraper (jCityGov, catania, urbi, hspromila, ribera — 80% degli atti nel DB) leggono solo la pagina-lista dell'albo, che espone la finestra di pubblicazione (`data_pub`), non la data dell'atto vero. Qualunque nuova query su date degli atti va scritta con `COALESCE(data_atto, data_pub)`, altrimenti funziona sui test (fixture con `data_atto` sempre valorizzato) e produce zero risultati/date NULL sul DB reale (scoperto in TAL-48, 2026-07-20: bug esteso a `engine/catena.py` + 3 red flag).
+- **jCityGov, `url_fonte` non era un permalink funzionante** (TAL-63, 2026-08-16, P0): il formato `?p_p_id=...&_..._action=mostraDettaglio` generato da `_url_dettaglio()` dà sempre errore server-side ("contattare l'amministratore del Portale"), verificato con Playwright a sessione fredda e con sessione attiva, su due tenant diversi — non un problema di cookie. Corretto con il formato `/-/papca/display/<id>?p_p_state=pop_up` (quello che l'interfaccia del portale genera davvero per "Apri Dettaglio"), verificato funzionante a freddo. **Backfill sugli 85.435 atti già in `talia.db` con il vecchio formato non ancora eseguito** — il codice corretto vale solo per i run futuri finché non si esegue la migrazione.
 
 ### Come testare uno scraper
 

@@ -52,9 +52,15 @@ PESO_FORTE_AUTOTUTELA = 3
 PESO_FORTE_ORIGINARIO = 2
 
 
-def punteggi_ruolo(testo: TestoAtto) -> tuple[int, int]:
-    """Punteggi (autotutela, originario) di un atto. Esposto per i test."""
-    t = testo.testo
+def punteggi_ruolo(testo: TestoAtto, descrizione: str = "") -> tuple[int, int]:
+    """Punteggi (autotutela, originario) di un atto. Esposto per i test.
+
+    `descrizione` (TAL-60, opzionale) sono le osservazioni scritte dall'utente
+    in fase di upload: concorrono ai punteggi con le stesse regex del testo
+    dell'atto, per correggere/guidare la classificazione quando il solo testo
+    è ambiguo (es. un allegato con poco testo proprio, o un OCR rumoroso).
+    """
+    t = f"{testo.testo}\n{descrizione}" if descrizione else testo.testo
     aut = PESO_FORTE_AUTOTUTELA * len(_FORTI_AUTOTUTELA.findall(t)) + len(
         _DEBOLI_AUTOTUTELA.findall(t)
     )
@@ -64,13 +70,13 @@ def punteggi_ruolo(testo: TestoAtto) -> tuple[int, int]:
     return aut, orig
 
 
-def classifica_ruolo(testo: TestoAtto) -> RuoloAtto:
+def classifica_ruolo(testo: TestoAtto, descrizione: str = "") -> RuoloAtto:
     """Euristica deterministica sul ruolo di un atto nel fascicolo.
 
     Confronta i punteggi pesati; in pareggio o assenza ritorna SCONOSCIUTO
     (la selezione del contesto applica poi un fallback).
     """
-    aut, orig = punteggi_ruolo(testo)
+    aut, orig = punteggi_ruolo(testo, descrizione)
     if aut > orig:
         return RuoloAtto.AUTOTUTELA
     if orig > aut:
@@ -91,12 +97,16 @@ def costruisci_contesto(atti: list[AttoAnalizzato]) -> ContestoFascicolo:
 
     candidati_aut = [a for a in atti if a.ruolo is RuoloAtto.AUTOTUTELA]
     autotutela = (
-        max(candidati_aut, key=lambda a: punteggi_ruolo(a.testo)[0]) if candidati_aut else atti[-1]
+        max(candidati_aut, key=lambda a: punteggi_ruolo(a.testo, a.descrizione or "")[0])
+        if candidati_aut
+        else atti[-1]
     )
 
     candidati_orig = [a for a in atti if a.ruolo is RuoloAtto.ORIGINARIO and a is not autotutela]
     originario = (
-        max(candidati_orig, key=lambda a: punteggi_ruolo(a.testo)[1]) if candidati_orig else None
+        max(candidati_orig, key=lambda a: punteggi_ruolo(a.testo, a.descrizione or "")[1])
+        if candidati_orig
+        else None
     )
     return ContestoFascicolo(atto_autotutela=autotutela, atto_originario=originario)
 
@@ -117,16 +127,37 @@ def analizza_fascicolo(atti: list[AttoAnalizzato], *, valuta_llm: bool = False) 
     return Report(esiti=esiti, atti=meta)
 
 
-def analizza_testi(testi: list[TestoAtto], *, valuta_llm: bool = False) -> Report:
-    """Come `analizza_fascicolo` ma classifica da sé il ruolo di ogni testo."""
-    atti = [AttoAnalizzato.da_testo(t, ruolo=classifica_ruolo(t)) for t in testi]
+def analizza_testi(
+    testi: list[TestoAtto],
+    *,
+    descrizioni: list[str | None] | None = None,
+    valuta_llm: bool = False,
+) -> Report:
+    """Come `analizza_fascicolo` ma classifica da sé il ruolo di ogni testo.
+
+    `descrizioni` (TAL-60, opzionale), se fornite, sono osservazioni
+    dell'utente allineate 1:1 con `testi`: concorrono alla classificazione del
+    ruolo (`classifica_ruolo`) e compaiono nel report accanto al documento.
+    """
+    if descrizioni is not None and len(descrizioni) != len(testi):
+        raise ValueError("descrizioni deve avere la stessa lunghezza di testi.")
+    descrizioni = descrizioni or [None] * len(testi)
+    atti = [
+        AttoAnalizzato.da_testo(t, ruolo=classifica_ruolo(t, d or ""), descrizione=d)
+        for t, d in zip(testi, descrizioni, strict=True)
+    ]
     return analizza_fascicolo(atti, valuta_llm=valuta_llm)
 
 
-def analizza_pdf(percorsi: list[str | Path], *, valuta_llm: bool = False) -> Report:
+def analizza_pdf(
+    percorsi: list[str | Path],
+    *,
+    descrizioni: list[str | None] | None = None,
+    valuta_llm: bool = False,
+) -> Report:
     """Analizza un fascicolo a partire dai PDF (richiede gli extra `[pdf]`)."""
     testi = [estrai_testo(p) for p in percorsi]
-    return analizza_testi(testi, valuta_llm=valuta_llm)
+    return analizza_testi(testi, descrizioni=descrizioni, valuta_llm=valuta_llm)
 
 
 def _meta(atto: AttoAnalizzato, contesto: ContestoFascicolo) -> AttoMeta:
@@ -144,4 +175,5 @@ def _meta(atto: AttoAnalizzato, contesto: ContestoFascicolo) -> AttoMeta:
         ruolo=ruolo,
         fonte=atto.testo.fonte.value,
         pagine=len(atto.testo.pagine),
+        descrizione=atto.descrizione,
     )

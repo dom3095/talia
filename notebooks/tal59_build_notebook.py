@@ -41,7 +41,7 @@ import pandas as pd
 pd.set_option("display.max_colwidth", 120)
 pd.set_option("display.width", 160)
 
-REPO = Path("/Users/dom/Documents/GitHub/talia")
+REPO = Path("/Users/dom/dev/talia")
 DB = REPO / "talia.db"
 PRE_FIX_COMMIT = "f26e94d"  # main, prima di TAL-59
 POST_FIX_COMMIT = "3e459e4"  # branch feat/TAL-59-..., primo giro del fix (Tentativo 1-3)

@@ -6,7 +6,8 @@ import re
 from datetime import UTC, datetime
 from html import unescape
 
-_RE_CIG = re.compile(r"\bCIG\s*[:\-]?\s*([A-Z0-9]{10})\b", re.IGNORECASE)
+from talia.engine.entita import estrai_cig_gerarchia
+
 _RE_TAG = re.compile(r"<[^>]+>")
 
 
@@ -29,11 +30,18 @@ def ora_utc() -> str:
 
 
 def estrai_cig(testo: str | None) -> str | None:
-    """Restituisce il primo CIG trovato nel testo, o None."""
-    if not testo:
-        return None
-    m = _RE_CIG.search(testo)
-    return m.group(1).upper() if m else None
+    """Restituisce il CIG proprio (derivato o semplice) dell'atto, o None.
+
+    Riusa `engine.entita.estrai_cig_gerarchia()`: distingue un eventuale "CIG
+    padre" (accordo quadro) dal CIG specifico di questo atto — vedi TAL-65 per
+    il bug che questa distinzione corregge (CIG padre/derivato scambiati o persi).
+    """
+    return estrai_cig_gerarchia(testo)[0]
+
+
+def estrai_cig_padre(testo: str | None) -> str | None:
+    """Restituisce il CIG dell'eventuale accordo quadro citato insieme, o None."""
+    return estrai_cig_gerarchia(testo)[1]
 
 
 # Categoria/intestazione → tipo atto TALIA, condivisa da hspromila.py,

@@ -1,5 +1,7 @@
 """Test TAL-3: costruzione di TestoAtto e mapping testo→pagina."""
 
+import pytest
+
 from talia.engine.models import FonteTesto
 from talia.engine.pdf_text import _fonte_complessiva, da_pagine, da_testo
 
@@ -35,3 +37,22 @@ def test_fonte_complessiva():
     assert _fonte_complessiva([FonteTesto.NATIVO]) == FonteTesto.NATIVO
     assert _fonte_complessiva([FonteTesto.OCR]) == FonteTesto.OCR
     assert _fonte_complessiva([FonteTesto.NATIVO, FonteTesto.OCR]) == FonteTesto.MISTO
+
+
+def test_estrai_testo_pdf_nativo(tmp_path, pdf_minimo):
+    # Prima di questo test `estrai_testo` (il cuore di TAL-3: OCR (Tesseract) →
+    # estrazione testo PDF) non era mai stata chiamata su un vero PDF in nessun
+    # test — solo indirettamente via CLI su fixture .txt, che non passano da
+    # pdfplumber. Un PDF reale non può essere committato (nominativi, vietato
+    # da CLAUDE.md); questo PDF minimo (fixture `pdf_minimo`, senza dipendenze
+    # esterne) copre almeno il ramo nativo, non quello OCR (gap noto, TAL-3).
+    pytest.importorskip("pdfplumber", reason="extra 'pdf' non installato")
+    from talia.engine.pdf_text import estrai_testo
+
+    percorso = tmp_path / "atto.pdf"
+    percorso.write_bytes(pdf_minimo("Determina di indizione concorso pubblico"))
+
+    atto = estrai_testo(percorso)
+
+    assert "Determina di indizione concorso pubblico" in atto.testo
+    assert atto.fonte == FonteTesto.NATIVO

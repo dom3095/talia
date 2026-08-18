@@ -7,6 +7,7 @@ funzionino correttamente su un database in memoria.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -351,3 +352,82 @@ def _carica_flags_per_ente_helper(conn):
     from talia.modulo3_dashboard.app import _carica_flags_per_ente
 
     return _carica_flags_per_ente(conn)
+
+
+# ---------------------------------------------------------------------------
+# Tab "Analisi fascicolo" (TAL-60)
+# ---------------------------------------------------------------------------
+
+_SAMPLES = Path(__file__).resolve().parent.parent / "data" / "samples"
+
+
+def _fascicolo_bytes(cartella: str) -> list[tuple[str, bytes, str | None]]:
+    percorso = _SAMPLES / cartella
+    return [(f.name, f.read_bytes(), None) for f in sorted(percorso.glob("*.txt"))]
+
+
+def test_analizza_file_caricati_txt_produce_report():
+    from talia.modulo3_dashboard.app import _analizza_file_caricati
+
+    report = _analizza_file_caricati(_fascicolo_bytes("fascicolo_coerente"), valuta_llm=False)
+
+    assert report.esiti
+    assert len(report.atti) == 2
+
+
+def test_analizza_file_caricati_pdf(pdf_minimo):
+    # Ramo .pdf mai esercitato dagli altri test di questo file (usano solo
+    # fixture .txt): scrive un PDF reale su disco temporaneo e verifica che
+    # `estrai_testo` via file caricato produca testo, non solo che non crashi.
+    pytest.importorskip("pdfplumber", reason="extra 'pdf' non installato")
+    from talia.modulo3_dashboard.app import _analizza_file_caricati
+
+    file_caricati = [
+        ("indizione.pdf", pdf_minimo("Determina di indizione concorso pubblico"), None),
+        ("annullamento.pdf", pdf_minimo("Determina di annullamento in autotutela"), None),
+    ]
+    report = _analizza_file_caricati(file_caricati, valuta_llm=False)
+
+    assert report.esiti
+    assert len(report.atti) == 2
+
+
+def test_analizza_file_caricati_descrizione_compare_nel_report(pdf_minimo):
+    from talia.modulo3_dashboard.app import _analizza_file_caricati
+
+    file_caricati = [
+        (
+            "allegato.pdf",
+            pdf_minimo("Vedi allegato."),
+            "Determina di revoca in autotutela del bando",
+        ),
+    ]
+    report = _analizza_file_caricati(file_caricati, valuta_llm=False)
+
+    assert report.atti[0].descrizione == "Determina di revoca in autotutela del bando"
+
+
+def test_analizza_file_caricati_descrizione_guida_classificazione(pdf_minimo):
+    # Un allegato con poco testo proprio (es. solo tabelle/numeri, nessuna
+    # delle formule che l'euristica cerca) rimarrebbe SCONOSCIUTO senza aiuto;
+    # la descrizione dell'utente lo aggancia comunque al ruolo giusto (TAL-60).
+    from talia.engine.fascicolo import RuoloAtto
+    from talia.engine.pdf_text import da_testo
+    from talia.modulo1_fascicolo.analisi import classifica_ruolo
+
+    testo_povero = da_testo("Prospetto economico: voce 1 € 100, voce 2 € 200.")
+    assert classifica_ruolo(testo_povero) is RuoloAtto.SCONOSCIUTO
+    assert classifica_ruolo(testo_povero, "revoca in autotutela del bando") is RuoloAtto.AUTOTUTELA
+
+
+def test_mostra_report_fascicolo_espone_descrivi_citazione():
+    # Regressione: descrivi_citazione era privata (_descr_citazione) in
+    # report.py, resa pubblica per essere riusata dalla tab dashboard senza
+    # duplicare il formato "«testo» (p. X, offset Y–Z)".
+    from talia.modulo1_fascicolo.report import descrivi_citazione
+    from talia.modulo3_dashboard.app import _analizza_file_caricati
+
+    report = _analizza_file_caricati(_fascicolo_bytes("fascicolo_critico"), valuta_llm=False)
+    citati = [c for e in report.esiti for c in e.citazioni]
+    assert citati, "il fascicolo critico deve produrre almeno una citazione"
+    assert descrivi_citazione(citati[0]).startswith("«")

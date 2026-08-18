@@ -44,7 +44,7 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, parse_data_iso
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,7 @@ def _parse_pagina(html: str, url_lista: str, tipo: str) -> list[AttoMetadato]:
                 data_pub=parse_data_iso(cells[4]),
                 data_scadenza=parse_data_iso(cells[5]),
                 cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
             )
         )
     return atti

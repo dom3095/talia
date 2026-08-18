@@ -1,36 +1,333 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-13 (branch `feat/TAL-59-fix-riapertura-falsi-positivi`, da
-> `main` dopo il merge di PR #17). Nuova card **TAL-59**: rileggendo i candidati
-> TAL-12, il sample 11 (63 PDF) si è rivelato non un bando revocato/riaperto ma
-> l'adozione della Variante Generale al P.R.G. di Alcamo — falso positivo del red
-> flag `riapertura_dopo_revoca`. Controllati tutti i 9 candidati TAL-12 contro
-> `talia.db` reale: **5 su 9 falsi positivi**, non solo il sample 11. Causa: (1)
-> `classifica_ruolo()` in `engine/catena.py` scambiava il tag `[annullato]` che
-> jCityGov antepone alle pubblicazioni ritirate/corrette per un annullamento
-> sostanziale; (2) `riapertura_revoca.py` non filtrava per dominio
-> gara/appalti/concorsi — 532/555 (95,9%) dei procedimenti annullati/revocati nel
-> DB reale non hanno nessun atto di tipo gara. Corretti entrambi (strip del tag +
-> filtro dominio con set di parole chiave, testato anche contro il caso limite
-> "lavoro" singolare/contenzioso vs "lavori" plurale/lavori pubblici). Verificato
-> dal vivo su `talia.db` reale (confronto codice originale vs. modificato sullo
-> stesso DB via `git stash`): **82→23 flag di riapertura_dopo_revoca (-72%)**.
-> Limite residuo documentato non corretto qui: la keyword "lavori" può ancora
-> includere ordinanze di chiusura strada per lavori di manutenzione (non un
-> bando) — bug 2b (Jaccard lega atti scorrelati anche in dominio) esplicitamente
-> fuori scope, da valutare come card separata. 8 nuovi test (606 verdi, erano
-> 598), ruff pulito. Nessun commit ancora — modifiche solo in working tree, in
-> attesa di conferma di Dom prima di committare/pushare (mai push diretto su
-> `main`). HANDOFF.md/BOARD.md allineati anche al merge di PR #17 (TAL-53…TAL-58,
-> 2026-08-09), che erano rimasti indietro.
+> Aggiornato: 2026-08-18 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
 >
-> **Prossimi passi proposti** (nessuno scelto ancora, da confermare con Dom):
-> decidere se committare/pushare TAL-59 e aprire PR; rigenerare `data/samples/`
-> di TAL-12 scartando i 5 candidati falsi positivi appena trovati (3, 9, 10, 11,
-> 12); valutare se aprire una card per il bug 2b (Jaccard); poi TAL-12
-> (validazione umana ⚖️ LEX sui candidati validi rimasti — 6, 7, 8, più 13 da
-> verificare); TAL-3 (PDF scansionato campione); backlog P2/P3 (TAL-51, TAL-41,
-> TAL-24, TAL-52, TAL-40).
+> **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun
+> commit ancora, in attesa di conferma"):** verificando lo stato reale del repo
+> a inizio sessione è emerso che TAL-59 era in realtà già stato completato,
+> committato (3 commit, non 1: il fix iniziale + una verifica critica su un
+> campione casuale di 40 procedimenti mai ispezionati, che ha trovato 2 lacune
+> reali nella prima regex + una guardia minori/tutela da code review) e
+> **mergiato in `main` come PR #18 il 2026-08-13** — questo HANDOFF non era mai
+> stato aggiornato dopo quel merge. Nessun contenuto perso: solo la
+> documentazione era rimasta indietro rispetto ai commit reali. BOARD.md
+> corretto di conseguenza (TAL-59 spostata da Review a Done).
+>
+> **Nuova card TAL-60** (stessa sessione, su richiesta di Dom dopo aver
+> discusso cosa manca per un MVP/PoC dimostrabile di Modulo 1): tab "📁 Analisi
+> fascicolo" nella dashboard Streamlit esistente (Modulo 3) — upload PDF/txt,
+> analisi via il motore esistente (`analizza_testi`), nessuna persistenza dei
+> file caricati. Decisioni prese in conversazione: solo uso locale (non pensata
+> per hosting pubblico — riaprirebbe il tema privacy, dati nominativi nei
+> fascicoli reali), tab nella dashboard già esistente invece di un'app separata
+> (riusa Streamlit già presente come dipendenza del Modulo 3). Riconcilia
+> esplicitamente la decisione precedente di TAL-10 ("niente Streamlit per il
+> Modulo 1"): quella riguardava il formato del report (resta HTML/JSON), questo
+> è un front-end opzionale in più, non una sostituzione.
+>
+> **Bug reale trovato solo con un run live**, non dai test pytest: gli import
+> relativi (`from ..engine...`) nelle nuove funzioni fallivano in modalità
+> `streamlit run src/talia/modulo3_dashboard/app.py` (script standalone, nessun
+> contesto di pacchetto) — `attempted relative import with no known parent
+> package`. I test pytest non lo intercettavano perché importano il modulo
+> come parte del pacchetto `talia`, dove gli stessi import funzionano.
+> Individuato con `streamlit.testing.v1.AppTest.from_file(...)` (che replica
+> l'avvio reale) + upload simulato + click sul bottone "Analizza": 0 eccezioni
+> dopo il fix (import assoluti). Dettaglio in [TAL-60](docs/cards/TAL-60.md),
+> Tentativo 1.
+>
+> **Bug collaterale corretto** (pre-esistente, non introdotto in questa
+> sessione): `main()` in `app.py` renderizzava le tab Statistiche e Mappa due
+> volte ciascuna (blocco duplicato dopo il merge di PR #17) — doppie query DB
+> ad ogni rerun. Rimossa la duplicazione.
+>
+> **TAL-60 esteso, stesso giorno** (feedback di Dom dopo aver provato il tab dal
+> vivo): upload sostituito da una catena di box "allega file + descrizione" (un
+> documento alla volta; il box successivo compare solo dopo aver caricato il
+> precedente). La descrizione non è solo estetica: `classifica_ruolo()` /
+> `punteggi_ruolo()` ora accettano una `descrizione` opzionale che concorre ai
+> punteggi con le stesse regex del testo — aggancia un allegato con poco testo
+> proprio (es. solo tabelle) al ruolo giusto quando da solo risulterebbe
+> SCONOSCIUTO. Filo fino a `Report`/`AttoMeta` (compare accanto al documento
+> nel report). Verificato dal vivo con `AppTest` (box 1→2→3 in sequenza,
+> descrizioni sull'atto giusto).
+>
+> **TAL-61** (bug trovato da Dom guardando la tab Panoramica: "non sappiamo
+> nemmeno la provincia di Ragusa?"): `sincronizza_enti_da_registro()` non
+> passava mai `popolazione` e passava `provincia` solo se il registro scraper
+> la conteneva (raro). `data/comuni_sicilia.csv` (rif. anagrafico dei 391
+> comuni) esisteva già ma non era mai stato incrociato con `enti`. Prima del
+> fix: 307/307 enti senza popolazione, 192/307 senza provincia. Corretto +
+> backfill eseguito su `talia.db` reale (backup preso prima:
+> `talia.db.bak-pre-backfill-provincia-pop-20260816`): ora 0/307 senza
+> provincia, 1/307 senza popolazione (residuo: Messina, riga di registro
+> obsoleta da una sessione precedente, non legata a questo fix).
+>
+> **628 test verdi (erano 614 a inizio sessione), ruff pulito.**
+>
+> **Discussione con Dom sui link morti nei red flag** (partita da un'altra
+> segnalazione dal vivo: due link di red flag irraggiungibili, Acate e Aci
+> Bonaccorsi): confermato sistemico, non isolato — su `talia.db` reale, la
+> maggioranza degli atti già scrapati su quasi tutte le piattaforme (halley
+> 77%, portalepa 86%, catania 86%...) ha già superato `data_scadenza`, un
+> campo che catturiamo da sempre e non usiamo mai. Discusse e scartate tre
+> proposte (archiviazione su terzi tipo Wayback Machine → manutenzione che il
+> progetto non si può permettere; disclaimer "link forse scaduto" → cosmetico,
+> non risolve nulla; cattura locale via Playwright → stesso problema di fiducia
+> di una copia self-hosted, il tool di cattura è irrilevante). **Svolta di
+> Dom**: questi atti sono per legge tenuti da qualche parte più a lungo di
+> quanto duri l'Albo Pretorio — la sezione "Amministrazione Trasparente"
+> (D.lgs. 33/2013), già segnalata come target ideale in `talia.md`/
+> `docs/wiki/07-fonti-dati.md` fin dall'inizio del progetto ma **mai
+> implementata da nessuno scraper** (tutti leggono solo l'Albo Pretorio, la
+> bacheca temporanea).
+>
+> **Verifica di fattibilità su jCityGov** (la piattaforma più grande, 85.435
+> atti): confermato con Playwright (curl non basta, è Liferay/JS) che
+> "Amministrazione Trasparente" è un archivio permanente reale — "Bandi di
+> concorso" su Ragusa mostra cartelle per anno **dal 2018**, non i 15-30gg
+> dell'Albo Pretorio. Il contenuto si raggiunge con GET semplici (URL Liferay
+> "render", `p_p_lifecycle=0`), non con azioni POST/sessione come temuto —
+> quindi i permalink dovrebbero essere stabili, non l'ipotesi opposta
+> ipotizzata su Acate. Due complicazioni reali per l'implementazione: (1) l'ID
+> numerico di ogni categoria non è costante tra comuni (Bandi di concorso =
+> pagina 18623 su Ragusa, 38979 su Palma di Montechiaro — va scoperto per
+> tenant); (2) la selezione dell'anno è un `<select>`, non un link diretto,
+> gestione form non ancora verificata. **Non ancora verificato**: il livello
+> più profondo (link al singolo bando dentro un anno) — quello che conta
+> davvero per la stabilità del permalink. **Nota collaterale**: richieste
+> ravvicinate su un singolo tenant (Acate) hanno fatto scattare un WAF
+> (sbloccato su un altro comune) — stesso principio di rate-limiting prudente
+> già usato per jcitygov.py/halley.py.
+>
+> **`playwright` installato in questo venv locale in questa sessione**
+> (`pip install playwright && playwright install chromium`) — era già usato da
+> `agrigento.py`/`serviziolinealbo.py`/`palermo.py` (import lazy dentro le
+> funzioni) ma **non è mai stato dichiarato come dipendenza in `pyproject.toml`**
+> — funzionava solo perché qualcuno l'aveva installato manualmente in passato.
+> **Corretto**: nuovo gruppo extra `playwright` in `pyproject.toml`.
+>
+> **TAL-60/TAL-61 committati e pushati** (3 commit: `a066f79` TAL-60,
+> `8e892f6` TAL-61, `08ea525` doc). Branch pushato su origin, **nessuna PR
+> aperta ancora** — solo commit+push richiesti esplicitamente, non l'apertura
+> della PR.
+>
+> **TAL-62 — Amministrazione Trasparente jCityGov + Halley, implementata e
+> verificata dal vivo** (Dom: "partirei a implementare jcity e halley...
+> controlla che sia tutto funzionante", poi è uscito di casa chiedendo di
+> continuare con `caffeinate` — sessione proseguita in autonomia da qui):
+>
+> - **jCityGov**: scoperta fondamentale — Amministrazione Trasparente usa lo
+>   **stesso motore "igrid"** dell'Albo Pretorio (stessa struttura di riga,
+>   stesso portlet, stessa paginazione), solo una categoria diversa — non
+>   un'applicazione separata. `scopri_categorie_trasparenza()` +
+>   `scarica_atti_trasparenza()` in `jcitygov.py` riusano `_parse_pagina`/
+>   `_RE_NEXT` già esistenti, **nessun parser nuovo**. Playwright è servito
+>   solo per la ricognizione iniziale (capire l'URL delle categorie): a
+>   runtime bastano richieste HTTP dirette, verificato con `curl` puro dopo
+>   la scoperta. Trovata anche un'eccezione da escludere: alcune categorie
+>   (es. "Titolari di incarichi", e su Acate anche "Bandi di concorso" — non
+>   uniforme tra tenant) puntano a un portlet "Soggetti" (registro persone,
+>   non atti) con path `/pas/...` invece di `/papca-*/...`: filtrate.
+>   Verificato dal vivo su Ragusa: 35 atti raccolti su più pagine,
+>   `data_scadenza` in anni futuri (2031) confermata. 6 nuovi test.
+> - **Halley**: **applicazione completamente separata** dall'Albo Pretorio
+>   (Zend Framework, `/zf/index.php/trasparenza/...` — non `/mc/mc_p_*.php`):
+>   HTML diverso, nessun riuso di codice possibile con `halley.py` esistente,
+>   parser nuovo scritto da zero. Categorie scoperte da link diretti nel menu
+>   (`.../categoria/<id>`), righe documento via `<tr data-href="...">`,
+>   paginazione via path (`.../page/<N>`). **Nessuna data di scadenza sulle
+>   righe** (a differenza dell'Albo Pretorio) — ulteriore segnale di
+>   ritenzione permanente. Un export CSV esiste ma senza URL del documento,
+>   inutile per lo scraping. Verificato dal vivo su Aci Bonaccorsi (lo stesso
+>   comune del link morto originale!): 20 atti su 2 pagine, **17 pagine
+>   totali** disponibili solo per "Bandi di concorso" — storico profondo
+>   confermato. Trovata anche eterogeneità reale: un secondo tenant provato
+>   (Vittoria) usa una piattaforma Halley più recente ("Stanza del
+>   cittadino") senza il path `/zf/...` (404, gestito senza crash) — fuori
+>   scope qui. 9 nuovi test.
+>
+> **643 test verdi (erano 634), ruff pulito.** Card [TAL-62](docs/cards/TAL-62.md)
+> creata, **Stato: In Progress** (non Done): 2 domande bloccanti esplicite
+> prima della messa in produzione, entrambe segnalate da Dom prima di uscire
+> e non ancora decise:
+> 1. **Deduplicazione con l'Albo Pretorio**: un bando pubblicato sull'Albo
+>    probabilmente compare anche in Amministrazione Trasparente (stesso
+>    atto, due URL diversi) — impatto su `engine/catena.py` (rischio
+>    procedimenti duplicati), imparentato con TAL-52 ma dentro la stessa
+>    piattaforma invece che tra piattaforme diverse.
+> 2. **Download/persistenza del testo**: la discussione che ha originato
+>    questa card aveva sollevato anche se scaricare/estrarre il testo (non
+>    solo l'URL) per gli atti citati nei red flag — non ancora affrontato,
+>    `testo_estratto`/`hash_sha256` restano vuoti anche qui.
+>
+> **Le funzioni non sono collegate a `run_scrapers.py`/registry**: esistono,
+> sono testate e verificate dal vivo, ma non fanno ancora parte del run
+> automatico — deliberato, in attesa delle due decisioni sopra.
+>
+> **TAL-62 committato e pushato** (`6666445`), stesso branch.
+>
+> **Quantificata dal vivo la deduplicazione con l'Albo Pretorio** (lavoro
+> autonomo dopo che Dom è uscito, con `caffeinate`), per dare numeri reali
+> alla discussione invece di procedere a intuito — dettaglio completo in
+> [TAL-62](docs/cards/TAL-62.md#-domande-aperte-bloccanti-prima-della-messa-in-produzione):
+> il profilo è **opposto tra le due piattaforme**, non un problema unico.
+> **jCityGov** (Ragusa): 80/80 atti (100%) di "Bandi di concorso" già
+> presenti in `talia.db` con lo **stesso `url_fonte` esatto** — stesso
+> backend "igrid" di Albo Pretorio, la deduplicazione è già gratuita via
+> `UNIQUE(ente_id, url_fonte)`, ma con un effetto collaterale da decidere:
+> se l'atto esiste già come `fonte_scraper="jcitygov"`, la versione
+> `"jcitygov_trasparenza"` non verrebbe mai scritta (`inserisci_atto` è
+> insert-if-not-exists, non upsert) — l'informazione "ritenzione lunga"
+> andrebbe persa in silenzio per gli atti già noti. **Halley** (Aci
+> Bonaccorsi): 0/50 atti (0%) già presenti, né per URL né per oggetto
+> normalizzato — applicazione separata, nessuna sovrapposizione strutturale
+> di URL, ma nemmeno deduplicazione automatica: un atto pubblicato oggi su
+> entrambe le sezioni creerebbe due righe distinte.
+>
+> **TAL-63 (P0) — Dom è tornato e ha rilanciato la domanda su jCityGov**:
+> "anche per jCity se clicco su un riferimento va su una pagina sballata",
+> con l'URL esatto di Acate già visto all'inizio del filone. Verificato con
+> Playwright (non solo curl): il formato `url_fonte` generato da
+> `_url_dettaglio()` — usato per **ogni** atto jCityGov, non solo
+> Amministrazione Trasparente — dà sempre errore server-side
+> ("Errore: contattare l'amministratore del Portale"), a sessione fredda e
+> con sessione attiva, confermato anche nell'HTML grezzo via curl puro (non
+> un problema di rendering JS) su due tenant diversi. Trovato il formato
+> vero cliccando davvero il bottone "Apri Dettaglio" nel portale:
+> `/-/papca/display/<id>?p_p_state=pop_up`, verificato a freddo.
+> `pdf_download.py` lo sapeva già (`_url_display_format`, usata per gli
+> allegati) ma come ottimizzazione, mai riportato a monte in
+> `_url_dettaglio()` — il link mostrato agli utenti è rimasto rotto.
+> **Corretto** (anche un bug collaterale: `papca_path` era hardcoded,
+> sbagliato per i 6 tenant TAL-49 con percorso alternativo). 643 test
+> verdi, committato e pushato (`5aac84d`).
+>
+> **Non ancora fatto — bloccante, serve conferma esplicita di Dom**: backfill
+> sugli **85.435 atti già in `talia.db`** con il vecchio formato non
+> funzionante. Il fix vale solo per i run futuri finché non si esegue la
+> migrazione (script non ancora scritto — estrarre `pub_id` da ogni
+> `url_fonte` esistente, ricostruire con `_url_dettaglio()`, backup del DB
+> prima come già fatto per TAL-61).
+>
+> **TAL-63 chiusa** (Dom, di ritorno: "sì, procedi"). Backfill di prova su
+> Acate prima (41 atti): ha rivelato che la dashboard non legge i link da
+> `atti.url_fonte` ma da `red_flags.atti_cig`, una copia JSON denormalizzata
+> mai sincronizzata — corretta anche quella. Prima di estendere a tutto il
+> DB, controllata anche **Halley** su richiesta di Dom: nessun bug analogo
+> (Albo Pretorio ok; Amministrazione Trasparente scarica il PDF diretto,
+> comportamento corretto). Backfill completo eseguito: **85.394 atti** +
+> **2019 voci in 341 `red_flags.atti_cig`** corrette, verificate con
+> Playwright su due campioni casuali indipendenti (14/14 funzionanti).
+> Backup preso prima (`talia.db.bak-pre-backfill-tal63-completo-20260816`).
+> 643 test verdi, tutto committato e pushato (`bf41fe9`).
+>
+> **⚠️ Segnalato da Dom, non ancora approfondito**: "le catene hanno dei
+> problemi" — nessun dettaglio ancora, discussione rimandata esplicitamente
+> a valle della decisione di deduplicazione TAL-62 in corso. Da riprendere
+> chiedendo a Dom cosa ha osservato prima di ipotizzare la causa.
+>
+> **TAL-64 aperta** — deduplicazione atti Albo Pretorio / Amministrazione
+> Trasparente. Spec concordata con Dom (schema `atti`/`atti_fonti`
+> normalizzato, `data_pub` per-fonte non canonica, CIG esatto-o-niente) ma
+> **non ancora implementata**: prima, su richiesta di Dom, un esperimento coi
+> dati reali. Ingest sperimentale di 1053 atti di Amministrazione Trasparente
+> in tabella di staging separata (`atti_trasparenza_staging`, script
+> `scripts/tal64_staging_trasparenza.py`, non tocca `atti`) su 7 comuni
+> jCityGov + 1 Halley (Aci Bonaccorsi). Trovato: le categorie di default non
+> generalizzano (riforma ANAC 2023 ha frammentato "Bandi di gara e
+> contratti" in sotto-categorie su jCityGov; su Halley nessun tenant tranne
+> Aci Bonaccorsi ha categorie con "bandi" nel nome), `data_atto` è 0/1053
+> (la chiave di fallback `tipo+numero+data_atto` della spec va rivista senza
+> `data_atto`), `numero="0"` è una sentinella in 135/1053 righe (esclusa dal
+> matching). Matching CIG/numero+tipo su jCityGov: 479/928 confermati (0
+> falsi positivi), ma tutti con lo stesso `url_fonte` (dedup già gratuita
+> lì) — non ancora testato il caso interessante URL-diverso-stesso-atto.
+> **Halley: 0/125 match — indagato (Tentativo 2)**: non è un bug del parser,
+> le righe di Amministrazione Trasparente su Halley espongono **solo**
+> descrizione + data inserimento, nessun campo numero/CIG in HTML (a
+> differenza dell'Albo Pretorio, che il "Numero atto" ce l'ha); il link
+> apre un **PDF diretto**, non una pagina di dettaglio — CIG/numero
+> recuperabili solo scaricando e leggendo il PDF, la stessa decisione
+> aperta di TAL-62 (#2, persistenza del testo). Per Halley l'identità
+> dovrà appoggiarsi a `oggetto` esatto + `data_pub`, o restare senza
+> deduplicazione automatica — non ancora deciso.
+>
+> **Notebook `notebooks/tal64_dedup_jcitygov.ipynb`** (su richiesta di Dom,
+> per rendere l'esperimento ripetibile): trovato che la conclusione "CIG: 0
+> falsi positivi" del primo giro era sbagliata — controllava solo se un
+> match esisteva, non se fosse quello giusto. Rifatto con precisione: **il
+> 40% dei CIG copre più di un atto reale** (una gara produce più atti nel
+> tempo, tutti con lo stesso CIG), il CIG da solo fonderebbe atti distinti.
+> Chiave rivista: `(ente_id, cig, numero)`, ambigua solo nel 6,2% dei casi.
+> Il caso vero da deduplicare (stesso atto, URL diverso) esiste ma è raro:
+> **1 solo caso su 1048** atti di staging (148 erano già dedup gratuita via
+> URL condiviso). Trovato anche un bug collaterale: il campo `cig` a volte
+> contiene la stringa `"ORIGINARIO"` invece di un CIG vero (91 atti su un
+> comune) — non ancora indagato, non bloccante.
+>
+> **Verificato che le gare Halley sono già nell'Albo Pretorio** (non altrove,
+> ipotesi di Dom controllata e non confermata): 3626/28160 atti Halley hanno
+> già CIG. Il gap reale che Amministrazione Trasparente colma sono i
+> **concorsi**, che non hanno mai CIG per natura — nessuna terza sezione
+> trovata sui siti istituzionali testati.
+>
+> **Fattibilità download+estrazione PDF per Halley confermata** (5 PDF di
+> prova, Aci Bonaccorsi): `engine.pdf_text.estrai_testo()` (già esistente,
+> nessuna nuova dipendenza) estrae il numero atto su 3/5 PDF (es.
+> "Determinazione n. 1217"); CIG assente in tutti e 5, atteso (concorsi).
+> Conferma che vale la pena decidere la persistenza del testo (TAL-62 #2)
+> almeno per questo caso — non ancora implementato in produzione.
+>
+> Todo list completa dei prossimi passi in
+> [TAL-64](docs/cards/TAL-64.md#-task). Tabella di staging lasciata nel DB
+> reale (1048 jCityGov + 125 Halley) per proseguire senza riscaricare.
+>
+> **TAL-65 (P1) — bug reale trovato e risolto**: Dom ha notato "i CIG possono
+> avere dei CIG padre e figli" — verificato su `talia.db`: 578 atti citano
+> pattern "CIG padre"/"CIG derivato"/"CIG originario" (accordi quadro,
+> convenzioni CONSIP), e `estrai_cig()` — **usata da 14 scraper su 14**, più
+> due copie quasi identiche in `engine/entita.py` (Modulo 1) e
+> `engine/catena.py` (collegamento catene) — li estraeva quasi sempre male:
+> 127 falsi positivi (`cig` valorizzato con la parola `"ORIGINARIO"`, che è
+> lunga esattamente 10 lettere e ingannava il fallback generico), 368 falsi
+> negativi (`cig` NULL nonostante il testo avesse due codici veri). Corretto
+> con tre regex distinte (padre/derivato/semplice, lookahead negativo per
+> evitare che il fallback inghiottisca la parola etichetta) invece di una
+> sola con etichetta opzionale. Nuova colonna `atti.cig_padre` (migrazione
+> lazy `_estendi_atti()`, stesso pattern di `_estendi_enti`), tutti i 14
+> scraper aggiornati meccanicamente. `catena.py::estrai_riferimenti()` ora
+> scarta esplicitamente i CIG padre dai riferimenti incrociati (un CIG padre
+> è condiviso da molte adesioni distinte — usarlo collegherebbe atti non
+> correlati, probabile causa non confermata di "le catene hanno dei
+> problemi"). 12 nuovi test, **655 test verdi (erano 643)**.
+>
+> **Backfill completo su `talia.db` reale** (backup preso prima:
+> `talia.db.bak-pre-fix-cig-padre-tal65-20260818`): ricalcolato `cig`/
+> `cig_padre` da `atti.oggetto` già in DB (nessuna nuova richiesta HTTP) su
+> 132.317 righe. Primo giro: 3585 corrette, ma 3 residue con un pattern non
+> previsto (codice tra parentesi quadre + "CIG." abbreviato) — corretta la
+> regex, rieseguito (idempotente): altre 235 corrette. **Risultato finale:
+> 0 righe con CIG-garbage residuo, 38.560 atti con CIG, 200 con CIG padre.**
+> Card [TAL-65](docs/cards/TAL-65.md), Stato: Done.
+>
+> **Non ancora fatto**: verificare l'impatto reale su `catena.py` (quante
+> catene cambiano ora che `cig` è pulito) — è il collegamento diretto con la
+> segnalazione di Dom su "le catene hanno dei problemi", ancora da
+> approfondire specificamente con lui prima di concludere che sia risolta.
+>
+> **Prossimi passi** (da riprendere con Dom): le due domande bloccanti di
+> TAL-62 (dedup — con i numeri già raccolti, non più a intuito — e
+> download/persistenza) prima di collegare Amministrazione Trasparente al
+> run automatico; poi verificare fattibilità Amministrazione Trasparente
+> sulle piattaforme restanti (portalepa, catania, palermo, urbi, trapani,
+> hspromila — 14% dei dati) e se il bug TAL-63 esiste anche lì (Halley già
+> controllata, pulita). Poi, non ancora ripreso: TAL-12 (validazione umana
+> ⚖️ LEX sui candidati rimasti — 6, 7, 8, più 13 da verificare); rigenerare
+> `data/samples/` di TAL-12 scartando i candidati falsi positivi
+> individuati da TAL-59 (3, 9, 10, 11,
+> 12); bug 2b (Jaccard, noto da TAL-59); TAL-3 (PDF scansionato campione);
+> backlog P2/P3 (TAL-51, TAL-41, TAL-24, TAL-52, TAL-40).
 
 ---
 

@@ -28,7 +28,7 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, parse_data_iso
 
 # ---------------------------------------------------------------------------
 # Costanti
@@ -120,6 +120,7 @@ def _parse_page(html: str, base_url: str = _BASE_URL) -> list[AttoMetadato]:
                 data_atto=parse_data_iso(data_m.group(1)) if data_m else None,
                 data_scadenza=parse_data_iso(data_fine_m.group(1)) if data_fine_m else None,
                 cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
             )
         )
     return atti

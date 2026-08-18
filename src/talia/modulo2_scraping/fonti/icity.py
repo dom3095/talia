@@ -22,6 +22,7 @@ from html.parser import HTMLParser
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig as _estrai_cig
+from talia.modulo2_scraping.utils import estrai_cig_padre as _estrai_cig_padre
 from talia.modulo2_scraping.utils import ora_utc as _ora_utc
 from talia.modulo2_scraping.utils import parse_data_iso as _data_iso
 
@@ -30,11 +31,11 @@ from talia.modulo2_scraping.utils import parse_data_iso as _data_iso
 # ---------------------------------------------------------------------------
 
 FONTE_SCRAPER = "icity"
-_DEFAULT_DELAY = 1.0    # secondi tra le richieste HTTP
-_DEFAULT_LIMIT = 200    # atti massimi per singolo run
+_DEFAULT_DELAY = 1.0  # secondi tra le richieste HTTP
+_DEFAULT_LIMIT = 200  # atti massimi per singolo run
 _USER_AGENT = "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"
 
-_RE_IMPORTO = re.compile(r'€\s*([\d.]+,\d{2})')
+_RE_IMPORTO = re.compile(r"€\s*([\d.]+,\d{2})")
 
 
 # ---------------------------------------------------------------------------
@@ -101,14 +102,16 @@ class _ListaParser(HTMLParser):
             self._in_td = False
         elif tag == "tr" and self._in_tr:
             if self._cur_link and self._celle:
-                self.righe.append({
-                    "url_dettaglio": self._cur_link,
-                    "numero": self._celle[0] if len(self._celle) > 0 else None,
-                    "tipo": self._celle[1] if len(self._celle) > 1 else None,
-                    "oggetto": self._celle[2] if len(self._celle) > 2 else None,
-                    "data_pub_raw": self._celle[3] if len(self._celle) > 3 else None,
-                    "data_scad_raw": self._celle[4] if len(self._celle) > 4 else None,
-                })
+                self.righe.append(
+                    {
+                        "url_dettaglio": self._cur_link,
+                        "numero": self._celle[0] if len(self._celle) > 0 else None,
+                        "tipo": self._celle[1] if len(self._celle) > 1 else None,
+                        "oggetto": self._celle[2] if len(self._celle) > 2 else None,
+                        "data_pub_raw": self._celle[3] if len(self._celle) > 3 else None,
+                        "data_scad_raw": self._celle[4] if len(self._celle) > 4 else None,
+                    }
+                )
             self._in_tr = False
         elif tag == "tbody":
             self._in_tbody = False
@@ -208,6 +211,7 @@ def _parse_dettaglio(html: str, url: str, codice_istat: str) -> AttoMetadato:
         data_scadenza=_data_iso(_get("data scadenza", "pubbl. al", "data fine")),
         url_pdf=urllib.parse.urljoin(url, p.url_pdf) if p.url_pdf else None,
         cig=_estrai_cig(oggetto),
+        cig_padre=_estrai_cig_padre(oggetto),
         oggetto=oggetto,
         importo_euro=_estrai_importo(oggetto),
     )
@@ -237,7 +241,7 @@ def scarica_atti(
     *,
     limit: int = _DEFAULT_LIMIT,
     delay: float = _DEFAULT_DELAY,
-    _fetch_fn=_fetch,          # iniettabile nei test
+    _fetch_fn=_fetch,  # iniettabile nei test
 ) -> Iterator[AttoMetadato]:
     """Genera metadati degli atti dall'albo pretorio iCity di un comune.
 

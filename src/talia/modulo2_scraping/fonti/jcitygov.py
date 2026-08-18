@@ -36,6 +36,7 @@ from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
 from talia.modulo2_scraping.utils import estrai_cig as _estrai_cig
+from talia.modulo2_scraping.utils import estrai_cig_padre as _estrai_cig_padre
 from talia.modulo2_scraping.utils import ora_utc as _ora_utc
 from talia.modulo2_scraping.utils import parse_data_iso as _data_iso
 
@@ -135,13 +136,27 @@ def _scopri_risorse_alternative(opener, base: str) -> dict[str, str]:
     return dict(_RE_MAINURL.findall(html))
 
 
-def _url_dettaglio(base_url: str, pub_id: str) -> str:
-    return (
-        f"{base_url}{_PAPCA_PATH}"
-        f"?p_p_id={_PORTLET}"
-        f"&_{_PORTLET}_id={pub_id}"
-        f"&_{_PORTLET}_action=mostraDettaglio"
-    )
+def _url_dettaglio(base_url: str, papca_path: str, pub_id: str) -> str:
+    """Permalink al dettaglio di una pubblicazione.
+
+    BUG CRITICO corretto 2026-08-16 (TAL-63): il formato precedente
+    (`?p_p_id=...&_..._id=<id>&_..._action=mostraDettaglio`) è quello che lo
+    scraper ha sempre costruito ma **non è un permalink funzionante** — un
+    utente che ci clicca sopra, con o senza sessione attiva, vede sempre
+    "Errore! Errore: contattare l'amministratore del Portale" (verificato
+    dal vivo con Playwright, sessione fresca e sessione stabilita, su due
+    tenant diversi: Ragusa e Acate — quest'ultimo il caso segnalato da Dom
+    che ha fatto emergere il bug). Il vero link, quello che l'interfaccia
+    del portale genera per il bottone "Apri Dettaglio" (scoperto cliccandolo
+    davvero in un browser, non deducendolo), è `/-/papca/display/<id>
+    ?p_p_state=pop_up` — verificato funzionante a freddo (nessuna sessione
+    precedente) su entrambi i tenant. Il bug affliggeva ogni atto jCityGov
+    mai scaricato (85.435 in `talia.db` al momento della scoperta): la
+    citazione — il principio 1 di CLAUDE.md, "nessun indicatore senza link
+    alla fonte" — non ha mai puntato a una pagina funzionante per questa
+    piattaforma. Backfill sui dati già scritti in TAL-63.md.
+    """
+    return f"{base_url}{papca_path}/-/papca/display/{pub_id}?p_p_state=pop_up"
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +164,9 @@ def _url_dettaglio(base_url: str, pub_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetadato]:
+def _parse_pagina(
+    html: str, base_url: str, codice_istat: str, papca_path: str = _PAPCA_PATH
+) -> list[AttoMetadato]:
     # Alcuni tenant non hanno la colonna "Anno e Numero Registro": in quel caso
     # le celle sono [tipo, oggetto, periodo] invece di [tipo, numero, oggetto,
     # periodo] e senza questo controllo oggetto e date finiscono nei campi
@@ -177,18 +194,21 @@ def _parse_pagina(html: str, base_url: str, codice_istat: str) -> list[AttoMetad
             _, _, n = numero_raw.rpartition("/")
             numero = n or None
 
-        atti.append(AttoMetadato(
-            ente_codice_istat=codice_istat,
-            tipo=tipo,
-            url_fonte=_url_dettaglio(base_url, pub_id),
-            fonte_scraper=FONTE_SCRAPER,
-            data_accesso=_ora_utc(),
-            numero=numero,
-            oggetto=oggetto,
-            data_pub=data_pub,
-            data_scadenza=data_scad,
-            cig=_estrai_cig(oggetto),
-        ))
+        atti.append(
+            AttoMetadato(
+                ente_codice_istat=codice_istat,
+                tipo=tipo,
+                url_fonte=_url_dettaglio(base_url, papca_path, pub_id),
+                fonte_scraper=FONTE_SCRAPER,
+                data_accesso=_ora_utc(),
+                numero=numero,
+                oggetto=oggetto,
+                data_pub=data_pub,
+                data_scadenza=data_scad,
+                cig=_estrai_cig(oggetto),
+                cig_padre=_estrai_cig_padre(oggetto),
+            )
+        )
     return atti
 
 
@@ -202,6 +222,7 @@ def _build_opener(skip_ssl: bool = False) -> urllib.request.OpenerDirector:
     handlers: list = [urllib.request.HTTPCookieProcessor(jar)]
     if skip_ssl:
         import ssl
+
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -289,7 +310,7 @@ def scarica_atti(
 
     raccolti = 0
     while raccolti < limit:
-        atti = _parse_pagina(html, base, codice_istat)
+        atti = _parse_pagina(html, base, codice_istat, papca_path)
         if not atti:
             break
 
@@ -312,6 +333,128 @@ def scarica_atti(
             f"&_{_PORTLET}_paginationAction=NEXT&_{_PORTLET}_action=mostraLista"
         )
         html = _fetch(opener, next_url)
+
+
+# ---------------------------------------------------------------------------
+# Amministrazione Trasparente (TAL-62)
+#
+# A differenza dell'Albo Pretorio (bacheca temporanea, atti pubblicati 15-30
+# giorni), la sezione Amministrazione Trasparente ha la ritenzione prevista
+# dal D.lgs. 33/2013 — verificato dal vivo su Ragusa (2026-08-16): un atto in
+# "Bandi di concorso" aveva `data_scadenza` al 2031, non a giorni di distanza.
+#
+# jCityGov serve entrambe le sezioni con lo stesso motore "igrid" (stessa
+# struttura di riga `master-detail-list-line`/`data-id`, stesso portlet
+# jcitygovalbopubblicazioni, stessa paginazione) — Amministrazione
+# Trasparente non è altro che una categoria diversa dello stesso sistema, non
+# un'applicazione separata. Per questo si riusano `_parse_pagina`/`_RE_NEXT`
+# invece di scrivere un parser nuovo. Nessuna sessione JS/Playwright
+# necessaria in produzione: la scoperta delle categorie e il fetch delle
+# pagine sono richieste HTTP dirette (Playwright è servito solo per la
+# ricognizione iniziale, non per lo scraping).
+# ---------------------------------------------------------------------------
+
+_LANDING_PATH_TRASPARENZA = "/web/trasparenza/trasparenza"
+FONTE_SCRAPER_TRASPARENZA = "jcitygov_trasparenza"
+
+# Solo le categorie con contenuto documentale (famiglia di path "papca",
+# stesso motore dell'Albo Pretorio). Alcune categorie del menu (es. "Titolari
+# di incarichi...", e su Acate anche "Bandi di concorso") puntano invece alla
+# famiglia "pas" — portlet "jcitygovalbosoggetti" (registro di persone/
+# incarichi, non di atti): struttura di riga diversa, fuori scope qui.
+# Verificato dal vivo: la stessa query su una pagina "pas" ritorna 0 righe
+# con la regex degli atti, non perché la categoria sia vuota.
+CATEGORIE_TRASPARENZA_DEFAULT = (
+    "Bandi di concorso",
+    "Bandi di gara e contratti",
+)
+
+
+def scopri_categorie_trasparenza(
+    base_url: str, *, skip_ssl: bool = False, _opener=None
+) -> dict[str, str]:
+    """Scopre le categorie di Amministrazione Trasparente e i relativi path igrid.
+
+    Stessa tecnica di `_scopri_risorse_alternative` (attributi
+    data-resource/data-mainurl nella pagina menu, già usata per gli albi
+    "papca-ap" alternativi, TAL-49), puntata su .../trasparenza invece che su
+    .../albo-pretorio. Filtra alla sola famiglia "papca" (vedi nota di modulo
+    sopra); le categorie "pas" (portlet Soggetti) sono escluse.
+    """
+    opener = _opener or _build_opener(skip_ssl=skip_ssl)
+    base = base_url.rstrip("/")
+    try:
+        html = _fetch(opener, f"{base}{_LANDING_PATH_TRASPARENZA}")
+    except (TimeoutError, urllib.error.URLError):
+        return {}
+    tutte = dict(_RE_MAINURL.findall(html))
+    return {label: path for label, path in tutte.items() if "/papca" in path}
+
+
+def scarica_atti_trasparenza(
+    base_url: str,
+    codice_istat: str,
+    *,
+    categorie: Iterable[str] = CATEGORIE_TRASPARENZA_DEFAULT,
+    limit_per_categoria: int = _DEFAULT_LIMIT,
+    delay: float = _DEFAULT_DELAY,
+    skip_ssl: bool = False,
+    _opener=None,
+) -> Iterator[AttoMetadato]:
+    """Scarica atti dalla sezione Amministrazione Trasparente di un comune.
+
+    Gli atti hanno `fonte_scraper = "jcitygov_trasparenza"` (non
+    "jcitygov"): stessa piattaforma, fonte distinguibile da quella
+    dell'Albo Pretorio. Nessuna deduplicazione qui con gli atti già raccolti
+    dall'Albo Pretorio per lo stesso comune — probabile sovrapposizione (un
+    bando pubblicato sull'Albo può comparire anche qui), gestione della
+    catena/deduplicazione valutata separatamente (non ancora implementata).
+    """
+    opener = _opener or _build_opener(skip_ssl=skip_ssl)
+    base = base_url.rstrip("/")
+
+    categorie_disponibili = scopri_categorie_trasparenza(
+        base_url, skip_ssl=skip_ssl, _opener=opener
+    )
+
+    for nome_categoria in categorie:
+        percorso = categorie_disponibili.get(nome_categoria)
+        if not percorso:
+            logger.warning(
+                "jcitygov trasparenza %s: categoria %r non trovata tra quelle esposte",
+                base,
+                nome_categoria,
+            )
+            continue
+
+        html = _fetch(opener, f"{base}{percorso}")
+        papca_path = percorso.split("/-/papca")[0]
+
+        raccolti = 0
+        while raccolti < limit_per_categoria:
+            atti = _parse_pagina(html, base, codice_istat, papca_path)
+            if not atti:
+                if raccolti == 0:
+                    logger.warning("jcitygov trasparenza %s: 0 atti in %r", base, nome_categoria)
+                break
+
+            for atto in atti:
+                if raccolti >= limit_per_categoria:
+                    break
+                atto.fonte_scraper = FONTE_SCRAPER_TRASPARENZA
+                yield atto
+                raccolti += 1
+
+            if not _RE_NEXT.search(html) or raccolti >= limit_per_categoria:
+                break
+
+            time.sleep(delay)
+            next_url = (
+                f"{base}{papca_path}"
+                f"?p_p_id={_PORTLET}&p_p_lifecycle=0&p_p_state=pop_up&p_p_mode=view"
+                f"&_{_PORTLET}_paginationAction=NEXT&_{_PORTLET}_action=mostraLista"
+            )
+            html = _fetch(opener, next_url)
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,9 @@ class AttoAnalizzato:
     ruolo: RuoloAtto = RuoloAtto.SCONOSCIUTO
     entita: EntitaEstratte = field(default_factory=EntitaEstratte)
     etichetta: str | None = None  # nome leggibile per il report
+    # Osservazioni dell'utente sul documento (TAL-60, upload interattivo):
+    # concorrono alla classificazione del ruolo e compaiono nel report.
+    descrizione: str | None = None
 
     @classmethod
     def da_testo(
@@ -37,6 +40,7 @@ class AttoAnalizzato:
         testo: TestoAtto,
         ruolo: RuoloAtto = RuoloAtto.SCONOSCIUTO,
         etichetta: str | None = None,
+        descrizione: str | None = None,
     ) -> AttoAnalizzato:
         """Crea un atto eseguendo l'estrazione entità sul testo."""
         return cls(
@@ -44,6 +48,7 @@ class AttoAnalizzato:
             ruolo=ruolo,
             entita=estrai_entita(testo),
             etichetta=etichetta or (testo.percorso if testo.percorso else None),
+            descrizione=descrizione,
         )
 
 

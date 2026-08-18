@@ -53,3 +53,22 @@ def test_report_renderizza_in_ogni_formato(nome):
     assert report.to_markdown()
     assert report.to_json()
     assert report.to_html()
+
+
+def test_descrizioni_compaiono_nel_report_e_nelle_rese():
+    # TAL-60: le osservazioni dell'utente per ciascun documento arrivano fino
+    # al report finale e a tutte e tre le rese, non solo al modello dati.
+    testi = _carica_fascicolo("fascicolo_coerente")
+    descrizioni = ["indizione del concorso", None]
+    report = analizza_testi(testi, descrizioni=descrizioni)
+
+    assert [a.descrizione for a in report.atti] == descrizioni
+    assert "indizione del concorso" in report.to_markdown()
+    assert "indizione del concorso" in report.to_html()
+    assert "indizione del concorso" in report.to_json()
+
+
+def test_descrizioni_lunghezza_diversa_da_testi_alza_errore():
+    testi = _carica_fascicolo("fascicolo_coerente")
+    with pytest.raises(ValueError):
+        analizza_testi(testi, descrizioni=["una sola descrizione"])

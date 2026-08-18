@@ -31,10 +31,19 @@ dev = [
     "ruff>=0.5",
     "pytest>=8.0",
 ]
-# Dashboard Modulo 3 (TAL-30).
-dashboard = ["streamlit>=1.35"]
+# Dashboard Modulo 3 (TAL-30); include [pdf] perché la tab "Analisi fascicolo"
+# (TAL-60) è un front-end del Modulo 1 e ne condivide il requisito primario
+# (upload PDF) — senza, l'upload di un PDF fallirebbe con un errore a runtime.
+dashboard = ["streamlit>=1.35", "talia[pdf]"]
+# Scraper che richiedono un rendering JS reale (agrigento.py, palermo.py,
+# serviziolinealbo.py: DevExpress/SISPI, contenuto iniettato via callback
+# dopo networkidle). Era già importato (lazy, dentro le funzioni) da questi
+# moduli ma mai dichiarato qui — funzionava solo perché installato a mano.
+# Trovato 2026-08-16 lavorando su TAL-62 (Amministrazione Trasparente), che
+# ne ha bisogno solo per la ricognizione iniziale, non a runtime.
+playwright = ["playwright>=1.40"]
 # Comodità: installa tutto il necessario all'uso end-to-end.
-all = ["talia[pdf,nlp,dashboard,dev]"]
+all = ["talia[pdf,nlp,dashboard,dev,playwright]"]
 
 [project.scripts]
 talia = "talia.modulo1_fascicolo.cli:main"

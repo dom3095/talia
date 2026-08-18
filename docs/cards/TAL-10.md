@@ -42,3 +42,8 @@ CLI `talia analizza <file|cartella> [--formato testo|md|json|html] [--out f]`.
 **Decisione formato:** HTML statico + JSON (niente Streamlit per il Modulo 1: zero deps;
 Streamlit resta per il Modulo 3). Ogni citazione espone pagina+offset; link cliccabile al
 PDF sorgente rinviato a quando i report saranno pubblicati accanto agli atti.
+
+**Nota (2026-08-16, TAL-60):** il formato resta questo — la decisione qui non cambia. È
+stato aggiunto un front-end *interattivo opzionale* (tab nella dashboard Modulo 3, che ha
+già Streamlit come dipendenza) per chi non usa il terminale; internamente produce lo
+stesso `Report`/HTML di questa card, non lo sostituisce.

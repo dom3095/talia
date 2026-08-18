@@ -28,7 +28,7 @@ from collections.abc import Iterable, Iterator
 from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
-from talia.modulo2_scraping.utils import estrai_cig, ora_utc, parse_data_iso
+from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, parse_data_iso
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +139,7 @@ def _parse_pagina(
                 data_pub=_data_iso(pub_m.group(1)) if pub_m else None,
                 data_scadenza=_data_iso(pub_m.group(2)) if pub_m else None,
                 cig=estrai_cig(oggetto),
+                cig_padre=estrai_cig_padre(oggetto),
             )
         )
     return atti, righe
@@ -150,9 +151,7 @@ def _parse_pagina(
 
 
 def _post(opener: urllib.request.OpenerDirector, url: str, dati: dict[str, str]) -> str:
-    req = urllib.request.Request(
-        url, data=urllib.parse.urlencode(dati).encode(), headers=_HEADERS
-    )
+    req = urllib.request.Request(url, data=urllib.parse.urlencode(dati).encode(), headers=_HEADERS)
     with opener.open(req, timeout=30) as r:
         return r.read().decode("utf-8", errors="replace")
 
