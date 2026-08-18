@@ -53,6 +53,15 @@ colpo d'occhio: 13 giorni consecutivi a zero.
   mostrava `esito = fn(` invece di `ConnectionRefusedError: ...`. Ora
   l'eccezione è messa in testa prima di troncare, e `sintesi_errore()` sa
   leggere anche il formato vecchio già in DB.
+- **Buco trovato nella soluzione stessa, verificando quali scraper girerebbero
+  davvero**: `agrigento` (capoluogo), `pachino` e `barrafranca` sono
+  `escluso_default` nel registro perché richiedono Playwright ed erano lenti
+  *per un run manuale* — motivazione che in un run notturno non vale più,
+  mentre la conseguenza sì (perdere per sempre gli atti di un capoluogo).
+  Aggiunto `--extra-scrapers` a `run_scrapers.py` (aggiunge alla lista invece
+  di sostituirla) e i tre al run notturno, sovrascrivibile con
+  `TALIA_EXTRA_SCRAPERS`. Costo reale misurato: **Pachino 9s**, non i ~3 min
+  stimati in CLAUDE.md. `anac` resta fuori (richiede `--anac-file`).
 - **Run reale di recupero lanciato** il 2026-08-18 alle 13:44 (backup preso
   prima: `backups/talia.db.20260818`).
 
@@ -107,6 +116,30 @@ Review. TAL-60 spostata da Review a Done (PR #19 mergiata).
   ANAC noto, che richiede `--anac-file`. Nel run automatico continuerà a
   risultare "muto" finché non si decide se escluderlo dal default o
   automatizzare il download.
+
+### Problemi misurati e segnalati a Dom (non affrontati in questa sessione)
+
+Numeri presi su `talia.db` reale il 2026-08-18, prima del run di recupero:
+
+1. **`testo_estratto` è 0 su 133.726 atti.** Ogni red flag, ogni catena e
+   ogni estrazione CIG lavorano sul solo `oggetto` (in media 205 caratteri,
+   88 atti sotto i 10). È il tetto strutturale su tutta la qualità del
+   Modulo 2 — ed è la stessa decisione già aperta in TAL-62 (#2, persistenza
+   del testo).
+2. **32% dei link è già morto** (41.700 atti su 130.358 con `data_scadenza`
+   già passata). Contro il principio n°1 del progetto ("nessun indicatore
+   senza link alla fonte"). La risposta strutturale è Amministrazione
+   Trasparente (TAL-62), bloccata su due decisioni che ora hanno numeri veri
+   dal notebook TAL-64 — non servono altre misurazioni, serve decidere.
+3. **`enti` ha "Comune di Messina" due volte** (`083053` e `083048`, entrambi
+   `bloccato`, 0 atti): riga di registro obsoleta già notata in TAL-61, mai
+   rimossa. Impatto basso ma gonfia i conteggi e compare doppia nei menù.
+4. **I backup stanno sullo stesso disco** del DB: `run_daily.sh` protegge da
+   una corruzione o da un backfill sbagliato, non da un guasto del Mac. Il DB
+   (154 MB, non versionato) è l'unico asset non riproducibile del progetto —
+   gli atti scaduti dall'albo non si riscaricano.
+5. **32% dei procedimenti ha `stato_finale='sconosciuto'`** (11.602 su
+   35.772) — probabilmente per lo stesso motivo del punto 1.
 
 ---
 > **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun
