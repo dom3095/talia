@@ -32,8 +32,12 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="$LOG_DIR/run_daily_$STAMP.log"
 REPORT_FILE="$LOG_DIR/ultimo_report.md"
 
-# Quanti log e backup tenere (il DB reale è ~500 MB: senza rotazione il disco
-# si riempie in un mese).
+# Scraper `escluso_default` da includere comunque nel run notturno (vedi sotto).
+# Svuotabile con TALIA_EXTRA_SCRAPERS="" se Playwright non è installato.
+EXTRA_SCRAPERS="${TALIA_EXTRA_SCRAPERS-agrigento pachino barrafranca}"
+
+# Quanti log e backup tenere (il DB reale è ~150 MB: senza rotazione il disco
+# si riempie in fretta).
 MAX_LOG=30
 MAX_BACKUP=7
 
@@ -99,9 +103,16 @@ notifica() {
     fi
 
     # --- Scraping -----------------------------------------------------------
+    # Agrigento (capoluogo), Pachino e Barrafranca sono `escluso_default` nel
+    # registro perché richiedono Playwright ed erano lenti per un run manuale.
+    # In un run notturno ~3 min a testa sono irrilevanti, mentre escluderli
+    # significherebbe perdere per sempre i loro atti quando escono dalla
+    # finestra di pubblicazione dell'albo — lo stesso problema che questo run
+    # esiste per risolvere. `anac` resta fuori: richiede `--anac-file`.
     echo
     echo "--- run_scrapers.py ---"
-    TALIA_DB="$DB_PATH" caffeinate -i "$PYTHON" scripts/run_scrapers.py "$@"
+    TALIA_DB="$DB_PATH" caffeinate -i "$PYTHON" scripts/run_scrapers.py \
+        ${EXTRA_SCRAPERS:+--extra-scrapers $EXTRA_SCRAPERS} "$@"
     ESITO_SCRAPING=$?
     echo "run_scrapers.py exit=$ESITO_SCRAPING"
 

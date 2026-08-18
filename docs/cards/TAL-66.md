@@ -104,7 +104,21 @@ martellamento continuo. Qui: `StartCalendarInterval` + `KeepAlive false` +
 `RunAtLoad false`, più `Nice 5`/`ProcessType Background` perché il run può
 partire mentre qualcuno sta usando il Mac (recupero di un run saltato).
 
-### 2026-08-18 — Tentativo 2
+### 2026-08-18 — Tentativo 2 (buco trovato nella soluzione stessa)
+**Approccio:** verifica di *quali* scraper girerebbero davvero nel run
+notturno, invece di assumere che "il default" bastasse.
+**Esito:** ❌ il default escludeva 3 comuni, tra cui un capoluogo.
+**Appreso:** `agrigento`, `pachino` e `barrafranca` sono `escluso_default`
+nel registro perché richiedono Playwright ed erano lenti *per un run
+manuale* — una motivazione che nel contesto di un run notturno non vale più,
+mentre la conseguenza (perdere per sempre gli atti di Agrigento quando escono
+dalla finestra dell'albo) è esattamente il problema che questa card risolve.
+Aggiunto `--extra-scrapers` a `run_scrapers.py` (aggiunge alla lista invece
+di sostituirla come `--scrapers`) e i tre al run notturno. Costo reale
+misurato: Pachino 9s, non i ~3 min stimati in CLAUDE.md. `anac` resta fuori
+perché richiede `--anac-file`.
+
+### 2026-08-18 — Tentativo 3
 **Approccio:** primo `report_run.py` sul DB reale.
 **Esito:** ⚠️ parziale — output corretto ma illeggibile.
 **Appreso:** due difetti concreti trovati solo guardando l'output vero, non

@@ -58,7 +58,17 @@ Scelte del plist, e perché:
 2. **Backup del DB** in `backups/talia.db.YYYYMMDD` via `sqlite3 .backup`
    (consistente in WAL, a differenza di `cp`), rotazione a 7 copie.
 3. **`caffeinate -i python scripts/run_scrapers.py "$@"`** — gli argomenti
-   passati allo script arrivano al runner.
+   passati allo script arrivano al runner, più
+   `--extra-scrapers agrigento pachino barrafranca`.
+
+   Quei tre sono `escluso_default` nel registro perché richiedono Playwright
+   ed erano lenti per un run manuale. In un run notturno il costo è
+   irrilevante (misurato: Pachino 9s, non i ~3 min temuti), mentre escluderli
+   significherebbe perdere **per sempre** gli atti di un capoluogo quando
+   escono dalla finestra di pubblicazione — lo stesso problema che il run
+   automatico esiste per risolvere. Modificabile con
+   `TALIA_EXTRA_SCRAPERS="..."` (o `""` se Playwright non è installato).
+   `anac` resta fuori: richiede `--anac-file`.
 4. **`scripts/report_run.py`** — riepilogo in `logs/ultimo_report.md`.
 5. **Rotazione** log (30 file) e backup (7 copie).
 6. **Notifica macOS** se qualcosa è andato storto.

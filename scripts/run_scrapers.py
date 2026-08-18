@@ -734,6 +734,19 @@ Esempi:
         help=f"Scrapers da eseguire (default: {' '.join(scrapers_default)})",
     )
     p.add_argument(
+        "--extra-scrapers",
+        nargs="+",
+        choices=list(scrapers),
+        default=[],
+        dest="extra_scrapers",
+        metavar="SCRAPER",
+        help=(
+            "Scrapers da aggiungere alla lista (invece di sostituirla come --scrapers)."
+            " Serve al run automatico per includere gli 'escluso_default' che restano"
+            " comunque eseguibili, es. i Playwright: --extra-scrapers agrigento pachino"
+        ),
+    )
+    p.add_argument(
         "--max-pagine",
         type=int,
         default=50,
@@ -809,7 +822,11 @@ def main() -> int:
     risultati: dict[str, dict | str] = {}
     errori = 0
 
-    for nome in args.scrapers:
+    # `dict.fromkeys` invece di un set: preserva l'ordine e non riesegue uno
+    # scraper già presente nella lista principale.
+    da_eseguire = list(dict.fromkeys([*args.scrapers, *args.extra_scrapers]))
+
+    for nome in da_eseguire:
         fn = scrapers[nome]
         print(f"\n── {nome.upper()} ──")
         run_id = inizia_run(conn, nome)
