@@ -30,7 +30,16 @@ BACKUP_DIR="${TALIA_BACKUP_DIR:-$REPO_ROOT/backups}"
 LOCK_DIR="$REPO_ROOT/.run_daily.lock"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="$LOG_DIR/run_daily_$STAMP.log"
-REPORT_FILE="$LOG_DIR/ultimo_report.md"
+
+# `ultimo_report.md` è il nome documentato (CLAUDE.md, wiki) e deve descrivere
+# il DB di produzione. Un run di prova su un altro DB scrive altrove: prima
+# sovrascriveva lo stesso file, e il riepilogo del mattino dopo mostrava
+# l'esito del DB di test invece che quello vero.
+if [ "$DB_PATH" = "$REPO_ROOT/talia.db" ]; then
+    REPORT_FILE="$LOG_DIR/ultimo_report.md"
+else
+    REPORT_FILE="$LOG_DIR/ultimo_report_$(basename "$DB_PATH" .db).md"
+fi
 
 # Scraper `escluso_default` da includere comunque nel run notturno (vedi sotto).
 # Svuotabile con TALIA_EXTRA_SCRAPERS="" se Playwright non è installato.
@@ -96,7 +105,21 @@ notifica() {
         # `.backup` di sqlite3 è consistente anche con il DB aperto in WAL,
         # a differenza di `cp` (che può cogliere un WAL a metà checkpoint).
         if command -v sqlite3 >/dev/null 2>&1; then
-            sqlite3 "$DB_PATH" ".backup '$BACKUP_FILE'" && echo "Backup: $BACKUP_FILE"
+            if sqlite3 "$DB_PATH" ".backup '$BACKUP_FILE'"; then
+                # La copia eredita la modalità WAL e può restare con i sidecar
+                # `-shm`/`-wal` accanto. Passare a journal_mode=DELETE fa il
+                # checkpoint e li rimuove **senza perdere dati** (cancellarli a
+                # mano rischierebbe di buttare via un WAL non ancora riversato),
+                # così un backup = un file solo.
+                MODO="$(sqlite3 "$BACKUP_FILE" "PRAGMA journal_mode=DELETE;")"
+                # Solo dopo che il journal è davvero DELETE i sidecar non
+                # contengono più nulla di durevole: rimuoverli prima avrebbe
+                # potuto buttare via un WAL non ancora riversato.
+                if [ "$MODO" = "delete" ]; then
+                    rm -f "$BACKUP_FILE-shm" "$BACKUP_FILE-wal"
+                fi
+                echo "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+            fi
         else
             cp "$DB_PATH" "$BACKUP_FILE" && echo "Backup (cp): $BACKUP_FILE"
         fi
@@ -129,9 +152,14 @@ notifica() {
     ls -1t "$LOG_DIR"/run_daily_*.log 2>/dev/null | tail -n +$((MAX_LOG + 1)) | while read -r f; do
         rm -f "$f"
     done
-    ls -1t "$BACKUP_DIR"/talia.db.* 2>/dev/null | tail -n +$((MAX_BACKUP + 1)) | while read -r f; do
-        rm -f "$f"
-    done
+    # Glob ancorato alla data (`talia.db.20260819`), non `talia.db.*`: con il
+    # glob largo i sidecar `-shm`/`-wal` di un backup contavano come backup a
+    # sé, e "tenerne 7" significava conservarne davvero 2-3 — retention ridotta
+    # in silenzio (trovato guardando `backups/` dopo il primo run automatico).
+    ls -1t "$BACKUP_DIR"/talia.db.[0-9]* 2>/dev/null | grep -Ev -- '-(shm|wal)$' |
+        tail -n +$((MAX_BACKUP + 1)) | while read -r f; do
+            rm -f "$f" "$f-shm" "$f-wal"
+        done
 
     echo
     echo "=== Fine — $(date -Iseconds) (scraping=$ESITO_SCRAPING report=$ESITO_REPORT) ==="
