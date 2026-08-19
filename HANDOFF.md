@@ -209,6 +209,50 @@ Debito collegato emerso qui: **`atti.fonte_scraper` contiene il modulo (13
 valori), non lo slug (263)** — per i 5 comuni con scraper gemelli (TAL-52) è
 impossibile capire quale dei due funzioni.
 
+### TAL-70 — bonifica scraper (mai diagnosticati, Corleone, ANAC, stagnanti)
+
+Richiesta di Dom: *"sistema anac con playwright, fai lo scraper nuovo per
+corleone. Sistema anche i mai diagnosticati, stagnanti e muti"*. Dettaglio in
+[TAL-70](docs/cards/TAL-70.md); qui i punti che cambiano il quadro.
+
+- **Muti: nessuno.** La categoria è vuota da TAL-68.
+- **Corleone: +499 atti senza uno scraper nuovo.** Era `bloccato` con la nota
+  "WordPress con CPT `documento_pubblico`": diagnosi errata — l'API REST non
+  espone quel tipo e la pagina albo contiene `DB_NAME`/`StwEvent`/`urbi`. È
+  un **URBI self-hosted**, quindi è bastato configurare `urbi.py`.
+- **hspromila leggeva una sola delle due skin del portale**: i tenant su
+  template legacy (`<tr class="itemstyle">`, 6 colonne invece di 10)
+  rispondevano 200 con la tabella piena e venivano letti come vuoti — stessa
+  lezione di Caccamo. Aggiunto `_parse_legacy` + paginazione `__doPostBack`
+  (con cookie di sessione condiviso, senza il quale WebForms risponde 200 e
+  zero righe). **Floresta 0→40, Cianciana 0→70**, attivati.
+- **6 casi restanti non sono colpa nostra**, e ora il registro lo dice con la
+  causa esatta invece di "0 atti, da verificare": 4 albi realmente vuoti
+  ("non ha prodotto risultati" / "Nessuna pubblicazione estratta") e 2 con
+  **"Errore 5052"** lato server.
+- **ANAC — la premessa era sbagliata, e Playwright non c'entra.** (1) Il
+  download non è bloccato: l'URL configurato risponde 200 ma con 1288 byte,
+  perché **non è il dataset, è un manifest** — lo scraper ci cercava dentro i
+  contratti, ed è questa la ragione per cui risultava muto, non il WAF. (2)
+  Dal 2023 SmartCIG esiste **solo in RDF Turtle**, il CSV non c'è più. (3) Le
+  pagine del portale e gli endpoint SPARQL sono respinti da un WAF F5 **anche
+  con Chromium reale**, mentre i file di dati si scaricano in HTTP semplice:
+  il browser non serve dove funziona e non passa dove non funziona. (4) Un
+  singolo file mensile pesa **1,8 GB** (~21 GB per il 2024).
+  **Non implementato di proposito**: l'unica strada è uno streaming TTL con
+  filtro Sicilia al volo, ma è un impegno che non rientra nel budget ≈ 0
+  senza una scelta esplicita di Dom — o quello, o togliere `anac` dal
+  registro perché smetta di risultare perennemente muto.
+- **Stagnanti: non è codice.** Gli albi sono fermi davvero (`rometta`
+  2023-09-27, `paceco` 2025-07-04, `mascalucia` 2026-06-03, contro `acate`
+  sano al 2026-08-03), i siti istituzionali linkano proprio l'albo che
+  leggiamo e non espongono risorse alternative. **Indagine sospesa**: aprendo
+  la pagina di Mascalucia con un browser è scattato un WAF (`MDAWAF001`) su
+  questo IP — coerentemente con la linea del progetto ho smesso di
+  interrogare quell'host, da riprendere a freddo.
+
+**721 test verdi (erano 714).**
+
 ### Problemi misurati e segnalati a Dom (non affrontati in questa sessione)
 
 Numeri presi su `talia.db` reale il 2026-08-18, prima del run di recupero:
