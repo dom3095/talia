@@ -175,16 +175,31 @@ class _RispostaFinta:
         return False
 
 
+class _OpenerFinto:
+    """Sostituisce l'opener con cookie jar usato da `scarica_atti`.
+
+    Dal 2026-08-19 (TAL-70) lo scraper non usa più `urllib.request.urlopen`
+    diretto ma un opener con cookie jar, perché la postback di paginazione
+    ASP.NET viene rifiutata senza il cookie di sessione della GET.
+    """
+
+    def __init__(self, apri):
+        self._apri = apri
+
+    def open(self, *args, **kwargs):
+        return self._apri(*args, **kwargs)
+
+
 def test_scarica_atti_riprova_dopo_un_timeout(monkeypatch):
     chiamate = {"n": 0}
 
-    def _urlopen_finto(*_args, **_kwargs):
+    def _apri(*_args, **_kwargs):
         chiamate["n"] += 1
         if chiamate["n"] == 1:
             raise TimeoutError("simulato")
         return _RispostaFinta(_HTML_PAGINA)
 
-    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_a: _OpenerFinto(_apri))
     monkeypatch.setattr("time.sleep", lambda _s: None)
     atti = list(scarica_atti(_URL, _ISTAT))
     assert len(atti) == 2
@@ -192,12 +207,105 @@ def test_scarica_atti_riprova_dopo_un_timeout(monkeypatch):
 
 
 def test_scarica_atti_rilancia_dopo_retry_esaurito(monkeypatch):
-    def _urlopen_finto(*_args, **_kwargs):
+    def _apri(*_args, **_kwargs):
         raise TimeoutError("simulato")
 
-    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_finto)
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_a: _OpenerFinto(_apri))
     try:
         list(scarica_atti(_URL, _ISTAT, _retry=0))
         raise AssertionError("doveva sollevare TimeoutError")
     except TimeoutError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Skin legacy `itemstyle` a 6 colonne + paginazione (TAL-70)
+# ---------------------------------------------------------------------------
+
+_HTML_LEGACY = """
+<table>
+<tr class="pagerstyle" align="right"><td>
+  <span class='DG_PagerCellResults'>(Trovati 40 risultati)</span>
+  <span class='DG_PagerCellPageTitle'>Pagina 1 di 4</span>
+  <span class="DG_PagerCellPageNoAccess">1</span>
+  <a class="DG_PagerCellPageLink"
+     href="javascript:__doPostBack(&#39;ctl00$dg$ctl01$ctl01&#39;,&#39;&#39;)">2</a>
+  <a class="DG_PagerCellPageLink"
+     href="javascript:__doPostBack(&#39;ctl00$dg$ctl01$ctl02&#39;,&#39;&#39;)">3</a>
+</td></tr>
+<tr class="headerstyle"><td>NUMERO REGISTRO</td><td>OGGETTO</td></tr>
+<tr class="itemstyle" onmouseover="x()">
+  <td>581</td><td>TRASPORTO SCOLASTICO - AVVISO PUBBLICO</td><td>Avvisi</td>
+  <td>UFFICIO SEGRETERIA</td><td>19/08/2026</td><td>01/09/2026</td>
+</tr>
+<tr class="alternatingitemstyle">
+  <td>580</td><td>LIQUIDAZIONE FATTURA CIG A12345678B</td><td>Atti di Liquidazione</td>
+  <td>ATTI UFFICIO TECNICO</td><td>17/08/2026</td><td>01/09/2026</td>
+</tr>
+</table>
+<input type="hidden" name="__VIEWSTATE" value="abc" />
+<input type="hidden" name="__EVENTTARGET" value="" />
+"""
+
+
+def test_parse_legacy_estrae_le_righe_itemstyle():
+    """Regressione TAL-70: Floresta e Cianciana rispondevano 200 con la
+    tabella piena, ma il parser cercava solo `<tr class="">`."""
+    from talia.modulo2_scraping.fonti.hspromila import _parse_pagina
+
+    atti = _parse_pagina(_HTML_LEGACY, "https://x/albo.aspx?P=400", "083022")
+    assert len(atti) == 2
+    a = atti[0]
+    assert a.numero == "581"
+    assert a.oggetto.startswith("TRASPORTO SCOLASTICO")
+    assert a.tipo == "avviso"
+    assert a.data_pub == "2026-08-19"
+    assert a.data_scadenza == "2026-09-01"
+    assert a.url_fonte.endswith("#581")
+
+
+def test_parse_legacy_estrae_il_cig():
+    from talia.modulo2_scraping.fonti.hspromila import _parse_pagina
+
+    atti = _parse_pagina(_HTML_LEGACY, "https://x/albo.aspx?P=400", "083022")
+    assert atti[1].cig == "A12345678B"
+
+
+def test_url_fonte_univoco_per_atto_anche_in_legacy():
+    """Senza frammento distinto, la UNIQUE(ente, url_fonte) scarterebbe tutti
+    gli atti tranne il primo."""
+    from talia.modulo2_scraping.fonti.hspromila import _parse_pagina
+
+    atti = _parse_pagina(_HTML_LEGACY, "https://x/albo.aspx?P=400", "083022")
+    assert len({a.url_fonte for a in atti}) == len(atti)
+
+
+def test_link_pagine_mappa_numero_a_target():
+    from talia.modulo2_scraping.fonti.hspromila import link_pagine
+
+    assert link_pagine(_HTML_LEGACY) == {
+        "2": "ctl00$dg$ctl01$ctl01",
+        "3": "ctl00$dg$ctl01$ctl02",
+    }
+
+
+def test_link_pagine_assenti_su_skin_moderna():
+    from talia.modulo2_scraping.fonti.hspromila import link_pagine
+
+    assert link_pagine(_HTML_PAGINA) == {}
+
+
+def test_campi_form_include_viewstate():
+    from talia.modulo2_scraping.fonti.hspromila import campi_form
+
+    campi = campi_form(_HTML_LEGACY)
+    assert campi["__VIEWSTATE"] == "abc"
+    assert "__EVENTTARGET" in campi
+
+
+def test_skin_moderna_ha_la_precedenza():
+    """Un tenant sulla skin corrente non deve passare dal parser legacy."""
+    from talia.modulo2_scraping.fonti.hspromila import _parse_legacy, _parse_pagina
+
+    assert _parse_pagina(_HTML_PAGINA, "https://x", "084001")
+    assert _parse_legacy(_HTML_PAGINA, "https://x", "084001") == []
