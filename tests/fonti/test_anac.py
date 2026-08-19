@@ -6,6 +6,7 @@ Nessuna rete, nessun dato reale.
 
 from __future__ import annotations
 
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -53,27 +54,27 @@ def db():
 
 @pytest.fixture
 def db_con_palermo(db):
-    upsert_ente(db, EnteMetadato(
-        denominazione="Comune di Palermo", codice_istat="082053", provincia="PA"
-    ))
+    upsert_ente(
+        db, EnteMetadato(denominazione="Comune di Palermo", codice_istat="082053", provincia="PA")
+    )
     return db
 
 
 @pytest.fixture
 def db_completo(db):
     """DB con i principali enti siciliani del CSV fixture."""
-    upsert_ente(db, EnteMetadato(
-        denominazione="Comune di Palermo", codice_istat="082053", provincia="PA"
-    ))
-    upsert_ente(db, EnteMetadato(
-        denominazione="Comune di Catania", codice_istat="087015", provincia="CT"
-    ))
-    upsert_ente(db, EnteMetadato(
-        denominazione="Comune di Messina", codice_istat="083048", provincia="ME"
-    ))
-    upsert_ente(db, EnteMetadato(
-        denominazione="Comune di Agrigento", codice_istat="084001", provincia="AG"
-    ))
+    upsert_ente(
+        db, EnteMetadato(denominazione="Comune di Palermo", codice_istat="082053", provincia="PA")
+    )
+    upsert_ente(
+        db, EnteMetadato(denominazione="Comune di Catania", codice_istat="087015", provincia="CT")
+    )
+    upsert_ente(
+        db, EnteMetadato(denominazione="Comune di Messina", codice_istat="083048", provincia="ME")
+    )
+    upsert_ente(
+        db, EnteMetadato(denominazione="Comune di Agrigento", codice_istat="084001", provincia="AG")
+    )
     return db
 
 
@@ -254,20 +255,89 @@ def test_carica_csv_oggetto_salvato(csv_content, db_completo):
 def test_scarica_e_carica_con_mock(csv_content, db_completo):
     """Testa scarica_e_carica iniettando una funzione di fetch mock."""
 
-    def _mock_fetch(url: str, timeout: int = 60) -> str:
+    def _mock_fetch(url: str, timeout: int = 300) -> str:
         return csv_content
 
-    esiti = scarica_e_carica(db_completo, _fetch_fn=_mock_fetch)
+    esiti = scarica_e_carica(db_completo, mesi=[1], _fetch_fn=_mock_fetch)
     assert esiti["inseriti"] == 8
+    assert esiti["mesi_scaricati"] == 1
 
 
 def test_scarica_e_carica_idempotente(csv_content, db_completo):
     """Due chiamate consecutive non duplicano."""
 
-    def _mock_fetch(url: str, timeout: int = 60) -> str:
+    def _mock_fetch(url: str, timeout: int = 300) -> str:
         return csv_content
 
-    scarica_e_carica(db_completo, _fetch_fn=_mock_fetch)
-    esiti2 = scarica_e_carica(db_completo, _fetch_fn=_mock_fetch)
+    scarica_e_carica(db_completo, mesi=[1], _fetch_fn=_mock_fetch)
+    esiti2 = scarica_e_carica(db_completo, mesi=[1], _fetch_fn=_mock_fetch)
     assert esiti2["inseriti"] == 0
     assert esiti2["duplicati"] == 8
+
+
+def test_scarica_e_carica_scorre_i_dodici_mesi(csv_content, db_completo):
+    """Il dataset è pubblicato per mese, non in un unico file annuale (TAL-70)."""
+    visti = []
+
+    def _mock_fetch(url: str, timeout: int = 300) -> str:
+        visti.append(url)
+        return csv_content
+
+    esiti = scarica_e_carica(db_completo, anno=2025, _fetch_fn=_mock_fetch)
+    assert len(visti) == 12
+    assert visti[0].endswith("smartcig_csv_2025_01.zip")
+    assert visti[-1].endswith("smartcig_csv_2025_12.zip")
+    assert esiti["mesi_scaricati"] == 12
+
+
+def test_un_mese_mancante_non_ferma_gli_altri(csv_content, db_completo):
+    """ANAC pubblica i mesi progressivamente: l'anno in corso è parziale."""
+
+    def _mock_fetch(url: str, timeout: int = 300) -> str:
+        if "_03." in url:
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        return csv_content
+
+    esiti = scarica_e_carica(db_completo, anno=2025, mesi=[1, 2, 3], _fetch_fn=_mock_fetch)
+    assert esiti["mesi_scaricati"] == 2
+    assert esiti["mesi_falliti"] == 1
+    assert esiti["inseriti"] == 8  # gli 8 del mese 1; il 2 li ritrova duplicati
+
+
+def test_url_mensile_zip_e_csv():
+    from talia.modulo2_scraping.fonti.anac import _url_smartcig
+
+    assert _url_smartcig(2025, 3).endswith("smartcig_csv_2025_03.zip")
+    assert _url_smartcig(2025, 3, compresso=False).endswith("smartcig_csv_2025_03.csv")
+
+
+def test_fetch_mese_scompatta_lo_zip():
+    """Lo zip pesa circa un quarto del CSV: è il formato scaricato di default."""
+    import io
+    import zipfile
+
+    from talia.modulo2_scraping.fonti.anac import _fetch_mese
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("smartcig_csv_2025_03.csv", "cig;oggetto_gara\nX1;prova\n")
+
+    class _Risposta:
+        def read(self):
+            return buf.getvalue()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    import urllib.request as _ur
+
+    originale = _ur.urlopen
+    _ur.urlopen = lambda *_a, **_k: _Risposta()
+    try:
+        testo = _fetch_mese("https://esempio/smartcig_csv_2025_03.zip")
+    finally:
+        _ur.urlopen = originale
+    assert "cig;oggetto_gara" in testo

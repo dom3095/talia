@@ -230,19 +230,29 @@ corleone. Sistema anche i mai diagnosticati, stagnanti e muti"*. Dettaglio in
   causa esatta invece di "0 atti, da verificare": 4 albi realmente vuoti
   ("non ha prodotto risultati" / "Nessuna pubblicazione estratta") e 2 con
   **"Errore 5052"** lato server.
-- **ANAC — la premessa era sbagliata, e Playwright non c'entra.** (1) Il
-  download non è bloccato: l'URL configurato risponde 200 ma con 1288 byte,
-  perché **non è il dataset, è un manifest** — lo scraper ci cercava dentro i
-  contratti, ed è questa la ragione per cui risultava muto, non il WAF. (2)
-  Dal 2023 SmartCIG esiste **solo in RDF Turtle**, il CSV non c'è più. (3) Le
-  pagine del portale e gli endpoint SPARQL sono respinti da un WAF F5 **anche
-  con Chromium reale**, mentre i file di dati si scaricano in HTTP semplice:
-  il browser non serve dove funziona e non passa dove non funziona. (4) Un
-  singolo file mensile pesa **1,8 GB** (~21 GB per il 2024).
-  **Non implementato di proposito**: l'unica strada è uno streaming TTL con
-  filtro Sicilia al volo, ma è un impegno che non rientra nel budget ≈ 0
-  senza una scelta esplicita di Dom — o quello, o togliere `anac` dal
-  registro perché smetta di risultare perennemente muto.
+- **ANAC — risolto, ma non con Playwright, e dopo una mia conclusione
+  sbagliata.** Primo giro: avevo concluso che il CSV fosse stato dismesso e
+  restasse solo RDF Turtle da 1,8 GB per file. **Falso**, e l'ha fatto emergere
+  una domanda di Dom (*"su quale URL sei andato?"*): ero andato solo sull'URL
+  configurato nel codice — un **manifest** — e da quell'inventario avevo
+  dedotto quali risorse esistessero, invece di provare l'URL dei CSV per
+  analogia col nome dei TTL. I CSV ci sono: `smartcig_csv_{anno}_{mese}.zip`,
+  **~40 MB zippati a mese**, e anche per il **2025**, che il codice dava per
+  non pubblicato.
+  Resta vero il resto della diagnosi: l'URL configurato non è il dataset ma un
+  indice di 1288 byte — **è questa la ragione per cui ANAC era muto**, non il
+  WAF — e Playwright non serve (le pagine del portale sono respinte anche con
+  Chromium reale, i file di dati non sono mai stati bloccati).
+  Altri due bug emersi solo caricando i dati veri, che avrebbero lasciato ANAC
+  a zero anche con l'URL giusto: le colonne del tracciato sono
+  `*_appaltante`/`oggetto_lotto`/`importo_lotto` (aggiunti gli alias), e il
+  filtro `sezione_regionale == "Sicilia"` non matcha mai — quel campo vale
+  `"SEZIONE REGIONALE SICILIA"` e per alcuni enti siciliani perfino
+  `"SEZIONE REGIONALE CENTRALE"` (Casa di reclusione di San Cataldo): **si
+  perdevano righe in silenzio**, ora si filtra su `regione`. Aggiunto anche
+  l'aggancio dell'ente via `istat_comune` (esatto) invece del solo LIKE sul
+  nome. **Verificato: 12.400 atti da un solo mese in 21s.** `anac` resta fuori
+  dal run notturno (dataset mensile), con il nuovo `--anac-anno`.
 - **Stagnanti: non è codice.** Gli albi sono fermi davvero (`rometta`
   2023-09-27, `paceco` 2025-07-04, `mascalucia` 2026-06-03, contro `acate`
   sano al 2026-08-03), i siti istituzionali linkano proprio l'albo che

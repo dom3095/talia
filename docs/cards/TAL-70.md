@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1
-- **Stato:** Review (ANAC: bloccata su una decisione)
+- **Stato:** Review
 - **Branch:** `feat/TAL-66-run-giornaliero-aggregati`
 
 ## 🎯 Obiettivo
@@ -18,7 +18,7 @@ corleone. Sistema anche i mai diagnosticati, stagnanti e muti"*.
 | Muti | **nessuno da sistemare** — la categoria è vuota da TAL-68 |
 | Mai diagnosticati (8) | **2 attivati** (+110 atti), 4 albi realmente vuoti, 2 errore lato server |
 | Corleone | **attivato, 499 atti** — senza scrivere uno scraper nuovo |
-| ANAC | **la premessa era sbagliata**: Playwright non c'entra, serve una decisione |
+| ANAC | **risolto senza Playwright**: era muto perché l'URL configurato era un manifest, non il dataset |
 | Stagnanti | gli scraper funzionano: sono gli albi ad essere fermi. Indagine sospesa |
 
 ## 1. Mai diagnosticati — 5 hspromila
@@ -62,37 +62,66 @@ Era `bloccato` con la nota *"sito WordPress con CPT `documento_pubblico`"*.
 **499 atti**. Zero righe di codice nuovo. Registro aggiornato da
 `bloccato`/`portalepa` a `attivo`/`urbi`.
 
-## 4. ANAC — la premessa non regge ⚠️ decisione richiesta
+## 4. ANAC — risolto, ma non con Playwright
 
-La richiesta era "sistemalo con Playwright", perché un WAF bloccherebbe il
-download del CSV. Verificato punto per punto:
+**Correzione di una mia conclusione sbagliata.** In un primo giro avevo
+concluso che il CSV fosse stato dismesso e che restasse solo RDF Turtle da
+1,8 GB per file. Era falso, e l'ha fatto emergere una domanda di Dom: *"su
+quale URL sei andato?"*. Ero andato **solo** sull'URL configurato nel codice —
+il manifest — e da lì avevo dedotto l'inventario delle risorse, invece di
+provare l'URL dei CSV per analogia col nome dei TTL.
+
+I CSV esistono: `smartcig_csv_{anno}_{mese}.zip`, **~40 MB zippati a mese**,
+12 mesi per anno, **anche per il 2025** (che il codice dava per non ancora
+pubblicato). Verificato: 2023, 2024 e 2025 completi.
+
+Quello che invece resta vero della prima analisi:
 
 1. **Il download non è bloccato.** L'URL configurato risponde `200`… con
    **1288 byte**: non è il dataset, è un **manifest** che elenca le risorse.
    Lo scraper lo scaricava e ci cercava dentro i contratti — *ecco perché
    ANAC risultava muto*, non per il WAF.
-2. **Il CSV non esiste più.** Dal 2023 SmartCIG è pubblicato **solo in RDF
-   Turtle**: 12 risorse per il 2024, 36 per il 2023, zero in formato CSV.
-   2025 e 2026 non ancora pubblicati (404).
+2. **Il manifest elenca solo risorse TTL.** È da qui che avevo dedotto —
+   sbagliando — che il CSV fosse sparito: l'inventario non lo cita, ma il file
+   c'è, allo stesso path.
 3. **Playwright non aiuta.** Le pagine del portale sono respinte da un WAF F5
    ("Request Rejected") **anche con Chromium reale**; gli endpoint SPARQL
    idem. I file di dati invece si scaricano benissimo in HTTP semplice: il
    browser non serve dove funziona, e non passa dove non funziona.
-4. **Il costo vero è il volume**: un singolo file mensile pesa **1,8 GB**
-   (`Content-Length` misurato) → ~21 GB per il solo 2024.
+4. Il TTL è effettivamente enorme (1,8 GB/file), ma è **irrilevante**: i CSV
+   pesano un quarantesimo e sono già nel formato che il parser si aspetta.
 
-**Non implementato di proposito.** L'unica strada praticabile è uno streaming
-del TTL con filtro Sicilia al volo, senza mai salvare i file interi; ma è un
-impegno di banda/tempo che non rientra nel "budget ≈ 0" senza una scelta
-esplicita, e non è la cosa che era stata chiesta (Playwright). Serve decidere:
+### Fix applicati
 
-- [ ] investire nel lettore TTL in streaming (una esecuzione occasionale, mai
-      nel run notturno), oppure
-- [ ] tenere `--anac-file` come unica via ed escludere `anac` dal registro
-      così non risulta perennemente "muto".
+- `_url_smartcig(anno, mese)` punta ai file mensili (zip di default: 47 MB
+  contro 189 MB su 2024-11); `_url_manifest()` resta, ma con un commento che
+  dice a chiare lettere che **non** è il dataset.
+- `scarica_e_carica()` scorre i 12 mesi; un mese mancante (404) non ferma gli
+  altri, perché ANAC pubblica progressivamente.
+- **Due bug del tracciato scoperti solo caricando i dati veri**, che avrebbero
+  lasciato ANAC a zero anche con l'URL giusto:
+  - le colonne sono `denominazione_amministrazione_appaltante` /
+    `cf_amministrazione_appaltante` / `oggetto_lotto` / `importo_lotto`:
+    aggiunti gli alias;
+  - il filtro era `sezione_regionale == "Sicilia"`, ma quel campo vale
+    `"SEZIONE REGIONALE SICILIA"` e per alcuni enti siciliani perfino
+    `"SEZIONE REGIONALE CENTRALE"` (la Casa di reclusione di San Cataldo).
+    **Filtrando lì si perdevano righe in silenzio**: ora si filtra su
+    `regione`.
+- **Aggancio dell'ente via `istat_comune`** (`"019082054"` → `082054`,
+  Partinico) invece del solo LIKE sulla denominazione, che su nomi come
+  "COMUNE DI SAN GIOVANNI" può agganciare il comune sbagliato.
 
-Nota: aggirare il WAF con tecniche di evasione **non** è un'opzione — stessa
-linea già tenuta per Leonforte (Cloudflare) e Messina.
+**Verificato dal vivo:** un singolo mese (2025-01) scaricato in 21s →
+**12.400 atti**, agganciati agli enti giusti (Palermo 2494, Catania 890,
+Messina 795). `anac` resta fuori dal run notturno: il dataset si aggiorna
+mensilmente, riscaricarlo ogni notte sarebbe mezzo giga al giorno per nulla.
+Nuovo `--anac-anno` per scegliere l'annata.
+
+Nota: aggirare il WAF con tecniche di evasione non è stata un'opzione in
+nessun momento — stessa linea già tenuta per Leonforte e Messina. Non è
+servito: le pagine del portale restano bloccate, i file di dati non lo sono
+mai stati.
 
 ## 5. Stagnanti — non è codice
 
@@ -123,9 +152,9 @@ quell'host. Da riprendere a freddo, un comune alla volta.
 - [x] Floresta e Cianciana attivati (+110 atti)
 - [x] 6 casi senza colpa nostra annotati nel registro con la causa precisa
 - [x] Corleone: da `bloccato` ad `attivo` via `urbi.py` (+499 atti)
-- [x] ANAC: diagnosi completa; **implementazione bloccata su decisione**
+- [x] ANAC: URL mensili + alias colonne + filtro `regione` + aggancio ISTAT,
+      **12.400 atti verificati su un mese** (6 test nuovi)
 - [x] Stagnanti: esclusa la causa "bug dello scraper"
-- [ ] ANAC: scelta fra lettore TTL streaming e `--anac-file`
 - [ ] Stagnanti: capire dove pubblicano oggi, a freddo
 
 ## 🔬 Tentativi

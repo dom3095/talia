@@ -78,8 +78,12 @@ def _date_range(atti) -> tuple[str | None, str | None]:
     return (min(dates) if dates else None, max(dates) if dates else None)
 
 
-def _run_anac(conn, anac_file: str | None = None, **_kwargs) -> dict:
-    from talia.modulo2_scraping.fonti.anac import carica_csv_anac, scarica_e_carica
+def _run_anac(conn, anac_file: str | None = None, anac_anno: int | None = None, **_kwargs) -> dict:
+    from talia.modulo2_scraping.fonti.anac import (
+        _anno_default,
+        carica_csv_anac,
+        scarica_e_carica,
+    )
 
     t0 = time.monotonic()
     if anac_file:
@@ -88,8 +92,13 @@ def _run_anac(conn, anac_file: str | None = None, **_kwargs) -> dict:
             contenuto = f.read()
         esito = carica_csv_anac(contenuto, conn)
     else:
-        print("  [ANAC] Scarico CSV SmartCIG (~400 MB)… (pazienza)")
-        esito = scarica_e_carica(conn)
+        anno = anac_anno or _anno_default()
+        # SmartCIG è pubblicato per mese (~40 MB zippati l'uno): 12 richieste,
+        # non un unico file annuale. Resta fuori dal run notturno perché il
+        # dataset si aggiorna mensilmente — rilanciarlo ogni notte sarebbe
+        # mezzo giga al giorno per nulla.
+        print(f"  [ANAC] Scarico SmartCIG {anno}, 12 file mensili (~450 MB totali)…")
+        esito = scarica_e_carica(conn, anno=anno)
     elapsed = time.monotonic() - t0
     print(f"  [ANAC] {esito} — {elapsed:.0f}s")
     esito["n_trovati"] = esito.get("inseriti", 0) + esito.get("duplicati", 0)
@@ -794,6 +803,14 @@ Esempi:
         ),
     )
     p.add_argument(
+        "--anac-anno",
+        type=int,
+        default=None,
+        dest="anac_anno",
+        metavar="ANNO",
+        help="Anno civile SmartCIG da scaricare (default: anno corrente - 1)",
+    )
+    p.add_argument(
         "--no-stop",
         action="store_true",
         dest="no_stop",
@@ -859,6 +876,7 @@ def main() -> int:
                 conn,
                 max_pagine=args.max_pagine,
                 anac_file=args.anac_file,
+                anac_anno=args.anac_anno,
                 no_stop=args.no_stop,
             )
             risultati[nome] = esito
