@@ -341,3 +341,28 @@ def test_fetch_mese_scompatta_lo_zip():
     finally:
         _ur.urlopen = originale
     assert "cig;oggetto_gara" in testo
+
+
+def test_parse_importo_punto_decimale_tracciato_attuale():
+    """Regressione TAL-70: i file mensili usano `1550.0`, non `1.550,00`.
+
+    Trattare quel punto come separatore di migliaia moltiplicava ogni importo
+    per 10 — 176.827 importi gonfiati nel primo caricamento del 2025.
+    """
+    assert _parse_importo("1550.0") == 1550.0
+    assert _parse_importo("1403.1") == 1403.1
+    assert _parse_importo("250000.0") == 250000.0
+
+
+def test_parse_importo_formato_italiano_ancora_supportato():
+    """Il tracciato storico resta leggibile: la virgola distingue i due casi."""
+    assert _parse_importo("4.500,00") == 4500.0
+    assert _parse_importo("1.234.567,89") == 1234567.89
+    assert _parse_importo("18000,00") == 18000.0
+
+
+def test_parse_importo_valori_non_numerici():
+    assert _parse_importo("") is None
+    assert _parse_importo("   ") is None
+    assert _parse_importo("n/d") is None
+    assert _parse_importo(None) is None

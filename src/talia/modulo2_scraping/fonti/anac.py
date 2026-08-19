@@ -148,9 +148,24 @@ def _url_cig(cig: str) -> str:
 
 
 def _parse_importo(s: str | None) -> float | None:
+    """Converte un importo ANAC in float, riconoscendo due formati.
+
+    Il tracciato storico usa il formato italiano (`4.500,00`), quello dei file
+    mensili in vigore usa il punto come separatore **decimale** (`1550.0`, il
+    100% delle righe verificate su 2025-01). Trattare il punto come separatore
+    di migliaia in quel caso moltiplicava ogni importo per 10 — bug reale, che
+    ha gonfiato tutti i 176.827 importi del primo caricamento 2025 (TAL-70).
+
+    La distinzione è sulla presenza della virgola: se c'è, il punto è
+    separatore di migliaia; se non c'è, il punto è decimale.
+    """
     if not s:
         return None
-    s = s.strip().replace(".", "").replace(",", ".")
+    s = s.strip()
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
     try:
         return float(s)
     except ValueError:

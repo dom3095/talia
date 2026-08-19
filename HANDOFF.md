@@ -251,8 +251,20 @@ corleone. Sistema anche i mai diagnosticati, stagnanti e muti"*. Dettaglio in
   `"SEZIONE REGIONALE CENTRALE"` (Casa di reclusione di San Cataldo): **si
   perdevano righe in silenzio**, ora si filtra su `regione`. Aggiunto anche
   l'aggancio dell'ente via `istat_comune` (esatto) invece del solo LIKE sul
-  nome. **Verificato: 12.400 atti da un solo mese in 21s.** `anac` resta fuori
-  dal run notturno (dataset mensile), con il nuovo `--anac-anno`.
+  nome. **Un quarto bug, trovato solo guardando i totali**: caricata l'annata 2025
+  (176.827 atti), la somma degli importi dava **98 mila miliardi di euro**.
+  `_parse_importo` era scritto per il formato italiano (`4.500,00`) e trattava
+  il punto come separatore di migliaia, mentre il tracciato mensile usa il
+  punto come **decimale** (`1550.0`, 100% delle righe): ogni importo
+  moltiplicato per 10. Non è estetica — `frazionamento` e
+  `concentrazione_diretti` confrontano gli importi con soglie di legge, quindi
+  avrebbero prodotto red flag falsi su larga scala. Corretto distinguendo i
+  due formati sulla virgola (3 test di regressione); **le righe già inserite
+  sono state cancellate e ricaricate** invece di tentare di invertire la
+  corruzione.
+  **Verificato: 12.400 atti da un mese in 21s, 176.827 su 470 enti per
+  l'annata intera in 316s.** `anac` resta fuori dal run notturno (dataset
+  mensile), con il nuovo `--anac-anno`.
 - **Stagnanti: non è codice.** Gli albi sono fermi davvero (`rometta`
   2023-09-27, `paceco` 2025-07-04, `mascalucia` 2026-06-03, contro `acate`
   sano al 2026-08-03), i siti istituzionali linkano proprio l'albo che

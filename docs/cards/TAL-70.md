@@ -112,9 +112,28 @@ Quello che invece resta vero della prima analisi:
   Partinico) invece del solo LIKE sulla denominazione, che su nomi come
   "COMUNE DI SAN GIOVANNI" può agganciare il comune sbagliato.
 
+### Un quarto bug, trovato solo guardando i totali
+
+Caricata l'annata 2025 (176.827 atti), la somma degli importi dava **98 mila
+miliardi di euro**: assurda a colpo d'occhio. Causa: `_parse_importo` era
+scritto per il formato italiano (`4.500,00`) e trattava il punto come
+separatore di migliaia, mentre il tracciato mensile usa il punto come
+separatore **decimale** (`1550.0`, il 100% delle righe verificate). Ogni
+importo risultava **moltiplicato per 10**.
+
+Non è un dettaglio estetico: `frazionamento` e `concentrazione_diretti`
+confrontano gli importi con soglie di legge — con i valori gonfiati avrebbero
+prodotto red flag falsi su larga scala, cioè esattamente il danno che il
+principio "segnalare, non giudicare" vuole evitare.
+
+Corretto distinguendo i due formati sulla presenza della virgola (il tracciato
+storico resta leggibile), con 3 test di regressione. **Le 176.827 righe già
+inserite sono state cancellate e ricaricate**: invertire la corruzione a
+posteriori sarebbe stato meno sicuro che rifare il caricamento.
+
 **Verificato dal vivo:** un singolo mese (2025-01) scaricato in 21s →
 **12.400 atti**, agganciati agli enti giusti (Palermo 2494, Catania 890,
-Messina 795). `anac` resta fuori dal run notturno: il dataset si aggiorna
+Messina 795); l'annata intera in 316s → **176.827 atti su 470 enti**. `anac` resta fuori dal run notturno: il dataset si aggiorna
 mensilmente, riscaricarlo ogni notte sarebbe mezzo giga al giorno per nulla.
 Nuovo `--anac-anno` per scegliere l'annata.
 
