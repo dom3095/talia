@@ -119,7 +119,9 @@ miliardi di euro**: assurda a colpo d'occhio. Causa: `_parse_importo` era
 scritto per il formato italiano (`4.500,00`) e trattava il punto come
 separatore di migliaia, mentre il tracciato mensile usa il punto come
 separatore **decimale** (`1550.0`, il 100% delle righe verificate). Ogni
-importo risultava **moltiplicato per 10**.
+importo risultava moltiplicato per **10^(numero di decimali)**: `"1046.2459"`
+diventava 10.462.459, cioè ×10.000. Misurato su un mese: somma 606,6 M con il
+parser vecchio contro 18,3 M con quello corretto.
 
 Non è un dettaglio estetico: `frazionamento` e `concentrazione_diretti`
 confrontano gli importi con soglie di legge — con i valori gonfiati avrebbero
@@ -128,8 +130,14 @@ principio "segnalare, non giudicare" vuole evitare.
 
 Corretto distinguendo i due formati sulla presenza della virgola (il tracciato
 storico resta leggibile), con 3 test di regressione. **Le 176.827 righe già
-inserite sono state cancellate e ricaricate**: invertire la corruzione a
-posteriori sarebbe stato meno sicuro che rifare il caricamento.
+inserite sono state cancellate e ricaricate**: con un fattore d'errore
+variabile per riga, invertire la corruzione a posteriori non era nemmeno
+possibile in modo affidabile.
+
+Dopo il ricaricamento, valori verificati **riga per riga contro il CSV
+sorgente** su un campione casuale di 10 CIG: 10/10 coincidenti. Aggregati
+plausibili: media **1.449 €**, massimo **184.987 €**, totale 256,2 M —
+coerenti con SmartCIG, che copre affidamenti sotto soglia.
 
 **Verificato dal vivo:** un singolo mese (2025-01) scaricato in 21s →
 **12.400 atti**, agganciati agli enti giusti (Palermo 2494, Catania 890,

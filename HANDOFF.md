@@ -256,14 +256,17 @@ corleone. Sistema anche i mai diagnosticati, stagnanti e muti"*. Dettaglio in
   `_parse_importo` era scritto per il formato italiano (`4.500,00`) e trattava
   il punto come separatore di migliaia, mentre il tracciato mensile usa il
   punto come **decimale** (`1550.0`, 100% delle righe): ogni importo
-  moltiplicato per 10. Non è estetica — `frazionamento` e
+  moltiplicato per **10^(numero di decimali)** — `"1046.2459"` diventava
+  10.462.459, ×10.000. Non è estetica — `frazionamento` e
   `concentrazione_diretti` confrontano gli importi con soglie di legge, quindi
   avrebbero prodotto red flag falsi su larga scala. Corretto distinguendo i
   due formati sulla virgola (3 test di regressione); **le righe già inserite
   sono state cancellate e ricaricate** invece di tentare di invertire la
   corruzione.
   **Verificato: 12.400 atti da un mese in 21s, 176.827 su 470 enti per
-  l'annata intera in 316s.** `anac` resta fuori dal run notturno (dataset
+  l'annata intera in 316s**, con gli importi ricontrollati riga per riga
+  contro il CSV sorgente su un campione casuale (10/10) e aggregati
+  plausibili (media 1.449 €, massimo 184.987 €). `anac` resta fuori dal run notturno (dataset
   mensile), con il nuovo `--anac-anno`.
 - **Stagnanti: non è codice.** Gli albi sono fermi davvero (`rometta`
   2023-09-27, `paceco` 2025-07-04, `mascalucia` 2026-06-03, contro `acate`
