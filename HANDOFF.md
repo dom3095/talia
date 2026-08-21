@@ -1,9 +1,64 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-18 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
+> Aggiornato: 2026-08-21 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
 > `main`). La sessione precedente (`feat/TAL-60-streamlit-modulo1`, TAL-60…65)
 > è stata mergiata in `main` come **PR #19** (`520d697`) — il resoconto
 > dettagliato di quella sessione resta più sotto.
+
+---
+
+## Sessione 2026-08-21 — TAL-71 la fase red flags girava 11 ore
+
+**Regressione introdotta da TAL-70**, trovata controllando lo stato del run
+notturno. Il caricamento ANAC è corretto, ma non ne era stato valutato il
+costo a valle.
+
+**Sintomo:** il run del 2026-08-20 è finito dopo **18 ore** (scraper chiusi
+alle 10:34, fine alle 21:45); quello del 2026-08-21 era ancora in corso dopo
+17h ed è stato terminato a mano. Processo al 98% di CPU, `STAT RN`: calcolo,
+non attesa di rete.
+
+**Causa:** `collega_per_contenimento` e `collega_per_oggetto_simile` sono
+O(n²) *dentro il singolo ente*. I 176.827 contratti SmartCIG si sono
+concentrati sui capoluoghi — **Palermo è passata a 37.709 atti, di cui 35.719
+ANAC (94,7%)**. Finché il DB conteneva solo atti d'albo su 190+ comuni nessun
+ente era grande abbastanza da farlo emergere.
+
+Il rapporto costo/beneficio era indifendibile: `cig` 199.360 procedimenti,
+`oggetto_simile` 20.550, **`contenimento_oggetto` 263**. Undici ore per 263
+collegamenti.
+
+**Fix:** le due strategie fuzzy escludono `tipo = 'contratto_anac'`. Un
+contratto SmartCIG non è un atto deliberativo dell'albo: non ha un originario
+da riconoscere per somiglianza del titolo, e il collegamento corretto passa
+già dal CIG (strategia 1, match esatto). Gli atti ANAC **restano** nelle
+strategie 1 e 2, lineari. Su Palermo: contenimento **2,1s**, oggetto simile
+**10,0s**.
+
+**Fase intera cronometrata sul DB reale: 1816s (30 min), da 11+ ore.** Le due
+strategie quadratiche pesano ora 7 minuti su 30. Il collo di bottiglia
+residuo non è quadratico: la strategia CIG costa 1075s (59%) per iterare
+199.330 CIG distinti, rifacendo ogni notte il lavoro su quelli già collegati —
+ottimizzabile, non urgente. La misura vale per il **run notturno** (DB con
+procedimenti già assegnati); una ricostruzione a freddo costerebbe di più.
+
+**731 test verdi** (erano 728; 3 nuovi, incluso quello che verifica che il
+collegamento per CIG continui a funzionare). Dettaglio in
+[TAL-71](docs/cards/TAL-71.md).
+
+### Da guardare, non affrontato
+
+- **I red flag sono passati da 665 a 13.964, e 12.892 sono `frazionamento`.**
+  Non è solo questione di volume: SmartCIG contiene *per definizione*
+  affidamenti sotto soglia, quindi una regola che cerca frazionamento
+  artificioso sotto le soglie di legge lì trova un terreno dove quasi tutto
+  somiglia a un segnale. Stimare i falsi positivi su un campione **prima**
+  di pubblicare.
+- **220.173 procedimenti su 327.704 atti**, 199.360 creati dal CIG: quasi uno
+  per contratto. Corretto in senso stretto, ma svuota di significato la
+  nozione di procedimento nelle aggregazioni.
+- **Agrigento restituisce 0 atti** da almeno due run consecutivi (12s, nessun
+  errore): pattern "muto" già visto con Caccamo (TAL-68).
 
 ---
 

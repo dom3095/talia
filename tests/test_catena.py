@@ -817,3 +817,116 @@ def test_ricostruisci_catene_caso_palma_end_to_end(db, ente_ag):
     da_contenimento = [p for p in procs if p["metodo_individuazione"] == "contenimento_oggetto"]
     assert len(da_contenimento) == 3
     assert all(p["stato_finale"] == "revocato" for p in da_contenimento)
+
+
+# ---------------------------------------------------------------------------
+# TAL-71 — i contratti ANAC fuori dalle strategie fuzzy
+# ---------------------------------------------------------------------------
+
+
+def _atti_anac_e_albo(db) -> None:
+    """Un avvio + una revoca dell'albo, più due contratti ANAC con oggetto
+    volutamente somigliante: se i contratti entrassero nelle strategie fuzzy
+    verrebbero agganciati per titolo, che è il collegamento sbagliato."""
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo/avvio_srv",
+            oggetto="AFFIDAMENTO SERVIZIO MANUTENZIONE VERDE PUBBLICO ANNO 2025",
+            data_atto="2025-02-01",
+        ),
+    )
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo/revoca_srv",
+            oggetto="REVOCA AFFIDAMENTO SERVIZIO MANUTENZIONE VERDE PUBBLICO ANNO 2025",
+            data_atto="2025-03-01",
+        ),
+    )
+    for n in (1, 2):
+        inserisci_atto(
+            db,
+            _atto(
+                "084028",
+                f"http://anac/contratto_{n}",
+                tipo="contratto_anac",
+                oggetto="AFFIDAMENTO SERVIZIO MANUTENZIONE VERDE PUBBLICO ANNO 2025",
+                data_atto="2025-02-15",
+            ),
+        )
+
+
+def test_contenimento_ignora_contratti_anac(db, ente_ag):
+    """I contratti SmartCIG non sono atti deliberativi: nessun collegamento
+    per somiglianza del titolo, e nessun 'ambiguo' spurio."""
+    from talia.engine.catena import _evolvi_schema, collega_per_contenimento
+
+    _evolvi_schema(db)
+    _atti_anac_e_albo(db)
+
+    n = collega_per_contenimento(db, ente_ag)
+    assert n == 1  # solo la catena avvio→revoca dell'albo
+
+    anac = db.execute("SELECT procedimento_id FROM atti WHERE tipo='contratto_anac'").fetchall()
+    assert len(anac) == 2
+    assert all(a["procedimento_id"] is None for a in anac)
+
+
+def test_oggetto_simile_ignora_contratti_anac(db, ente_ag):
+    """Strategia 3 (Jaccard, O(n²) per ente): i due contratti ANAC hanno
+    oggetto identico fra loro e non devono comunque formare un procedimento."""
+    from talia.engine.catena import _evolvi_schema
+
+    _evolvi_schema(db)
+    for n in (1, 2):
+        inserisci_atto(
+            db,
+            _atto(
+                "084028",
+                f"http://anac/contratto_{n}",
+                tipo="contratto_anac",
+                oggetto="AFFIDAMENTO SERVIZIO MANUTENZIONE VERDE PUBBLICO ANNO 2025",
+                data_atto="2025-02-15",
+            ),
+        )
+
+    assert collega_per_oggetto_simile(db, ente_ag) == 0
+    assert db.execute("SELECT COUNT(*) FROM procedimenti").fetchone()[0] == 0
+
+
+def test_contratti_anac_restano_collegabili_per_cig(db, ente_ag):
+    """L'esclusione riguarda solo le strategie fuzzy: il CIG (match esatto,
+    strategia 1) resta la via corretta per agganciare un contratto ANAC."""
+    from talia.engine.catena import _evolvi_schema
+
+    _evolvi_schema(db)
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://albo/determina_cig",
+            oggetto="DETERMINA AGGIUDICAZIONE MANUTENZIONE VERDE",
+            cig="Z1A2B3C4D5",
+            data_atto="2025-02-01",
+        ),
+    )
+    inserisci_atto(
+        db,
+        _atto(
+            "084028",
+            "http://anac/contratto_cig",
+            tipo="contratto_anac",
+            oggetto="MANUTENZIONE VERDE PUBBLICO",
+            cig="Z1A2B3C4D5",
+            data_atto="2025-02-15",
+        ),
+    )
+
+    assert collega_per_cig(db, "Z1A2B3C4D5") is not None
+    collegati = db.execute("SELECT procedimento_id FROM atti WHERE cig='Z1A2B3C4D5'").fetchall()
+    assert len(collegati) == 2
+    assert all(c["procedimento_id"] is not None for c in collegati)
+    assert len({c["procedimento_id"] for c in collegati}) == 1
