@@ -1,16 +1,25 @@
 """Spider per i dati open ANAC/BDNCP — contratti pubblici, filtro Sicilia (regione 19).
 
-Fonte dataset SmartCIG (suddiviso per anno civile dal 2023):
-  https://dati.anticorruzione.it/opendata/download/dataset/smartcig-{anno}/filesystem/smartcig-{anno}_csv_logCsv.csv
-  (aggiornamento mensile; ~400 MB per anno, filtriamo per sezione_regionale)
+Fonte dataset SmartCIG, pubblicato **per mese** (non per anno):
+  .../dataset/smartcig-{anno}/filesystem/smartcig_csv_{anno}_{mese}.zip
+  (~40 MB zippati a mese, ~450 MB l'anno; filtriamo per regione)
+
+⚠️ L'URL `..._csv_logCsv.csv` **non è il dataset**: è un manifest che elenca
+le sole risorse TTL. Fino al 2026-08-19 era configurato come sorgente, e lo
+scraper ne leggeva 1288 byte di indice cercandoci dentro i contratti — da cui
+un ANAC perennemente "muto" (0 atti, nessun errore). I file CSV esistono ma
+non compaiono in quel manifest: si raggiungono per analogia col nome delle
+risorse TTL (TAL-70).
 
 Dati pubblici ai sensi del D.Lgs. 33/2013 e dell'art. 1 c. 32 L. 190/2012.
 
 Flusso:
     1. Scarica (o legge da file) il CSV SmartCIG ANAC
-    2. Filtra le righe con sezione_regionale == 'Sicilia'
+    2. Filtra le righe con regione == 'SICILIA' (non sezione_regionale: alcuni
+       enti siciliani stanno sotto "SEZIONE REGIONALE CENTRALE")
     3. Mappa ogni riga → AttoMetadato (tipo='contratto_anac')
-    4. Per ogni atto cerca l'ente nel DB per denominazione (case-insensitive)
+    4. Per ogni atto aggancia l'ente via `istat_comune` (esatto), con fallback
+       sulla denominazione
     5. Inserisce gli atti nuovi (idempotente: UNIQUE su ente_id × url_fonte)
 
 Nota: l'url_fonte viene sintetizzato come
@@ -22,9 +31,11 @@ from __future__ import annotations
 import csv
 import datetime
 import io
+import logging
 import sqlite3
 import urllib.request
-from collections.abc import Iterator
+import zipfile
+from collections.abc import Iterable, Iterator
 
 from talia.modulo2_scraping.db import AttoMetadato, EnteMetadato, inserisci_atto, upsert_ente
 from talia.modulo2_scraping.utils import ora_utc as _ora_utc
@@ -34,24 +45,50 @@ from talia.modulo2_scraping.utils import parse_data_iso as _parse_data_iso
 # Costanti
 # ---------------------------------------------------------------------------
 
+logger = logging.getLogger(__name__)
+
 FONTE_SCRAPER = "anac"
 SEZIONE_SICILIA = "Sicilia"
 
-def _url_smartcig(anno: int | None = None) -> str:
-    """URL dataset SmartCIG per l'anno civile dato.
+_BASE_DOWNLOAD = "https://dati.anticorruzione.it/opendata/download/dataset"
 
-    Default: anno corrente - 2, perché ANAC pubblica il dataset dell'anno N
-    con un ritardo di 12-18 mesi (es. 2025 non ancora disponibile a giugno 2026).
+
+def _url_manifest(anno: int) -> str:
+    """URL del *manifest* delle risorse di un anno (non è il dataset).
+
+    ⚠️ Elenca **solo** le risorse TTL, pur chiamandosi `..._csv_logCsv.csv`:
+    fino al 2026-08-19 questo URL era configurato come se fosse il dataset, e
+    lo scraper ne scaricava 1288 byte di indice cercandoci dentro i contratti —
+    da cui l'ANAC perennemente "muta", con 0 atti e nessun errore (TAL-70).
     """
-    if anno is None:
-        anno = datetime.date.today().year - 2
+    return f"{_BASE_DOWNLOAD}/smartcig-{anno}/filesystem/smartcig-{anno}_csv_logCsv.csv"
+
+
+def _url_smartcig(anno: int, mese: int, *, compresso: bool = True) -> str:
+    """URL di un file mensile SmartCIG in CSV.
+
+    Il dataset è pubblicato **per mese**, non in un unico file annuale, e i
+    file CSV non compaiono nel manifest (che elenca i soli TTL): l'unico modo
+    di trovarli è per analogia col nome delle risorse TTL. Lo zip pesa circa
+    un quarto del CSV (47 MB contro 189 MB su 2024-11), quindi è il default.
+    """
+    estensione = "zip" if compresso else "csv"
     return (
-        f"https://dati.anticorruzione.it/opendata/download/dataset/"
-        f"smartcig-{anno}/filesystem/smartcig-{anno}_csv_logCsv.csv"
+        f"{_BASE_DOWNLOAD}/smartcig-{anno}/filesystem/smartcig_csv_{anno}_{mese:02d}.{estensione}"
     )
 
 
-URL_DATASET_SMARTCIG = _url_smartcig()
+def _anno_default() -> int:
+    """Anno civile più recente ragionevolmente pubblicato.
+
+    ANAC pubblica con ritardo, ma molto meno dei 12-18 mesi ipotizzati in
+    passato: al 2026-08-19 risultano disponibili tutti i 12 mesi del 2025.
+    """
+    return datetime.date.today().year - 1
+
+
+#: Mantenuto per retrocompatibilità: è il manifest, non il dataset.
+URL_DATASET_SMARTCIG = _url_manifest(_anno_default())
 
 # UA browser-like: il WAF ANAC blocca stringhe contenenti "bot"
 _USER_AGENT = (
@@ -67,12 +104,21 @@ _COLONNE_RICHIESTE = {
     "oggetto_principale_contratto",
 }
 
-# Mappatura nomi alternativi usati da versioni diverse del CSV ANAC
+# Mappatura nomi alternativi usati da versioni diverse del CSV ANAC.
+# I nomi `*_appaltante` e `oggetto_lotto`/`importo_lotto` sono quelli del
+# tracciato in vigore (verificato sui file mensili 2025): senza questi alias
+# nessuna riga veniva riconosciuta (TAL-70).
 _ALIAS_COLONNE: dict[str, str] = {
     "denominazione_sa": "denominazione_amministrazione",
+    "denominazione_amministrazione_appaltante": "denominazione_amministrazione",
+    "cf_amministrazione_appaltante": "cf_amministrazione",
     "oggetto_gara": "oggetto_principale_contratto",
+    "oggetto_lotto": "oggetto_principale_contratto",
     "importo_gara": "importo_totale_appalto",
+    "importo_lotto": "importo_totale_appalto",
+    "importo_complessivo_gara": "importo_complessivo",
     "data_creazione_cig": "data_creazione",
+    "data_comunicazione": "data_creazione",
 }
 
 
@@ -102,9 +148,24 @@ def _url_cig(cig: str) -> str:
 
 
 def _parse_importo(s: str | None) -> float | None:
+    """Converte un importo ANAC in float, riconoscendo due formati.
+
+    Il tracciato storico usa il formato italiano (`4.500,00`), quello dei file
+    mensili in vigore usa il punto come separatore **decimale** (`1550.0`, il
+    100% delle righe verificate su 2025-01). Trattare il punto come separatore
+    di migliaia in quel caso moltiplicava ogni importo per 10 — bug reale, che
+    ha gonfiato tutti i 176.827 importi del primo caricamento 2025 (TAL-70).
+
+    La distinzione è sulla presenza della virgola: se c'è, il punto è
+    separatore di migliaia; se non c'è, il punto è decimale.
+    """
     if not s:
         return None
-    s = s.strip().replace(".", "").replace(",", ".")
+    s = s.strip()
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
     try:
         return float(s)
     except ValueError:
@@ -124,9 +185,20 @@ def _leggi_csv(contenuto: str) -> Iterator[dict[str, str]]:
 
 
 def _filtra_sicilia(righe: Iterator[dict[str, str]]) -> Iterator[dict[str, str]]:
-    """Filtra solo le righe con sezione_regionale == 'Sicilia'."""
+    """Filtra le righe siciliane.
+
+    Il filtro è sulla colonna ``regione``, **non** su ``sezione_regionale``:
+    quest'ultima indica la sezione ANAC competente, che per alcuni enti
+    siciliani vale "SEZIONE REGIONALE CENTRALE" (verificato: la Casa di
+    reclusione di San Cataldo). Filtrando sulla sezione quelle righe si
+    perderebbero in silenzio. Si accetta comunque anche una
+    ``sezione_regionale`` che nomini la Sicilia, per i tracciati più vecchi.
+    """
+    atteso = SEZIONE_SICILIA.lower()
     for r in righe:
-        if r.get("sezione_regionale", "").strip().lower() == SEZIONE_SICILIA.lower():
+        regione = r.get("regione", "").strip().lower()
+        sezione = r.get("sezione_regionale", "").strip().lower()
+        if regione == atteso or atteso in sezione:
             yield r
 
 
@@ -160,7 +232,17 @@ def _upsert_ente_anac(conn: sqlite3.Connection, riga: dict[str, str]) -> str | N
     if not denominazione:
         return None
 
-    # Prima cerca per denominazione (già nel DB)
+    # Il tracciato espone `istat_comune` come <cod_regione><cod_istat_6>
+    # (es. "019082054" → Partinico, 082054): è un aggancio **esatto**, molto
+    # più affidabile del LIKE sulla denominazione, che su nomi come "COMUNE DI
+    # SAN GIOVANNI" può agganciare il comune sbagliato.
+    istat_csv = riga.get("istat_comune", "").strip()
+    if len(istat_csv) >= 6:
+        codice = istat_csv[-6:]
+        if conn.execute("SELECT 1 FROM enti WHERE codice_istat = ?", (codice,)).fetchone():
+            return codice
+
+    # Poi cerca per denominazione (già nel DB)
     istat = _cerca_istat_per_denominazione(conn, denominazione)
     if istat:
         return istat
@@ -291,26 +373,62 @@ def _fetch_csv(url: str, timeout: int = 60) -> str:
         return raw.decode("latin-1", errors="replace")
 
 
+def _fetch_mese(url: str, timeout: int = 300) -> str:
+    """Scarica un file mensile SmartCIG, scompattandolo se è uno zip."""
+    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read()
+    if url.endswith(".zip"):
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            nomi = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+            if not nomi:
+                raise ValueError(f"zip senza CSV: {url}")
+            raw = zf.read(nomi[0])
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("latin-1", errors="replace")
+
+
 def scarica_e_carica(
     conn: sqlite3.Connection,
     *,
-    url: str = URL_DATASET_SMARTCIG,
+    anno: int | None = None,
+    mesi: Iterable[int] | None = None,
     crea_enti_mancanti: bool = True,
-    _fetch_fn=_fetch_csv,
+    _fetch_fn=_fetch_mese,
 ) -> dict[str, int]:
-    """Scarica il dataset SmartCIG da ANAC e lo carica nel DB.
+    """Scarica i file mensili SmartCIG di un anno e li carica nel DB.
 
     Args:
         conn:                connessione al DB già inizializzato.
-        url:                 URL del dataset (default: SmartCIG ANAC).
+        anno:                anno civile (default: anno corrente - 1).
+        mesi:                mesi da scaricare (default: tutti e 12).
         crea_enti_mancanti:  vedi carica_csv_anac.
-        _fetch_fn:           funzione HTTP iniettabile per i test.
+        _fetch_fn:           funzione di download iniettabile per i test.
+
+    Un mese assente (404) o illeggibile non interrompe gli altri: ANAC
+    pubblica i mesi progressivamente e l'anno in corso è quasi sempre parziale.
 
     Returns:
-        dict con chiavi 'inseriti', 'duplicati', 'saltati'.
+        dict con chiavi 'inseriti', 'duplicati', 'saltati', 'mesi_scaricati',
+        'mesi_falliti'.
     """
-    contenuto = _fetch_fn(url)
-    return carica_csv_anac(contenuto, conn, crea_enti_mancanti=crea_enti_mancanti)
+    anno = anno or _anno_default()
+    totali = {"inseriti": 0, "duplicati": 0, "saltati": 0, "mesi_scaricati": 0, "mesi_falliti": 0}
+    for mese in mesi or range(1, 13):
+        try:
+            contenuto = _fetch_fn(_url_smartcig(anno, mese))
+        except Exception as exc:  # noqa: BLE001 — un mese mancante non è fatale
+            logger.warning("ANAC %d-%02d non scaricato: %s", anno, mese, exc)
+            totali["mesi_falliti"] += 1
+            continue
+        esito = carica_csv_anac(contenuto, conn, crea_enti_mancanti=crea_enti_mancanti)
+        for chiave in ("inseriti", "duplicati", "saltati"):
+            totali[chiave] += esito.get(chiave, 0)
+        totali["mesi_scaricati"] += 1
+        logger.info("ANAC %d-%02d: %s", anno, mese, esito)
+    return totali
 
 
 __all__ = [

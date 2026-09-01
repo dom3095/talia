@@ -60,13 +60,30 @@ _STOP_CONSECUTIVI = 20
 # ---------------------------------------------------------------------------
 
 
+def _errore_db(traceback_completo: str, max_len: int = 500) -> str:
+    """Traceback compattato per `scraper_runs.errore`, con l'eccezione in testa.
+
+    Il campo è troncato a 500 caratteri, e un traceback tagliato in coda perde
+    proprio la riga che serve (`ConnectionRefusedError: ...`): senza quella, il
+    riepilogo dei run mostra una riga di codice a caso invece della causa.
+    """
+    righe = [r for r in traceback_completo.strip().splitlines() if r.strip()]
+    if not righe:
+        return "errore sconosciuto"
+    return f"{righe[-1].strip()}\n{traceback_completo}"[:max_len]
+
+
 def _date_range(atti) -> tuple[str | None, str | None]:
     dates = [a.data_pub or a.data_atto for a in atti if a.data_pub or a.data_atto]
     return (min(dates) if dates else None, max(dates) if dates else None)
 
 
-def _run_anac(conn, anac_file: str | None = None, **_kwargs) -> dict:
-    from talia.modulo2_scraping.fonti.anac import carica_csv_anac, scarica_e_carica
+def _run_anac(conn, anac_file: str | None = None, anac_anno: int | None = None, **_kwargs) -> dict:
+    from talia.modulo2_scraping.fonti.anac import (
+        _anno_default,
+        carica_csv_anac,
+        scarica_e_carica,
+    )
 
     t0 = time.monotonic()
     if anac_file:
@@ -75,8 +92,13 @@ def _run_anac(conn, anac_file: str | None = None, **_kwargs) -> dict:
             contenuto = f.read()
         esito = carica_csv_anac(contenuto, conn)
     else:
-        print("  [ANAC] Scarico CSV SmartCIG (~400 MB)… (pazienza)")
-        esito = scarica_e_carica(conn)
+        anno = anac_anno or _anno_default()
+        # SmartCIG è pubblicato per mese (~40 MB zippati l'uno): 12 richieste,
+        # non un unico file annuale. Resta fuori dal run notturno perché il
+        # dataset si aggiorna mensilmente — rilanciarlo ogni notte sarebbe
+        # mezzo giga al giorno per nulla.
+        print(f"  [ANAC] Scarico SmartCIG {anno}, 12 file mensili (~450 MB totali)…")
+        esito = scarica_e_carica(conn, anno=anno)
     elapsed = time.monotonic() - t0
     print(f"  [ANAC] {esito} — {elapsed:.0f}s")
     esito["n_trovati"] = esito.get("inseriti", 0) + esito.get("duplicati", 0)
@@ -522,7 +544,7 @@ def _run_urbi_comune(
     **_kwargs,
 ):
     from talia.modulo2_scraping.db import EnteMetadato, inserisci_atto, upsert_ente
-    from talia.modulo2_scraping.fonti.urbi import scarica_atti
+    from talia.modulo2_scraping.fonti.urbi import MAX_PAGINE_PER_TIPOLOGIA, scarica_atti
 
     upsert_ente(conn, EnteMetadato(denominazione=denominazione, codice_istat=codice_istat))
     stop_label = " [backfill, stop disabilitato]" if no_stop else ""
@@ -534,7 +556,29 @@ def _run_urbi_comune(
 
     inseriti = duplicati = consecutivi_dup = 0
     dates: list[str] = []
-    for atto in scarica_atti(base_url, qs_base, codice_istat, ente_mittente, max_pagine=max_pagine):
+    # Sui tenant che pretendono una Tipologia esplicita (TAL-68) lo scraper
+    # scandisce una tipologia alla volta e la marca sull'atto. Lo stop-on-known
+    # va allora applicato *dentro* ciascuna tipologia: fermarsi del tutto alla
+    # prima già nota lascerebbe le successive mai scandite, e lo scraper
+    # tornerebbe muto dal secondo run in poi.
+    tipologia_corrente: str | None = None
+    salta_tipologia = False
+    for atto in scarica_atti(
+        base_url,
+        qs_base,
+        codice_istat,
+        ente_mittente,
+        max_pagine=max_pagine,
+        # In backfill si vuole tutto l'archivio, tetto per tipologia incluso.
+        max_pagine_per_tipologia=None if no_stop else MAX_PAGINE_PER_TIPOLOGIA,
+    ):
+        tipologia = atto.metadati.get("tipologia_ricerca")
+        if tipologia != tipologia_corrente:
+            tipologia_corrente = tipologia
+            consecutivi_dup = 0
+            salta_tipologia = False
+        if salta_tipologia:
+            continue
         if inserisci_atto(conn, atto) is not None:
             inseriti += 1
             consecutivi_dup = 0
@@ -544,7 +588,9 @@ def _run_urbi_comune(
             duplicati += 1
             consecutivi_dup += 1
         if not no_stop and consecutivi_dup >= _STOP_CONSECUTIVI:
-            break
+            if tipologia is None:
+                break  # tenant normale: una sola scansione, si chiude qui
+            salta_tipologia = True  # riprende alla prossima tipologia
     conn.commit()
 
     n_trovati = inseriti + duplicati
@@ -721,6 +767,19 @@ Esempi:
         help=f"Scrapers da eseguire (default: {' '.join(scrapers_default)})",
     )
     p.add_argument(
+        "--extra-scrapers",
+        nargs="+",
+        choices=list(scrapers),
+        default=[],
+        dest="extra_scrapers",
+        metavar="SCRAPER",
+        help=(
+            "Scrapers da aggiungere alla lista (invece di sostituirla come --scrapers)."
+            " Serve al run automatico per includere gli 'escluso_default' che restano"
+            " comunque eseguibili, es. i Playwright: --extra-scrapers agrigento pachino"
+        ),
+    )
+    p.add_argument(
         "--max-pagine",
         type=int,
         default=50,
@@ -742,6 +801,14 @@ Esempi:
             "Carica il CSV SmartCIG da file locale invece di scaricarlo"
             " (utile se il WAF ANAC blocca il download automatico)"
         ),
+    )
+    p.add_argument(
+        "--anac-anno",
+        type=int,
+        default=None,
+        dest="anac_anno",
+        metavar="ANNO",
+        help="Anno civile SmartCIG da scaricare (default: anno corrente - 1)",
     )
     p.add_argument(
         "--no-stop",
@@ -796,7 +863,11 @@ def main() -> int:
     risultati: dict[str, dict | str] = {}
     errori = 0
 
-    for nome in args.scrapers:
+    # `dict.fromkeys` invece di un set: preserva l'ordine e non riesegue uno
+    # scraper già presente nella lista principale.
+    da_eseguire = list(dict.fromkeys([*args.scrapers, *args.extra_scrapers]))
+
+    for nome in da_eseguire:
         fn = scrapers[nome]
         print(f"\n── {nome.upper()} ──")
         run_id = inizia_run(conn, nome)
@@ -805,6 +876,7 @@ def main() -> int:
                 conn,
                 max_pagine=args.max_pagine,
                 anac_file=args.anac_file,
+                anac_anno=args.anac_anno,
                 no_stop=args.no_stop,
             )
             risultati[nome] = esito
@@ -820,7 +892,9 @@ def main() -> int:
         except Exception:
             msg = traceback.format_exc()
             print(f"  ERRORE:\n{msg}", file=sys.stderr)
-            termina_run(conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=msg[:500])
+            termina_run(
+                conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=_errore_db(msg)
+            )
             risultati[nome] = "ERRORE"
             errori += 1
 

@@ -432,6 +432,20 @@ def collega_per_riferimenti_incrociati(conn: sqlite3.Connection, ente_id: int | 
 
 _RUOLI_DERIVATI = frozenset({"revoca", "annullamento", "modifica", "proroga"})
 
+# Tipi di atto esclusi dalle strategie fuzzy sull'oggetto (2.5 e 3).
+#
+# I contratti del dataset SmartCIG ANAC non sono atti deliberativi dell'albo:
+# non esiste un "originario" da riconoscere per somiglianza del titolo, e il
+# loro collegamento corretto passa già dal CIG (strategia 1, match esatto).
+# Entrambe le strategie fuzzy sono O(n²) *dentro il singolo ente*: dopo il
+# caricamento ANAC (TAL-70) Palermo è passata a ~38k atti e la fase red flags
+# del run notturno girava 11 ore per produrre 263 collegamenti. (TAL-71)
+_TIPI_FUORI_STRATEGIE_FUZZY = ("contratto_anac",)
+
+_FILTRO_TIPI_FUZZY = "AND (tipo IS NULL OR tipo NOT IN ({}))".format(
+    ", ".join("?" for _ in _TIPI_FUORI_STRATEGIE_FUZZY)
+)
+
 
 def collega_per_contenimento(
     conn: sqlite3.Connection,
@@ -459,10 +473,11 @@ def collega_per_contenimento(
                COALESCE(data_atto, data_pub) AS data_atto, testo_estratto, procedimento_id
         FROM   atti
         WHERE  oggetto IS NOT NULL AND oggetto != ''
+        {_FILTRO_TIPI_FUZZY}
         {filtro}
         ORDER  BY ente_id, data_atto ASC NULLS LAST
         """,
-        params,
+        _TIPI_FUORI_STRATEGIE_FUZZY + params,
     ).fetchall()
 
     per_ente: dict[int, list] = {}
@@ -554,16 +569,17 @@ def collega_per_oggetto_simile(
     Ritorna il numero di nuovi procedimenti creati.
     """
     atti = conn.execute(
-        """
+        f"""
         SELECT id, ente_id, oggetto, tipo,
                COALESCE(data_atto, data_pub) AS data_atto, testo_estratto
         FROM   atti
         WHERE  ente_id = ?
           AND  procedimento_id IS NULL
           AND  oggetto IS NOT NULL AND oggetto != ''
+          {_FILTRO_TIPI_FUZZY}
         ORDER  BY data_atto ASC NULLS LAST
         """,
-        (ente_id,),
+        (ente_id, *_TIPI_FUORI_STRATEGIE_FUZZY),
     ).fetchall()
 
     if not atti:
