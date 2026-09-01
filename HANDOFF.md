@@ -1,9 +1,49 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-21 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
-> `main`). La sessione precedente (`feat/TAL-60-streamlit-modulo1`, TAL-60…65)
-> è stata mergiata in `main` come **PR #19** (`520d697`) — il resoconto
-> dettagliato di quella sessione resta più sotto.
+> Aggiornato: 2026-09-02 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
+> `main`, **PR aperta**). La sessione precedente (`feat/TAL-60-streamlit-modulo1`,
+> TAL-60…65) è stata mergiata in `main` come **PR #19** (`520d697`) — il
+> resoconto dettagliato di quella sessione resta più sotto.
+
+---
+
+## Sessione 2026-09-02 — audit dei run notturni girati da soli (TAL-72)
+
+Il branch era fermo dal 21/08 con il codice completo (731 test verdi, ruff
+pulito) e **nessuna PR aperta**; nel frattempo l'agente launchd ha continuato a
+girare ogni notte. Leggendo `scraper_runs` invece che i soli log è emerso che
+TAL-71 aveva risolto il collo di bottiglia sbagliato — o meglio, quello giusto
+ma non l'unico.
+
+**Il run supera le 24h e fa saltare i giorni successivi.** Run del 2026-09-01:
+scraping 01:45→16:28 UTC (**14,7h**), red flags ~2h, fine alle 20:41 locali. Il
+run del 22/08 è finito il **24/08 alle 20:22**, quello del 27/08 il **28/08 alle
+11:00**. Conseguenza misurata in `scraper_runs`: **23, 24 e 28 agosto non hanno
+avuto alcun run** — il lock di `run_daily.sh` ha correttamente rifiutato il
+secondo avvio, ma il risultato netto è esattamente la perdita definitiva di
+copertura che TAL-66 esisteva per prevenire. Il lock ha fatto il suo mestiere; è
+la durata a essere il difetto.
+
+**La lentezza non è distribuita: ~10 scraper su 266 fanno il 98% del tempo.**
+Somma delle durate dei 266 run del 01/09: 53.011s. Di cui `adrano` 11.566s
+(3h12m, per 32 atti trovati), `baucina` 7.293s **finendo in timeout con 0 atti**,
+`catania` 6.782s idem, `condro` 4.976s (handshake SSL), `acibonaccorsi` 4.901s.
+Non esiste un tetto di tempo per singolo scraper: un host lento o semi-morto può
+tenere in ostaggio l'intero run notturno. È lo stesso ragionamento di TAL-68
+(misurare il costo a regime prima di lasciare qualcosa nel run) applicato al
+livello sopra.
+
+**Il 31/08 è stato perso quasi per intero senza che nessuno se ne accorgesse**:
+232 scraper su 266 in errore, di cui **225 con lo stesso
+`URLError [Errno 8] nodename nor servname`** — un guasto DNS locale, non 225
+portali rotti. 115 atti inseriti in tutta la giornata. Non esiste recupero del
+giorno perso né riconoscimento del pattern "fallimento di massa con una sola
+causa": il report elenca 26 righe e lascia il lettore a distinguere le rotture
+vere dal rumore transitorio.
+
+Card [TAL-72](docs/cards/TAL-72.md). **Nota positiva emersa dallo stesso audit**:
+Agrigento non è più muto (161 trovati / 28 inseriti il 01/09) — la segnalazione
+in coda alla sessione TAL-71 è superata.
 
 ---
 
