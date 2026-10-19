@@ -1,10 +1,30 @@
 # HANDOFF.md — Stato sessione
 
 > Aggiornato: 2026-10-19 (catena di PR **stacked**: #20 TAL-66…71 → #21 TAL-72
-> `feat/TAL-72-tetto-tempo-scraper` → TAL-64 `feat/TAL-64-atti-fonti`). Sessione
+> → #22 TAL-64 → TAL-73 `feat/TAL-73-diagnosi-frazionamento`). Sessione
 > da cloud, **senza accesso al Mac né a `talia.db`**: tutto verificato con i
 > test, niente misurato sul DB reale. La sessione precedente (TAL-60…65) è in
 > `main` come **PR #19** (`520d697`).
+
+---
+
+## Sessione 2026-10-19 (3) — TAL-73 diagnosi dei red flag di frazionamento
+
+Nuova card per il punto "da guardare" lasciato aperto in TAL-71 (12.892
+`frazionamento` su 13.964 dopo SmartCIG). Non tocca la regola: prima si misura.
+
+- `red_flags/diagnosi_frazionamento.py` + `scripts/diagnosi_frazionamento.py`
+  (DB aperto read-only): conta 5 ipotesi di falso positivo strutturale e scrive
+  `reports/tal73/{diagnosi.md,campione.csv}` (`reports/` in `.gitignore`).
+- **Trovato leggendo la regola:** nessuno cancella i red flag del giro
+  precedente. `INSERT OR REPLACE` su `(ente, tipo, periodo_da, periodo_a)` non
+  sostituisce un flag la cui finestra si è allungata, quindi ne restano due.
+  Parte dei 12.892 potrebbe essere accumulo tra run (ipotesi H1, misurata).
+  Probabilmente vale anche per gli altri flag a finestra mobile.
+- 8 test, **758 verdi**.
+
+**Sul Mac:** `python scripts/diagnosi_frazionamento.py`, incollare la tabella
+nella card, etichettare i 60 flag del CSV.
 
 ---
 
