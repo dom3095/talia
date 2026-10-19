@@ -1,6 +1,6 @@
 # HANDOFF.md — Stato corrente
 
-> Aggiornato: 2026-10-19 (sera). `main` = `cc9af66` (PR #24). Storico delle
+> Aggiornato: 2026-10-20 (review delle PR #25-#32 fatta). `main` = `cc9af66` (PR #24). Storico delle
 > sessioni fino a oggi: [`docs/handoff/archivio_sessioni_2026.md`](docs/handoff/archivio_sessioni_2026.md).
 > Obiettivo concordato: **portare a terra il progetto**, criteri in
 > [wiki/16 — Definizione di MVP](docs/wiki/16-definizione-mvp.md).
@@ -22,6 +22,22 @@
 **Ordine:** #25 → #27 → #28 sono impilate (stesso punto di `run_scrapers.main()`);
 le altre sono indipendenti. Possibili conflitti minori solo su `CLAUDE.md` e
 `docs/wiki/15-run-automatico.md`, toccati da #25, #27, #28 e #30.
+
+## Review del 2026-10-20 (correzioni già pushate sui rispettivi branch)
+
+- **#27**: un errore di rete veniva scambiato per "atto senza PDF" e l'atto
+  marcato `''` per sempre (perdita definitiva del testo in una notte di rete
+  instabile). Ora resta `NULL` e si riprova; 404 e assenza di PDF restano definitivi.
+- **#27, #28**: rollback dell'atto a metà quando scatta il tetto di tempo della fase.
+- **#26**: i flag `frazionamento` si cancellano *dopo* averli ricalcolati, non prima.
+- **#25**: il ripasso non ritenta più gli handshake TLS falliti (strutturali), solo quelli in timeout.
+- **#29**: "oggi" in UTC come i timestamp dei run (dopo mezzanotte i giorni erano sbagliati di uno).
+- **#30**: copia su iCloud solo se il backup locale è riuscito.
+- **#32**: il README non afferma più che tutti gli scraper hanno un UA identificabile.
+- **#31, #33**: nessun problema.
+
+Le PR impilate sono riallineate con cherry-pick: #27 contiene il fix di #25,
+#28 quelli di #27. Test verdi e ruff pulito su tutti i branch.
 
 ## Decisioni prese il 2026-10-19 (delegate da Dom)
 
