@@ -52,8 +52,9 @@ TALIA_TESTO_ATTI=0 ./scripts/run_daily.sh             # disattivare nel run nott
 prima dei red flag, sotto un tetto di 1800s; non fa mai fallire il run.
 
 ### Stato per atto
-`testo_estratto IS NULL` = mai tentato · `''` = tentato senza risultato (non si
-ritenta) · testo = estratto.
+`testo_estratto IS NULL` = mai tentato **o errore di rete** (si riprova la notte
+dopo, finché l'atto è nella finestra di 20 giorni) · `''` = tentato senza
+risultato definitivo (nessun PDF in chiaro, scansione, 404) · testo = estratto.
 
 ## ❓ Domande aperte
 - [x] Persistere il testo? → Sì, incrementale, con i limiti sopra (decisione
@@ -79,6 +80,17 @@ stessi albi allegano quasi sempre anche la copia in chiaro subito dopo, quindi
 basta provare i primi 3 allegati e prendere il primo con magic bytes `%PDF`,
 senza decifrare la busta. Tra gli atti del campione c'erano pubblicazioni di
 matrimonio e ordinanze-ingiunzione nominative: da qui il filtro sui tipi.
+
+### 2026-10-20 — Review
+**Approccio:** rilettura a freddo del diff.
+**Esito:** ✅ un bug corretto.
+**Appreso:** `trova_allegati` e `scarica_pdf_allegato` inghiottono gli errori
+di rete e restituiscono `[]`/`None`: un timeout veniva letto come "atto senza
+PDF" e marcato `''` per sempre. In una notte di rete instabile si sarebbero
+persi fino a 400 testi con il link ancora vivo. Ora gli errori di rete (anche
+un download fallito senza alcun PDF trovato) lasciano l'atto `NULL`; 404/410 e
+assenza di PDF restano definitivi. `trova_allegati(..., solleva_errori=True)`
+per chi deve distinguere i due casi.
 
 ## 🔗 Dipendenze
 TAL-47 (`pdf_download`), TAL-62 (decisione), TAL-72 (tetto di tempo), TAL-73

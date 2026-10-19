@@ -137,18 +137,39 @@ def test_salva_testo_hash_e_cig_solo_se_mancante(conn):
 
 
 def test_fallimenti_marcati_e_non_bloccanti(conn):
-    a = _atto(conn, 1)
-    b = _atto(conn, 2)
+    import urllib.error
+
+    a = _atto(conn, 1)  # nessun PDF in chiaro: definitivo
+    b = _atto(conn, 2)  # errore di rete: da riprovare
     c = _atto(conn, 3)
-    estrai = _estrai_finto({"1": None, "2": OSError("reset"), "3": ("testo", "h")})
+    d = _atto(conn, 4)  # pagina sparita: definitivo
+    estrai = _estrai_finto(
+        {
+            "1": None,
+            "2": OSError("[Errno 54] Connection reset by peer"),
+            "3": ("testo", "h"),
+            "4": urllib.error.HTTPError("u", 404, "Not Found", {}, None),
+        }
+    )
 
     esito = estrai_testo_atti(conn, opener=object(), estrai=estrai)
 
-    assert (esito.con_testo, esito.senza_testo) == (1, 2)
+    assert (esito.con_testo, esito.senza_testo, esito.rimandati) == (1, 2, 1)
     valori = dict(conn.execute("SELECT id, testo_estratto FROM atti").fetchall())
-    # '' = tentato: non si ritenta ogni notte.
-    assert valori[a] == "" and valori[b] == "" and valori[c] == "testo"
-    assert atti_da_estrarre(conn) == []
+    # '' = tentato e chiuso; NULL = si riprova la notte dopo.
+    assert valori[a] == "" and valori[d] == "" and valori[c] == "testo"
+    assert valori[b] is None
+    assert atti_da_estrarre(conn) == [b]
+
+
+def test_primo_pdf_download_fallito_e_errore_di_rete(tmp_path, monkeypatch):
+    """Se l'unico allegato non si scarica, non si può dire che il PDF non c'è."""
+    allegati = [Allegato(chiave_allegato="1", mimetype="application/pdf", url_download="u1")]
+    monkeypatch.setattr(testo_atti, "trova_allegati", lambda _url, opener, **_k: allegati)
+    monkeypatch.setattr(testo_atti, "scarica_pdf_allegato", lambda *_a, **_k: None)
+
+    with pytest.raises(testo_atti.ErroreRete):
+        testo_atti._primo_pdf("https://x/display/1", None, tmp_path, 0)
 
 
 def test_primo_pdf_salta_p7m_e_cancella_il_file(tmp_path, monkeypatch):
@@ -156,7 +177,7 @@ def test_primo_pdf_salta_p7m_e_cancella_il_file(tmp_path, monkeypatch):
         Allegato(chiave_allegato="1", mimetype="application/x-pkcs7-mime", url_download="u1"),
         Allegato(chiave_allegato="2", mimetype="application/x-pkcs7-mime", url_download="u2"),
     ]
-    monkeypatch.setattr(testo_atti, "trova_allegati", lambda _url, opener: allegati)
+    monkeypatch.setattr(testo_atti, "trova_allegati", lambda _url, opener, **_k: allegati)
 
     def _scarica(url, dest_base: Path, opener):
         ext = "bin" if url == "u1" else "pdf"  # .p7m prima, PDF in chiaro dopo
