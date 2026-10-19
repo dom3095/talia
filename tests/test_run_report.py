@@ -10,9 +10,12 @@ from talia.modulo2_scraping.db import connetti, inizializza_db
 from talia.modulo2_scraping.run_report import (
     GIORNI_PERDITA_DATI,
     MAX_ELENCO,
+    StatoScraper,
+    causa_errore,
     formatta_markdown,
     riepiloga,
     sintesi_errore,
+    trova_causa_dominante,
 )
 
 
@@ -229,3 +232,113 @@ def test_senza_scraper_attesi_non_si_filtra_nulla(conn):
     r = riepiloga(conn)
     assert r.non_previsti == []
     assert [s.scraper_id for s in r.falliti] == ["corleone"]
+
+
+# ---------------------------------------------------------------------------
+# TAL-72 — interruzioni per tetto di tempo e causa dominante
+# ---------------------------------------------------------------------------
+
+_DNS_MAC = (
+    "urllib.error.URLError: <urlopen error [Errno 8] nodename nor servname provided, or not known>"
+)
+_DNS_LINUX = "urllib.error.URLError: <urlopen error [Errno -2] Name or service not known>"
+_TETTO = "TettoTempoSuperato: interrotto dopo 1200s (tetto per scraper, TAL-72)\nfermo in: recv"
+
+
+def test_interrotto_distinto_da_fallito(conn):
+    _run(conn, "adrano", trovati=32, inseriti=32, errore=_TETTO)
+    r = riepiloga(conn)
+    assert [s.scraper_id for s in r.interrotti] == ["adrano"]
+    assert r.falliti == []
+
+
+def test_interrotto_non_e_un_problema(conn):
+    """Un host lento interrotto non deve far suonare la notifica ogni notte."""
+    _run(conn, "ok1")
+    _run(conn, "baucina", trovati=0, inseriti=0, errore=_TETTO)
+    assert not riepiloga(conn).ha_problemi
+
+
+def test_markdown_interrotto_che_inseriva_segnala_tetto_basso(conn):
+    _run(conn, "adrano", trovati=32, inseriti=32, errore=_TETTO)
+    _run(conn, "baucina", trovati=0, inseriti=0, errore=_TETTO)
+    md = formatta_markdown(riepiloga(conn))
+    assert "Interrotti per tetto di tempo" in md
+    riga_adrano = next(r for r in md.splitlines() if "`adrano`" in r)
+    riga_baucina = next(r for r in md.splitlines() if "`baucina`" in r)
+    assert "tetto è troppo basso" in riga_adrano
+    assert "tetto è troppo basso" not in riga_baucina
+
+
+def test_causa_errore_raggruppa_dns_macos_e_linux():
+    assert causa_errore(_DNS_MAC) == causa_errore(_DNS_LINUX)
+    assert causa_errore(_DNS_MAC).locale
+
+
+def test_causa_errore_timeout_con_ssl_nei_frame_non_e_ssl():
+    """Si classifica sulla riga dell'eccezione, non sui frame del traceback."""
+    errore = (
+        "TimeoutError: The read operation timed out\n"
+        'File "/usr/lib/python3.12/ssl.py", line 1103, in read'
+    )
+    assert causa_errore(errore).descrizione == "timeout di rete"
+
+
+def test_causa_errore_sconosciuta_resta_raggruppabile():
+    a = causa_errore("ValueError: tabella senza colonne")
+    b = causa_errore("ValueError: tabella senza colonne")
+    assert a == b
+    assert not a.locale
+
+
+def test_giornata_con_guasto_dns(conn):
+    """Il 31/08: 225 errori DNS su 232 — un guasto, non 225 portali rotti."""
+    for i in range(225):
+        _run(conn, f"dns{i:03d}", trovati=0, inseriti=0, errore=_DNS_MAC)
+    for i in range(7):
+        _run(conn, f"ssl{i}", trovati=0, inseriti=0, errore="ssl.SSLError: [SSL] handshake")
+    r = riepiloga(conn)
+    assert r.causa_dominante is not None
+    assert r.causa_dominante.descrizione == "risoluzione DNS fallita"
+    assert [s.scraper_id for s in r.falliti_per_altra_causa] == [f"ssl{i}" for i in range(7)]
+
+    md = formatta_markdown(r)
+    assert "225 dei 232 falliti hanno la stessa causa: risoluzione DNS fallita" in md
+    assert "rete locale" in md
+    # Le rotture vere sono elencate; le 225 righe DNS no.
+    assert "Falliti per altre cause (7)" in md
+    assert "`dns000`" not in md
+    # È comunque un problema: la giornata è persa.
+    assert r.ha_problemi
+
+
+def test_giornata_con_rotture_vere_nessuna_causa_dominante(conn):
+    cause = [
+        _DNS_MAC,
+        "ssl.SSLError: [SSL: CERTIFICATE_VERIFY_FAILED]",
+        "TimeoutError: timed out",
+        "ConnectionRefusedError: [Errno 61] Connection refused",
+        "ValueError: pagina corrotta",
+    ]
+    for i in range(15):
+        _run(conn, f"s{i:02d}", trovati=0, inseriti=0, errore=cause[i % len(cause)])
+    r = riepiloga(conn)
+    assert r.causa_dominante is None
+    md = formatta_markdown(r)
+    assert "stessa causa" not in md
+    assert "## ❌ Falliti (15)" in md
+
+
+def test_pochi_falliti_uguali_non_fanno_causa_dominante(conn):
+    for i in range(3):
+        _run(conn, f"s{i}", trovati=0, inseriti=0, errore=_DNS_MAC)
+    assert riepiloga(conn).causa_dominante is None
+
+
+def test_interrotti_esclusi_dal_calcolo_della_causa_dominante():
+    stati = [StatoScraper(f"s{i}", None, "x", 0, 0, _TETTO, 0.1) for i in range(20)] + [
+        StatoScraper(f"d{i}", None, "x", 0, 0, _DNS_MAC, 0.1) for i in range(2)
+    ]
+    falliti = [s for s in stati if s.fallito]
+    assert len(falliti) == 2
+    assert trova_causa_dominante(falliti) is None

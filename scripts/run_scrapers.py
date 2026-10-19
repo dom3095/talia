@@ -50,6 +50,13 @@ from talia.modulo2_scraping.registry import (  # noqa: E402
     filtra_eseguibili,
     sincronizza_enti_da_registro,
 )
+from talia.modulo2_scraping.tetto_tempo import (  # noqa: E402
+    TETTO_SCRAPER_DEFAULT_S,
+    TettoTempoSuperato,
+    descrivi_interruzione,
+    tetto_supportato,
+    tetto_tempo,
+)
 
 # Quanti duplicati consecutivi senza un inserimento prima di fermare la paginazione.
 # 20 = una pagina jCityGov intera — se è tutta già nota, abbiamo raggiunto il confine.
@@ -71,6 +78,81 @@ def _errore_db(traceback_completo: str, max_len: int = 500) -> str:
     if not righe:
         return "errore sconosciuto"
     return f"{righe[-1].strip()}\n{traceback_completo}"[:max_len]
+
+
+def tetto_effettivo(timeout_scraper: int | None, no_stop: bool) -> int | None:
+    """Tetto per scraper da applicare, in secondi; ``None`` = nessun tetto (TAL-72).
+
+    Un valore esplicito vince sempre (``0`` disattiva). Senza valore esplicito
+    il tetto vale :data:`TETTO_SCRAPER_DEFAULT_S`, tranne con ``--no-stop``: un
+    backfill storico *deve* poter durare ore, e interromperlo a 20 minuti
+    vanificherebbe proprio l'operazione richiesta.
+    """
+    if timeout_scraper is not None:
+        return timeout_scraper if timeout_scraper > 0 else None
+    return None if no_stop else TETTO_SCRAPER_DEFAULT_S
+
+
+def _max_id_atti(conn) -> int:
+    return conn.execute("SELECT COALESCE(MAX(id), 0) FROM atti").fetchone()[0]
+
+
+def esegui_scraper(conn, nome: str, fn, kwargs: dict, tetto_s: int | None) -> tuple[str, dict]:
+    """Esegue uno scraper registrandone l'esito in `scraper_runs`.
+
+    Ritorna ``(stato, esito)`` con ``stato`` in ``ok`` / ``errore`` /
+    ``interrotto``. L'interruzione per tetto di tempo è tenuta distinta
+    dall'errore (TAL-72): non conta come fallimento del run — una notifica che
+    suona ogni notte per un host lento si impara a ignorarla — e il report la
+    mostra a parte.
+
+    Il conteggio degli atti inseriti prima dell'interruzione si ricava dagli
+    id: il run è sequenziale su un'unica connessione, quindi gli atti con id
+    oltre il massimo di partenza sono tutti di questo scraper. È l'unico
+    numero affidabile, perché lo scraper interrotto non ha restituito il suo
+    dict di esito.
+    """
+    run_id = inizia_run(conn, nome)
+    id_partenza = _max_id_atti(conn)
+    try:
+        with tetto_tempo(tetto_s):
+            esito = fn(conn, **kwargs)
+    except TettoTempoSuperato as exc:
+        # Si annulla solo ciò che non era ancora committato (es. un caricamento
+        # in blocco a metà): inserisci_atto committa per atto, quindi gli atti
+        # d'albo già salvati restano, e il conteggio sotto vede solo quelli.
+        if conn.in_transaction:
+            conn.rollback()
+        n_inseriti = conn.execute(
+            "SELECT COUNT(*) FROM atti WHERE id > ?", (id_partenza,)
+        ).fetchone()[0]
+        descrizione = descrivi_interruzione(exc)
+        print(f"  INTERROTTO: {descrizione} — {n_inseriti} atti inseriti prima dello stop")
+        termina_run(
+            conn,
+            run_id,
+            # n_trovati non è noto: gli inseriti ne sono il limite inferiore.
+            n_trovati=n_inseriti,
+            n_inseriti=n_inseriti,
+            n_duplicati=0,
+            errore=descrizione[:500],
+        )
+        return "interrotto", {"inseriti": n_inseriti, "tetto_s": tetto_s}
+    except Exception:
+        msg = traceback.format_exc()
+        print(f"  ERRORE:\n{msg}", file=sys.stderr)
+        termina_run(conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=_errore_db(msg))
+        return "errore", {}
+    termina_run(
+        conn,
+        run_id,
+        n_trovati=esito.get("n_trovati", 0),
+        n_inseriti=esito.get("inseriti", 0),
+        n_duplicati=esito.get("duplicati", 0),
+        data_min=esito.get("data_min"),
+        data_max=esito.get("data_max"),
+    )
+    return "ok", esito
 
 
 def _date_range(atti) -> tuple[str | None, str | None]:
@@ -820,6 +902,19 @@ Esempi:
         ),
     )
     p.add_argument(
+        "--timeout-scraper",
+        type=int,
+        default=None,
+        dest="timeout_scraper",
+        metavar="SECONDI",
+        help=(
+            "Tetto di tempo per singolo scraper: oltre, lo scraper viene interrotto"
+            " (gli atti già salvati restano) e il run prosegue col successivo."
+            f" Default: {TETTO_SCRAPER_DEFAULT_S}s, nessun tetto con --no-stop."
+            " 0 = nessun tetto (TAL-72)."
+        ),
+    )
+    p.add_argument(
         "--llm-modello",
         default=None,
         dest="llm_modello",
@@ -867,34 +962,26 @@ def main() -> int:
     # scraper già presente nella lista principale.
     da_eseguire = list(dict.fromkeys([*args.scrapers, *args.extra_scrapers]))
 
+    tetto_s = tetto_effettivo(args.timeout_scraper, args.no_stop)
+    if tetto_s and not tetto_supportato():
+        print("Tetto per scraper non applicabile su questa piattaforma: nessun limite.")
+        tetto_s = None
+    print(f"Tetto per scraper: {f'{tetto_s}s' if tetto_s else 'nessuno'}")
+    kwargs = dict(
+        max_pagine=args.max_pagine,
+        anac_file=args.anac_file,
+        anac_anno=args.anac_anno,
+        no_stop=args.no_stop,
+    )
+
     for nome in da_eseguire:
-        fn = scrapers[nome]
         print(f"\n── {nome.upper()} ──")
-        run_id = inizia_run(conn, nome)
-        try:
-            esito = fn(
-                conn,
-                max_pagine=args.max_pagine,
-                anac_file=args.anac_file,
-                anac_anno=args.anac_anno,
-                no_stop=args.no_stop,
-            )
+        stato, esito = esegui_scraper(conn, nome, scrapers[nome], kwargs, tetto_s)
+        if stato == "ok":
             risultati[nome] = esito
-            termina_run(
-                conn,
-                run_id,
-                n_trovati=esito.get("n_trovati", 0),
-                n_inseriti=esito.get("inseriti", 0),
-                n_duplicati=esito.get("duplicati", 0),
-                data_min=esito.get("data_min"),
-                data_max=esito.get("data_max"),
-            )
-        except Exception:
-            msg = traceback.format_exc()
-            print(f"  ERRORE:\n{msg}", file=sys.stderr)
-            termina_run(
-                conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=_errore_db(msg)
-            )
+        elif stato == "interrotto":
+            risultati[nome] = f"INTERROTTO dopo {tetto_s}s (+{esito['inseriti']} ins)"
+        else:
             risultati[nome] = "ERRORE"
             errori += 1
 

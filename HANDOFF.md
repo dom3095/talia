@@ -1,9 +1,53 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-09-02 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
-> `main`, **PR aperta**). La sessione precedente (`feat/TAL-60-streamlit-modulo1`,
-> TAL-60…65) è stata mergiata in `main` come **PR #19** (`520d697`) — il
-> resoconto dettagliato di quella sessione resta più sotto.
+> Aggiornato: 2026-10-19 (branch `feat/TAL-72-tetto-tempo-scraper`, **stacked**
+> su `feat/TAL-66-run-giornaliero-aggregati` = PR #20 ancora aperta). Sessione
+> da cloud, **senza accesso al Mac né a `talia.db`**: tutto verificato con i
+> test, niente misurato sul DB reale. La sessione precedente (TAL-60…65) è in
+> `main` come **PR #19** (`520d697`).
+
+---
+
+## Sessione 2026-10-19 — TAL-72 tetto di tempo per scraper + causa dominante
+
+Ripresa dopo ~7 settimane di fermo (ultimo commit 02/09). Il Mac era spento,
+quindi niente DB: lavoro solo su codice e test, **da verificare sul run reale**.
+
+**Ordine delle PR:** questa è stacked su #20 (TAL-66…71). Mergiare prima #20,
+poi questa (GitHub ribasa la base su `main` da solo).
+
+### Fatto
+
+- **`src/talia/modulo2_scraping/tetto_tempo.py`**: `tetto_tempo(secondi)`
+  (context manager su `SIGALRM`/`setitimer`), `TettoTempoSuperato`
+  (**`BaseException`**, altrimenti i `except Exception` di retry negli scraper
+  la inghiottirebbero), `descrivi_interruzione()` che registra *dove* lo
+  scraper era fermo (3 frame più interni).
+- **`scripts/run_scrapers.py`**: estratta `esegui_scraper()` dal loop di
+  `main()` (ritorna `ok`/`errore`/`interrotto`), `tetto_effettivo()`, flag
+  `--timeout-scraper` (default **1200s**; **nessun tetto con `--no-stop`**;
+  `0` = disattivato). Gli inseriti prima dello stop si contano dagli id
+  (`id > MAX(id)` di partenza). L'interruzione **non** incrementa `errori` →
+  non alza l'exit code e non fa scattare la notifica.
+- **`run_report.py`**: stato `interrotto` (informativo, fuori da
+  `ha_problemi`; se stava inserendo atti lo marca come "tetto forse troppo
+  basso"), `causa_errore()` per famiglia (DNS, rete, SSL, timeout, connessione)
+  calcolata sulla sola riga dell'eccezione, `trova_causa_dominante()` (≥60% dei
+  falliti e ≥10). Il markdown mette la causa in testa e lista solo i *falliti
+  per altre cause*.
+- Test: `tests/test_tetto_tempo.py` (18) + 11 nuovi in `test_run_report.py`.
+  **733 verdi**, ruff pulito.
+- Doc: card TAL-72 (Tentativo 1 + query di verifica), wiki 15, BOARD.
+
+### Prossimi passi (servono il Mac)
+
+1. **Controllare cosa ha fatto il run notturno dal 02/09 a oggi**: giorni
+   saltati, giornate di massa, durata. Senza il fix, ogni run oltre le 24h ha
+   fatto saltare il successivo.
+2. Lanciare la query "Verifica sul DB reale" della card TAL-72: nessuno
+   scraper sano deve superare i 1200s.
+3. Merge #20, poi questa PR; al primo run notturno misurare la durata e
+   chiudere la card.
 
 ---
 

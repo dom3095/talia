@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** ⚙️ OPS + 🕷️ SCR
 - **Priorità:** P0
-- **Stato:** In Progress
+- **Stato:** Review (codice + test; manca la misura sul run reale)
 - **Branch:** `feat/TAL-72-tetto-tempo-scraper`
 
 ## 🎯 Obiettivo
@@ -96,11 +96,12 @@ le prime 15 righe.
 
 ## ✅ Task
 
-- [ ] Tetto di tempo per scraper in `run_scrapers.py` + flag CLI
-- [ ] Registrazione distinta dell'interruzione per timeout in `scraper_runs`
-- [ ] Riconoscimento della causa dominante in `run_report.py`
-- [ ] Test: scraper che supera il tetto, scraper sotto il tetto, backfill esente
+- [x] Tetto di tempo per scraper in `run_scrapers.py` + flag CLI (`--timeout-scraper`)
+- [x] Registrazione distinta dell'interruzione per timeout in `scraper_runs`
+- [x] Riconoscimento della causa dominante in `run_report.py`
+- [x] Test: scraper che supera il tetto, scraper sotto il tetto, backfill esente
 - [ ] Misurare il run completo dopo il fix e riportare la durata reale qui
+      *(richiede il Mac: vedi "Verifica sul DB reale" sotto)*
 
 ## 🧪 Criteri di accettazione
 
@@ -108,7 +109,7 @@ le prime 15 righe.
       libero il trigger del giorno dopo (misurata, non stimata)
 - [ ] Nessuno scraper sano viene interrotto dal tetto (verificato sui dati)
 - [ ] Il report distingue una giornata con guasto di rete da una con rotture vere
-- [ ] Test passano (`pytest`)
+- [x] Test passano (`pytest`): 733 verdi, ruff pulito
 - [ ] DoD rispettata (vedi CLAUDE.md)
 
 ## 🔬 Tentativi
@@ -123,6 +124,53 @@ distribuzione dice che è concentrata su ~10 host, quindi la risposta è un tett
 non un'ottimizzazione diffusa. Stessa lezione di TAL-71: contare prima di
 ottimizzare. E che i tre giorni saltati non erano visibili da nessuna parte se
 non incrociando le date dei run: nessun allarme li ha segnalati.
+
+### 2026-10-19 — Tentativo 1 (implementazione)
+**Approccio:** `SIGALRM` via `signal.setitimer` attorno a ogni scraper
+(`modulo2_scraping/tetto_tempo.py`), eccezione `TettoTempoSuperato` derivata da
+`BaseException`. Scartati: thread (non si può interrompere una `recv` da un
+altro thread, e la connessione SQLite è condivisa) e un sottoprocesso per
+scraper (refactor dell'orchestratore e una connessione per processo, per un
+problema che il segnale risolve in poche righe).
+**Esito:** ✅ sui test: interrompe `sleep`, `recv` bloccata su socket e loop di
+retry con `except Exception`; timer e gestore sempre ripristinati.
+**Appreso:**
+- `BaseException` non è un dettaglio: con `Exception` il primo
+  `except Exception: continue` di un retry avrebbe inghiottito l'interruzione e
+  lo scraper avrebbe continuato a girare — il comportamento da eliminare.
+- Gli inseriti prima dello stop si contano dagli id (`id > MAX(id)` di
+  partenza): il run è sequenziale su una connessione, quindi è esatto, mentre
+  `data_accesso` non ha un formato uniforme tra scraper.
+- La causa dominante va calcolata sulla **riga dell'eccezione**, non sul
+  traceback: un timeout in lettura TLS ha `ssl.py` tra i frame e sarebbe finito
+  tra gli "errori SSL".
+- Default **1200s**: i 259 scraper non patologici del 01/09 sommavano ~9.200s
+  (~35s di media), i più lenti tra i sani (Agrigento Playwright, Caccamo dopo
+  TAL-68) sotto i 3 minuti. Caso peggiore con 10 host appesi: ~6h di scraping.
+  **Da confermare sui dati** con la query sotto prima di chiudere la card.
+
+### Verifica sul DB reale (da fare sul Mac)
+
+Quali scraper *sani* il tetto avrebbe interrotto nell'ultimo mese — cioè run
+oltre 1200s che però inserivano atti:
+
+```sql
+SELECT scraper_id,
+       COUNT(*)                                             AS run_oltre_tetto,
+       ROUND(MAX((julianday(completato_a) - julianday(avviato_a)) * 86400)) AS max_s,
+       SUM(n_inseriti)                                      AS inseriti
+FROM scraper_runs
+WHERE avviato_a >= date('now', '-30 days')
+  AND completato_a IS NOT NULL
+  AND (julianday(completato_a) - julianday(avviato_a)) * 86400 > 1200
+GROUP BY scraper_id
+ORDER BY inseriti DESC;
+```
+
+Se compaiono scraper con molti inseriti e durate appena sopra il tetto, alzare
+il default o passare `--timeout-scraper` da `run_daily.sh`. Dopo il primo run
+notturno col fix: durata complessiva da `logs/run_daily_*.log` e sezione
+⏱️ di `logs/ultimo_report.md`.
 
 ## 🔗 Dipendenze
 
