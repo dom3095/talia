@@ -138,6 +138,17 @@ risponde quasi sempre.
   quindi un recupero risulta OK. Più righe per lo stesso scraper nello stesso
   giorno = recupero al ripasso.
 
+## Il testo degli atti nuovi (TAL-77)
+
+Dopo lo scraping e il ripasso, `run_daily.sh` passa `--testo-atti 400`: per
+al massimo 400 atti **jCityGov** degli ultimi 20 giorni (solo determine,
+delibere, bandi, avvisi, contratti, liquidazioni) scarica il primo allegato
+che è un PDF in chiaro, ne salva il **testo nativo** in `atti.testo_estratto`
+e cancella il file. ~17 minuti, tetto 1800s, non fa mai fallire il run.
+`TALIA_TESTO_ATTI=0` lo disattiva. È l'unico modo di avere il testo: dopo
+15-30 giorni l'albo ritira l'atto. Dettagli e scelte in
+[TAL-77](../cards/TAL-77.md).
+
 ## Il riepilogo: stati distinti
 
 `scripts/report_run.py` (e la tab 📅 Aggregati della dashboard) distinguono

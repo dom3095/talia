@@ -134,8 +134,10 @@ notifica() {
     # esiste per risolvere. `anac` resta fuori: richiede `--anac-file`.
     echo
     echo "--- run_scrapers.py ---"
+    # --testo-atti: testo dei nuovi atti jCityGov finché il link è vivo (TAL-77).
     TALIA_DB="$DB_PATH" caffeinate -i "$PYTHON" scripts/run_scrapers.py \
-        ${EXTRA_SCRAPERS:+--extra-scrapers $EXTRA_SCRAPERS} "$@"
+        ${EXTRA_SCRAPERS:+--extra-scrapers $EXTRA_SCRAPERS} \
+        --testo-atti "${TALIA_TESTO_ATTI-400}" "$@"
     ESITO_SCRAPING=$?
     echo "run_scrapers.py exit=$ESITO_SCRAPING"
 

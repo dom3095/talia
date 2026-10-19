@@ -122,6 +122,14 @@ Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **Le strategie catena sono O(n²) *per ente*** (TAL-71, 2026-08-21, P0): `collega_per_contenimento` e `collega_per_oggetto_simile` confrontano ogni atto con ogni altro atto dello stesso ente. Con soli atti d'albo, distribuiti su 190+ comuni, non si nota; caricare un dataset che si concentra su pochi enti lo fa esplodere — i 176.827 contratti ANAC hanno portato Palermo a 37.709 atti e la fase red flags del run notturno a **11 ore**. Prima di caricare in `atti` una fonte massiva, chiedersi **su quanti enti si distribuisce**; e se una fonte non ha catene da ricostruire per titolo (i contratti SmartCIG sono già collegati dal CIG), escluderla dalle strategie fuzzy invece di ottimizzarle.
 - **jCityGov, `url_fonte` non era un permalink funzionante** (TAL-63, 2026-08-16, P0): il formato `?p_p_id=...&_..._action=mostraDettaglio` generato da `_url_dettaglio()` dà sempre errore server-side ("contattare l'amministratore del Portale"), verificato con Playwright a sessione fredda e con sessione attiva, su due tenant diversi — non un problema di cookie. Corretto con il formato `/-/papca/display/<id>?p_p_state=pop_up` (quello che l'interfaccia del portale genera davvero per "Apri Dettaglio"), verificato funzionante a freddo. **Backfill sugli 85.435 atti già in `talia.db` con il vecchio formato non ancora eseguito** — il codice corretto vale solo per i run futuri finché non si esegue la migrazione.
 
+### Testo degli atti (TAL-77)
+
+Dal 2026-10-19 il run notturno estrae il testo degli atti **jCityGov** nuovi
+(`--testo-atti 400`, `modulo2_scraping/testo_atti.py`): solo testo nativo, solo
+tipi utili alle regole (niente matrimoni, notifiche, ordinanze nominative), PDF
+non conservato. Gli altri scraper restano senza testo. `testo_estratto`:
+`NULL` = mai tentato, `''` = tentato senza risultato.
+
 ### Run automatico giornaliero
 
 Dal 2026-08-18 gli scraper girano ogni notte alle 03:30 via **launchd**
