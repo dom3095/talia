@@ -189,3 +189,74 @@ def test_frazionamento_solo_un_ente(db: sqlite3.Connection, ente_pa: int) -> Non
     risultati = rileva_frazionamento(db)
     assert len(risultati) == 1
     assert risultati[0].codice_istat == "082053"
+
+
+# ---------------------------------------------------------------------------
+# TAL-73: SmartCIG escluso dalla regola, ricalcolo completo nel runner
+# ---------------------------------------------------------------------------
+
+
+def _contratto_anac(istat: str, importo: float, data: str, n: int) -> AttoMetadato:
+    """Atto nella forma SmartCIG reale: `oggetto` è solo il tipo di appalto."""
+    return AttoMetadato(
+        ente_codice_istat=istat,
+        tipo="contratto_anac",
+        oggetto="FORNITURE",
+        url_fonte=f"https://dati.anticorruzione.it/smartcig/{n}",
+        fonte_scraper="anac",
+        data_accesso="2026-08-20T10:00:00",
+        data_atto=data,
+        importo_euro=importo,
+        cig=f"Z00000000{n}",
+    )
+
+
+def test_contratti_anac_esclusi(db: sqlite3.Connection, ente_pa: int) -> None:
+    for i in range(200):
+        inserisci_atto(db, _contratto_anac("082053", 1_400.0, f"2026-03-{i % 28 + 1:02d}", i))
+    assert rileva_frazionamento(db) == []
+    # Lo strumento di diagnosi può ancora riprodurre i flag di prima.
+    assert len(rileva_frazionamento(db, tipi_esclusi=())) > 0
+
+
+def test_atti_albo_restano_nella_regola_anche_con_anac(
+    db: sqlite3.Connection, ente_pa: int
+) -> None:
+    for i in range(3):
+        inserisci_atto(db, _atto("082053", 50_000.0, f"2026-01-{10 + i}", f"albo{i}"))
+    for i in range(50):
+        inserisci_atto(db, _contratto_anac("082053", 1_400.0, f"2026-01-{i % 20 + 1:02d}", i))
+
+    risultati = rileva_frazionamento(db)
+    assert len(risultati) == 1
+    assert {a["url_fonte"] for a in risultati[0].atti} == {
+        f"http://albo.pa.it/detalbo{i}" for i in range(3)
+    }
+
+
+def test_runner_cancella_i_flag_che_la_regola_non_produce_piu(
+    db: sqlite3.Connection, ente_pa: int
+) -> None:
+    from talia.modulo2_scraping.db import salva_red_flag
+    from talia.modulo2_scraping.red_flags.runner import esegui_tutti
+
+    # Flag rimasto da un run precedente (es. un flag ANAC di prima di TAL-73).
+    salva_red_flag(
+        db,
+        ente_id=ente_pa,
+        tipo_flag="frazionamento",
+        severita="alta",
+        descrizione="vecchio",
+        periodo_da="2025-01-01",
+        periodo_a="2025-03-01",
+    )
+    for i in range(3):
+        inserisci_atto(db, _atto("082053", 50_000.0, f"2026-01-{10 + i}", f"n{i}"))
+
+    esegui_tutti(db)
+
+    righe = db.execute(
+        "SELECT descrizione, periodo_da FROM red_flags WHERE tipo_flag='frazionamento'"
+    ).fetchall()
+    assert len(righe) == 1
+    assert righe[0]["periodo_da"] == "2026-01-10"

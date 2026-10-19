@@ -3,8 +3,8 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🔤 NLP + ⚖️ LEX
 - **Priorità:** P1 (blocca la pubblicazione della dashboard: 12.892 flag su 13.964)
-- **Stato:** Review — misura eseguita sul DB reale (2026-10-19); mancano l'etichettatura e la decisione sulla regola
-- **Branch:** `feat/TAL-73-diagnosi-frazionamento`
+- **Stato:** Review — decisione presa e implementata (2026-10-19): SmartCIG escluso dalla regola
+- **Branch:** `feat/TAL-73-diagnosi-frazionamento` (diagnosi, PR #23) → `fix/TAL-73-frazionamento-senza-smartcig` (correzione)
 
 ## 🎯 Obiettivo
 
@@ -63,10 +63,12 @@ di atti reali.
 
 ## ❓ Domande aperte
 
-- [ ] Quale tasso di falsi positivi è accettabile per pubblicare? (stesso
-      criterio "rumore gestibile" di TAL-12, da fissare con Dom)
-- [ ] La correzione della regola (H1-H5) si decide **dopo** aver visto i
-      numeri: non implementare prima.
+- [x] Quale tasso di falsi positivi è accettabile per pubblicare? → La
+      domanda non serve più per SmartCIG: lì il flag non è un'anomalia ma il
+      volume ordinario, a prescindere dal campione. Decisione delegata da Dom
+      (2026-10-19): escludere la fonte, non tarare la soglia.
+- [x] La correzione della regola si decide dopo aver visto i numeri → visti
+      (Tentativo 2), decisa nel Tentativo 3.
 
 ## 📚 Contesto
 
@@ -81,8 +83,8 @@ di atti reali.
 - [x] Test su flag prodotti dalla regola vera, uno scenario per ipotesi
 - [x] Lanciare lo script su `talia.db` e riportare qui la tabella di `diagnosi.md` (Tentativo 2)
 - [x] Correggere lo script: H4/H5 non misuravano nulla sui dati ANAC reali (Tentativo 2)
-- [ ] Etichettare il campione. **Lo strato è uno solo** (`solo_anac`, 12.892 su 12.892): sono 20 flag, non 60
-- [ ] Decidere le correzioni della regola e aprire la card di implementazione
+- [x] ~~Etichettare il campione~~ — superato: con un solo strato (`solo_anac`) e la fonte esclusa, l'etichettatura non cambierebbe la decisione
+- [x] Correzione della regola: `TIPI_ESCLUSI = ("contratto_anac",)` + ricalcolo completo nel runner (Tentativo 3)
 
 ## 🧪 Criteri di accettazione
 
@@ -145,6 +147,25 @@ dalla regola `frazionamento`, come TAL-71 ha escluso la fonte dalle strategie
 fuzzy della catena; riservare la regola agli atti d'albo, dove c'è un oggetto
 descrittivo, finché non si persistono aggiudicatario e CPV. Prima di decidere
 vale guardare 5-10 flag del campione a mano.
+
+### 2026-10-19 — Tentativo 3 (correzione)
+**Approccio:** `rileva_frazionamento` esclude `tipo='contratto_anac'`
+(parametro `tipi_esclusi`, la diagnosi passa `()` per misurare i flag di
+prima), come TAL-71 l'ha escluso dalle strategie fuzzy. Il runner cancella i
+`frazionamento` prima di riscriverli: senza, `INSERT OR REPLACE` sulla chiave
+per periodo avrebbe lasciato i 12.892 flag ANAC in DB per sempre (è H1, che non
+pesava nella misura ma diventa decisiva appena la regola smette di produrre un
+flag).
+**Esito:** ✅ — sul DB reale (sola lettura) **0 flag**.
+**Appreso:** **nessuno dei 219.139 atti d'albo ha `importo_euro`**: la regola
+ha sempre lavorato solo su SmartCIG. Fuori dalla fonte sbagliata è inerte, e
+lo resterà finché l'importo non si estrae dal testo dell'atto (TAL-62,
+persistenza del testo). Zero segnalazioni è l'esito corretto rispetto a 12.892
+non difendibili. Riammettere SmartCIG solo con aggiudicatario e CPV persistiti
+(frazionamento sullo stesso operatore / categoria merceologica).
+
+Stessa misura fatta di passaggio su `concentrazione_diretti`: 510 enti-anno
+segnalati su 510 anche senza ANAC → disattivata, card [TAL-76](TAL-76.md).
 
 ## 🔗 Dipendenze
 

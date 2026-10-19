@@ -69,6 +69,16 @@ Pattern rilevato empiricamente (Palma, Ragusa) e implementato in fase 1:
 2. **Falsi positivi attesi** — una red flag è un invito a verificare, non un verdetto. Tarare per non sommergere di rumore.
 3. **Confronto tra pari** — anomalie misurate rispetto a comuni di taglia simile, non in assoluto.
 4. **Tracciabilità** — ogni flag elenca gli atti/CIG che l'hanno generata.
+5. **Misurare prima di pubblicare** — prima che una regola compaia in una vista pubblica, si guarda sul DB reale *quanti* flag produce e *quanto sono grandi*. Una regola che segnala quasi tutti gli enti non è un indicatore (vedi sotto).
+6. **Ricalcolo completo** — le regole rileggono tutto il DB a ogni run: il runner cancella i flag della regola prima di riscriverli, altrimenti un flag che la regola non produce più resta per sempre.
+
+## Stato delle regole nel run notturno (2026-10-19)
+
+| Regola | Stato | Perché |
+|---|---|---|
+| `frazionamento` | attiva, **senza SmartCIG** | i contratti SmartCIG producevano 12.892 flag su 12.892 (mediana 190 micro-affidamenti da ~1,4k€ per flag = volume ordinario, non appalti spezzati) e senza aggiudicatario né CPV non si distingue un frazionamento vero ([TAL-73](../cards/TAL-73.md)). **Oggi produce 0 flag**: nessun atto d'albo ha `importo_euro` (servirebbe il testo dell'atto, [TAL-62](../cards/TAL-62.md)) |
+| `concentrazione_diretti` | **disattivata** | conta come "affidamento diretto" ogni atto che non sia un bando: segnalava 510 enti-anno su 510 ([TAL-76](../cards/TAL-76.md)) |
+| `tempo_pubblicazione_breve`, `revoca_in_catena`, `riapertura_dopo_revoca` | attive | volumi plausibili (22, 79, 93 flag); `riapertura` già verificata su campione (TAL-59) |
 
 ## Ground truth per tarare le soglie
 

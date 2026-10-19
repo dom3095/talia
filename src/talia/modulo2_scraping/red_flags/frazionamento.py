@@ -32,6 +32,16 @@ FINESTRA_GIORNI = 90
 # Minimo di atti nella finestra per scattare il flag.
 N_ATTI_SOGLIA = 3
 
+# Fonti escluse dalla regola (TAL-73). I contratti SmartCIG ANAC sono per
+# costruzione micro-affidamenti sotto soglia (100% sotto 5.000 €, media 1.449 €)
+# senza oggetto descrittivo né operatore economico né CPV: sul DB reale
+# producevano 12.892 flag su 12.892 `frazionamento`, mediana 190 atti per
+# flag — il volume ordinario di un ente in 90 giorni, non un appalto spezzato.
+# Senza aggiudicatario e categoria merceologica non c'è modo di distinguere un
+# frazionamento vero, quindi la regola resta sugli atti d'albo. Da riammettere
+# solo quando si persistono aggiudicatario e CPV.
+TIPI_ESCLUSI: tuple[str, ...] = ("contratto_anac",)
+
 
 # ---------------------------------------------------------------------------
 # Risultato
@@ -60,12 +70,14 @@ def rileva_frazionamento(
     soglia: float = SOGLIA_FORNITURE,
     finestra_giorni: int = FINESTRA_GIORNI,
     n_atti_soglia: int = N_ATTI_SOGLIA,
+    tipi_esclusi: tuple[str, ...] = TIPI_ESCLUSI,
 ) -> list[FrazionamentoRilevato]:
     """Analizza il DB e restituisce i casi di potenziale frazionamento.
 
     Per ogni ente recupera gli atti con importo < soglia, poi cerca finestre
     temporali di ``finestra_giorni`` giorni con almeno ``n_atti_soglia`` atti
-    il cui totale supera ``soglia``.
+    il cui totale supera ``soglia``. Gli atti di tipo in ``tipi_esclusi`` non
+    partecipano (vedi :data:`TIPI_ESCLUSI`).
 
     Returns:
         Lista di ``FrazionamentoRilevato``, una per ogni ente/finestra segnalata.
@@ -74,8 +86,13 @@ def rileva_frazionamento(
     # catania, urbi, hspromila, ribera — espongono solo la finestra di
     # pubblicazione nella pagina-lista, non la data dell'atto). Senza fallback
     # su data_pub questi enti restano invisibili al check.
+    filtro_tipi = (
+        f"AND COALESCE(a.tipo, '') NOT IN ({','.join('?' * len(tipi_esclusi))})"
+        if tipi_esclusi
+        else ""
+    )
     rows = conn.execute(
-        """
+        f"""
         SELECT a.id, a.ente_id, e.codice_istat,
                a.importo_euro, COALESCE(a.data_atto, a.data_pub) AS data_atto,
                a.url_fonte, a.cig
@@ -84,9 +101,10 @@ def rileva_frazionamento(
         WHERE  a.importo_euro > 0
           AND  a.importo_euro < ?
           AND  COALESCE(a.data_atto, a.data_pub) IS NOT NULL
+          {filtro_tipi}
         ORDER  BY a.ente_id, data_atto
         """,
-        (soglia,),
+        (soglia, *tipi_esclusi),
     ).fetchall()
 
     # Raggruppa per ente

@@ -106,7 +106,8 @@ def conn():
                   importo=50_000, data=f"2026-05-0{n + 1}", cig=f"V00000000{n}"),
         )  # fmt: skip
 
-    for rf in rileva_frazionamento(c):
+    # Senza esclusioni: la diagnosi misura i flag ANAC prodotti prima di TAL-73.
+    for rf in rileva_frazionamento(c, tipi_esclusi=()):
         _salva_frazionamento(c, rf)
     return c
 
@@ -226,7 +227,7 @@ def _conn_anac(tipi: list[str], *, importo: float = 12_000):
                 metadati={"tipo_appalto": ""},
             ),
         )
-    for rf in rileva_frazionamento(c):
+    for rf in rileva_frazionamento(c, tipi_esclusi=()):
         _salva_frazionamento(c, rf)
     return c
 

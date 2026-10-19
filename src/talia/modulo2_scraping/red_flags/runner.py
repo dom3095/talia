@@ -146,6 +146,17 @@ def _salva_riapertura_dopo_revoca(conn: sqlite3.Connection, rr: RiaperturaRivoca
     )
 
 
+#: Regole tolte dal run finché non vengono riprogettate, con la ragione.
+#: I loro flag già in DB vengono cancellati a ogni run: un flag che il motore
+#: non sa più difendere non deve restare visibile in dashboard.
+REGOLE_DISATTIVATE: dict[str, str] = {
+    # TAL-76: conta come "affidamento diretto" qualunque atto che non sia un
+    # bando (determine, delibere, avvisi). Sul DB reale, anche senza SmartCIG,
+    # segnalava 510 enti-anno su 510 con almeno 10 atti: nessuna informazione,
+    # e una descrizione ("oltre l'80% di affidamenti diretti") non vera.
+    "concentrazione_diretti": "TAL-76",
+}
+
 # ---------------------------------------------------------------------------
 # API pubblica
 # ---------------------------------------------------------------------------
@@ -197,11 +208,28 @@ def esegui_tutti(
     )
 
     # --- Frazionamento ---
+    # Ricalcolo completo (TAL-73): la regola rilegge l'intero DB a ogni run,
+    # quindi i flag del giro precedente sono tutti riprodotti o superati.
+    # Senza la cancellazione, `INSERT OR REPLACE` sulla chiave per periodo non
+    # toglie mai un flag che la regola non produce più — dopo l'esclusione di
+    # SmartCIG i 12.892 flag ANAC sarebbero rimasti in DB per sempre.
+    # Si calcola prima e si cancella dopo: se il calcolo fallisce, restano i
+    # flag della notte precedente invece di nessuno.
     frazi = rileva_frazionamento(conn)
+    conn.execute("DELETE FROM red_flags WHERE tipo_flag = 'frazionamento'")
+    conn.commit()
     n_frazi_salvati = sum(1 for rf in frazi if _salva_frazionamento(conn, rf) > 0)
 
+    # --- Regole disattivate: via i flag rimasti dai run precedenti ---
+    for tipo_flag in REGOLE_DISATTIVATE:
+        conn.execute("DELETE FROM red_flags WHERE tipo_flag = ?", (tipo_flag,))
+    conn.commit()
+
     # --- Concentrazione ---
-    conc = rileva_concentrazione(conn)
+    if "concentrazione_diretti" in REGOLE_DISATTIVATE:
+        conc = []
+    else:
+        conc = rileva_concentrazione(conn)
     n_conc_salvati = sum(1 for rc in conc if _salva_concentrazione(conn, rc) > 0)
 
     # --- Tempi anomali ---
