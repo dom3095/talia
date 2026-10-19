@@ -196,3 +196,89 @@ def test_script_scrive_diagnosi_e_campione(conn, tmp_path, monkeypatch):
     assert "Ipotesi di falso positivo" in (out / "diagnosi.md").read_text()
     with (out / "campione.csv").open() as fh:
         assert len(list(csv.DictReader(fh))) == 4
+
+
+# --- Dati ANAC nella forma reale ---------------------------------------------
+# In SmartCIG `oggetto` è solo il tipo di appalto e `metadati.tipo_appalto` è
+# vuoto (176.827 righe, 3 valori distinti): i fixture sopra, con oggetti
+# descrittivi, non lo riproducevano e H4/H5 risultavano silenziosamente
+# inutili (H5 al 100%).
+
+
+def _conn_anac(tipi: list[str], *, importo: float = 12_000):
+    c = connetti(":memory:")
+    inizializza_db(c)
+    upsert_ente(c, EnteMetadato(denominazione="anac_reale", codice_istat="000009"))
+    for n, tipo in enumerate(tipi):
+        inserisci_atto(
+            c,
+            AttoMetadato(
+                ente_codice_istat="000009",
+                tipo="contratto_anac",
+                url_fonte=f"https://dati.example.it/cig/{n}",
+                fonte_scraper="anac",
+                data_accesso="2026-10-19T03:30:00",
+                data_atto=f"2026-03-{n % 28 + 1:02d}",
+                oggetto=tipo,
+                importo_euro=importo,
+                cig=f"A{n:09d}",
+                numero=str(n),
+                metadati={"tipo_appalto": ""},
+            ),
+        )
+    for rf in rileva_frazionamento(c):
+        _salva_frazionamento(c, rf)
+    return c
+
+
+def test_anac_oggetto_solo_tipo_h5_non_valutabile_e_non_eterogeneo():
+    flags = carica_flag(_conn_anac(["SERVIZI"] * 15))
+    # La regola produce una finestra per ogni atto-ancora (è l'ipotesi H2).
+    assert len(flags) > 1
+    assert not any(f.oggetti_valutabili() for f in flags)
+    d = diagnostica(flags)
+    chiave = next(k for k in d.ipotesi if k.startswith("oggetti eterogenei"))
+    assert d.ipotesi[chiave] == 0  # prima: tutti (100%), artefatto della misura
+    assert d.non_valutabili[chiave] == len(flags)
+    assert d.con_ipotesi_non_valutabili == len(flags)
+
+
+def test_anac_il_tipo_si_legge_dall_oggetto():
+    flags = carica_flag(_conn_anac(["FORNITURE", "SERVIZI"] * 8))
+    assert all(f.tipo_valutabile for f in flags)
+    # Forniture e servizi hanno la stessa soglia (140k€): non sono "mescolati".
+    assert not any(f.tipi_appalto_misti for f in flags)
+
+
+def test_anac_lavori_con_servizi_sono_misti():
+    # Lavori in testa: la prima finestra contiene entrambe le categorie.
+    flags = carica_flag(_conn_anac(["LAVORI"] * 4 + ["SERVIZI"] * 12))
+    misti = [f for f in flags if f.tipi_appalto_misti]
+    assert misti
+    d = diagnostica(flags)
+    chiave = next(k for k in d.ipotesi if k.startswith("tipi di appalto"))
+    assert d.ipotesi[chiave] == len(misti)
+
+
+def test_report_avvisa_quando_ci_sono_ipotesi_non_valutabili():
+    md = formatta_diagnosi(diagnostica(carica_flag(_conn_anac(["SERVIZI"] * 15))))
+    assert "non valutabile" in md
+    assert "sovrastima" in md
+
+
+def test_report_senza_non_valutabili_non_avvisa(conn):
+    # Nel fixture principale due scenari non dichiarano il tipo (H4), ma gli
+    # oggetti sono descrittivi: l'avviso scatta solo se c'è davvero un buco.
+    d = diagnostica(carica_flag(conn))
+    assert d.non_valutabili  # chiavi presenti
+    assert d.con_ipotesi_non_valutabili == 2  # cig_doppio e omogeneo: tipo ignoto
+
+
+def test_csv_tronca_gli_atti_per_flag_enormi():
+    flags = carica_flag(_conn_anac(["SERVIZI"] * 40))
+    riga = max(righe_csv(flags), key=lambda r: r["n_atti"])
+    assert riga["n_atti"] > 10
+    assert riga["atti"].count("https://") == 10
+    assert f"+{riga['n_atti'] - 10} altri atti" in riga["atti"]
+    assert riga["gruppo_omogeneo_max"] == "n/d"
+    assert len(riga["atti"]) < 32_767  # limite di una cella Excel

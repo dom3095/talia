@@ -50,6 +50,16 @@ _STOPWORD = {
 
 _RE_TOKEN = re.compile(r"[a-zàèéìòù]{4,}")
 
+#: Nei dati SmartCIG di ANAC `oggetto` non descrive l'acquisto: contiene solo il
+#: tipo di appalto (3 valori distinti su 176.827 righe, misurato il 2026-10-19)
+#: e `metadati.tipo_appalto` è vuoto. Il tipo si legge quindi da `oggetto`.
+_TIPI_APPALTO = {"lavori", "servizi", "forniture"}
+
+#: Atti mostrati per flag nel CSV. Un flag può avere centinaia di atti (939 a
+#: Ragusa): la cella supererebbe il limite di Excel (32.767 caratteri) e quello
+#: del modulo `csv` di Python (131.072), e nessuno etichetta 939 righe a mano.
+MAX_ATTI_CSV = 10
+
 
 @dataclass
 class AttoFlag:
@@ -62,6 +72,23 @@ class AttoFlag:
     tipo: str | None
     tipo_appalto: str | None
     url: str | None
+
+    @property
+    def tipo_effettivo(self) -> str | None:
+        """Tipo di appalto: dai metadati, altrimenti da `oggetto` (dati ANAC)."""
+        tipo = (self.tipo_appalto or "").strip().lower()
+        if tipo:
+            return tipo
+        oggetto = (self.oggetto or "").strip().lower()
+        return oggetto if oggetto in _TIPI_APPALTO else None
+
+    @property
+    def categoria_soglia(self) -> str | None:
+        """`lavori` (soglia 150k€) oppure `beni_servizi` (140k€); None se ignoto."""
+        tipo = self.tipo_effettivo
+        if tipo is None:
+            return None
+        return "lavori" if tipo.startswith("lavor") else "beni_servizi"
 
 
 @dataclass
@@ -106,10 +133,26 @@ class FlagFrazionamento:
         return len({a.cig for a in self.atti if a.cig}) + sum(1 for a in self.atti if not a.cig)
 
     @property
+    def tipo_valutabile(self) -> bool:
+        """Almeno un atto dichiara il tipo di appalto: senza, H4 non si può misurare."""
+        return any(a.categoria_soglia for a in self.atti)
+
+    @property
     def tipi_appalto_misti(self) -> bool:
-        """Lavori e forniture/servizi nella stessa finestra: soglie e oggetti diversi."""
-        tipi = {a.tipo_appalto.strip().lower() for a in self.atti if a.tipo_appalto}
-        return len(tipi) > 1
+        """Lavori e beni/servizi nella stessa finestra: soglie diverse (150k€ / 140k€).
+
+        Forniture e servizi insieme non contano: hanno la stessa soglia.
+        """
+        return len({a.categoria_soglia for a in self.atti if a.categoria_soglia}) > 1
+
+    def oggetti_valutabili(self, n_min: int = 3) -> bool:
+        """Almeno `n_min` atti con un oggetto che descrive davvero l'acquisto.
+
+        Se mancano, H5 non può dire né "omogenei" né "eterogenei": dichiarare
+        eterogeneo un flag i cui atti non hanno testo confrontabile darebbe
+        un 100% che è un artefatto della misura, non un risultato.
+        """
+        return sum(1 for a in self.atti if _token(a.oggetto)) >= n_min
 
     @property
     def gruppo_omogeneo_max(self) -> int:
@@ -205,8 +248,13 @@ class Diagnosi:
     top_enti: list[tuple[str, int]]
     #: Ipotesi di falso positivo strutturale: nome → numero di flag.
     ipotesi: dict[str, int]
-    #: Flag che resistono a tutte le ipotesi: il limite superiore dei veri segnali.
+    #: Flag che resistono a tutte le ipotesi *valutabili*: il limite superiore dei
+    #: veri segnali, valido solo se nessuna ipotesi è rimasta non valutabile.
     superstiti: int
+    #: Ipotesi → flag per cui i dati non permettono di valutarla (non contano nel conteggio).
+    non_valutabili: dict[str, int] = field(default_factory=dict)
+    #: Flag con almeno un'ipotesi non valutabile: per loro `superstiti` è solo un limite.
+    con_ipotesi_non_valutabili: int = 0
 
 
 def diagnostica(
@@ -247,7 +295,13 @@ def diagnostica(
         and (f.totale_dedup_cig <= soglia or f.n_affidamenti_dedup_cig < n_atti_soglia)
     }
     misti = {f.id for f in flags if f.tipi_appalto_misti}
-    eterogenei = {f.id for f in flags if f.gruppo_omogeneo_max < n_atti_soglia}
+    eterogenei = {
+        f.id
+        for f in flags
+        if f.oggetti_valutabili(n_atti_soglia) and f.gruppo_omogeneo_max < n_atti_soglia
+    }
+    h4_non_valutabili = {f.id for f in flags if not f.tipo_valutabile}
+    h5_non_valutabili = {f.id for f in flags if not f.oggetti_valutabili(n_atti_soglia)}
 
     ipotesi = {
         "superato da un flag più recente con la stessa ancora": len(superati),
@@ -255,6 +309,12 @@ def diagnostica(
         "stesso CIG contato più volte (con CIG unici non scatterebbe)": len(sotto_soglia_dedup),
         "tipi di appalto mescolati (lavori + forniture/servizi)": len(misti),
         f"oggetti eterogenei (nessun gruppo di {n_atti_soglia} atti simili)": len(eterogenei),
+    }
+    non_valutabili = {
+        "tipi di appalto mescolati (lavori + forniture/servizi)": len(h4_non_valutabili),
+        f"oggetti eterogenei (nessun gruppo di {n_atti_soglia} atti simili)": len(
+            h5_non_valutabili
+        ),
     }
     scartati = superati | contenuti | sotto_soglia_dedup | misti | eterogenei
     return Diagnosi(
@@ -264,6 +324,8 @@ def diagnostica(
         top_enti=Counter(f.ente for f in flags).most_common(10),
         ipotesi=ipotesi,
         superstiti=len(flags) - len(scartati),
+        non_valutabili=non_valutabili,
+        con_ipotesi_non_valutabili=len(h4_non_valutabili | h5_non_valutabili),
     )
 
 
@@ -307,8 +369,10 @@ def righe_csv(campione: list[FlagFrazionamento]) -> list[dict]:
         atti = " | ".join(
             f"{a.data or '?'} · {a.importo or 0:,.0f}€ · {a.cig or '-'} · "
             f"{(a.oggetto or '').strip()[:80]} · {a.url or ''}"
-            for a in f.atti
+            for a in f.atti[:MAX_ATTI_CSV]
         )
+        if len(f.atti) > MAX_ATTI_CSV:
+            atti += f" | … (+{len(f.atti) - MAX_ATTI_CSV} altri atti, vedi n_atti)"
         righe.append(
             {
                 "flag_id": f.id,
@@ -320,8 +384,8 @@ def righe_csv(campione: list[FlagFrazionamento]) -> list[dict]:
                 "totale_euro": round(sum(a.importo or 0 for a in f.atti), 2),
                 "totale_dedup_cig": round(f.totale_dedup_cig, 2),
                 "cig_ripetuti": f.cig_ripetuti,
-                "tipi_appalto_misti": f.tipi_appalto_misti,
-                "gruppo_omogeneo_max": f.gruppo_omogeneo_max,
+                "tipi_appalto_misti": f.tipi_appalto_misti if f.tipo_valutabile else "n/d",
+                "gruppo_omogeneo_max": (f.gruppo_omogeneo_max if f.oggetti_valutabili() else "n/d"),
                 "atti": atti,
                 "esito": "",
                 "note": "",
@@ -344,17 +408,28 @@ def formatta_diagnosi(d: Diagnosi) -> str:
         "",
         "## Ipotesi di falso positivo strutturale",
         "",
-        "| Ipotesi | Flag | % |",
-        "|---|---|---|",
+        "| Ipotesi | Flag | % | Non valutabili |",
+        "|---|---|---|---|",
     ]
     for nome, n in d.ipotesi.items():
         quota = 100 * n / d.n_flag if d.n_flag else 0
-        righe.append(f"| {nome} | {n:,} | {quota:.0f}% |")
+        nv = d.non_valutabili.get(nome)
+        righe.append(f"| {nome} | {n:,} | {quota:.0f}% | {f'{nv:,}' if nv else '—'} |")
     righe += [
         "",
         f"**Resistono a tutte le ipotesi: {d.superstiti:,} flag** "
         f"({100 * d.superstiti / d.n_flag if d.n_flag else 0:.0f}%) — limite superiore dei "
         "segnali da guardare davvero. Le ipotesi si sovrappongono: le percentuali non si sommano.",
+    ]
+    if d.con_ipotesi_non_valutabili:
+        righe += [
+            "",
+            f"⚠️ **{d.con_ipotesi_non_valutabili:,} flag su {d.n_flag:,} hanno almeno "
+            "un'ipotesi non valutabile** (dati assenti, tipicamente `oggetto` di ANAC che "
+            "contiene solo il tipo di appalto). Per loro il conteggio dei superstiti "
+            '*sovrastima* la fiducia nel risultato: non leggerlo come "X flag sono veri".',
+        ]
+    righe += [
         "",
         "## Enti con più flag",
         "",
