@@ -1,7 +1,403 @@
 # HANDOFF.md — Stato sessione
 
-> Aggiornato: 2026-08-18 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
->
+> Aggiornato: 2026-09-02 (branch `feat/TAL-66-run-giornaliero-aggregati`, da
+> `main`, **PR aperta**). La sessione precedente (`feat/TAL-60-streamlit-modulo1`,
+> TAL-60…65) è stata mergiata in `main` come **PR #19** (`520d697`) — il
+> resoconto dettagliato di quella sessione resta più sotto.
+
+---
+
+## Sessione 2026-09-02 — audit dei run notturni girati da soli (TAL-72)
+
+Il branch era fermo dal 21/08 con il codice completo (731 test verdi, ruff
+pulito) e **nessuna PR aperta**; nel frattempo l'agente launchd ha continuato a
+girare ogni notte. Leggendo `scraper_runs` invece che i soli log è emerso che
+TAL-71 aveva risolto il collo di bottiglia sbagliato — o meglio, quello giusto
+ma non l'unico.
+
+**Il run supera le 24h e fa saltare i giorni successivi.** Run del 2026-09-01:
+scraping 01:45→16:28 UTC (**14,7h**), red flags ~2h, fine alle 20:41 locali. Il
+run del 22/08 è finito il **24/08 alle 20:22**, quello del 27/08 il **28/08 alle
+11:00**. Conseguenza misurata in `scraper_runs`: **23, 24 e 28 agosto non hanno
+avuto alcun run** — il lock di `run_daily.sh` ha correttamente rifiutato il
+secondo avvio, ma il risultato netto è esattamente la perdita definitiva di
+copertura che TAL-66 esisteva per prevenire. Il lock ha fatto il suo mestiere; è
+la durata a essere il difetto.
+
+**La lentezza non è distribuita: ~10 scraper su 266 fanno il 98% del tempo.**
+Somma delle durate dei 266 run del 01/09: 53.011s. Di cui `adrano` 11.566s
+(3h12m, per 32 atti trovati), `baucina` 7.293s **finendo in timeout con 0 atti**,
+`catania` 6.782s idem, `condro` 4.976s (handshake SSL), `acibonaccorsi` 4.901s.
+Non esiste un tetto di tempo per singolo scraper: un host lento o semi-morto può
+tenere in ostaggio l'intero run notturno. È lo stesso ragionamento di TAL-68
+(misurare il costo a regime prima di lasciare qualcosa nel run) applicato al
+livello sopra.
+
+**Il 31/08 è stato perso quasi per intero senza che nessuno se ne accorgesse**:
+232 scraper su 266 in errore, di cui **225 con lo stesso
+`URLError [Errno 8] nodename nor servname`** — un guasto DNS locale, non 225
+portali rotti. 115 atti inseriti in tutta la giornata. Non esiste recupero del
+giorno perso né riconoscimento del pattern "fallimento di massa con una sola
+causa": il report elenca 26 righe e lascia il lettore a distinguere le rotture
+vere dal rumore transitorio.
+
+Card [TAL-72](docs/cards/TAL-72.md). **Nota positiva emersa dallo stesso audit**:
+Agrigento non è più muto (161 trovati / 28 inseriti il 01/09) — la segnalazione
+in coda alla sessione TAL-71 è superata.
+
+---
+
+## Sessione 2026-08-21 — TAL-71 la fase red flags girava 11 ore
+
+**Regressione introdotta da TAL-70**, trovata controllando lo stato del run
+notturno. Il caricamento ANAC è corretto, ma non ne era stato valutato il
+costo a valle.
+
+**Sintomo:** il run del 2026-08-20 è finito dopo **18 ore** (scraper chiusi
+alle 10:34, fine alle 21:45); quello del 2026-08-21 era ancora in corso dopo
+17h ed è stato terminato a mano. Processo al 98% di CPU, `STAT RN`: calcolo,
+non attesa di rete.
+
+**Causa:** `collega_per_contenimento` e `collega_per_oggetto_simile` sono
+O(n²) *dentro il singolo ente*. I 176.827 contratti SmartCIG si sono
+concentrati sui capoluoghi — **Palermo è passata a 37.709 atti, di cui 35.719
+ANAC (94,7%)**. Finché il DB conteneva solo atti d'albo su 190+ comuni nessun
+ente era grande abbastanza da farlo emergere.
+
+Il rapporto costo/beneficio era indifendibile: `cig` 199.360 procedimenti,
+`oggetto_simile` 20.550, **`contenimento_oggetto` 263**. Undici ore per 263
+collegamenti.
+
+**Fix:** le due strategie fuzzy escludono `tipo = 'contratto_anac'`. Un
+contratto SmartCIG non è un atto deliberativo dell'albo: non ha un originario
+da riconoscere per somiglianza del titolo, e il collegamento corretto passa
+già dal CIG (strategia 1, match esatto). Gli atti ANAC **restano** nelle
+strategie 1 e 2, lineari. Su Palermo: contenimento **2,1s**, oggetto simile
+**10,0s**.
+
+**Fase intera cronometrata sul DB reale: 1816s (30 min), da 11+ ore.** Le due
+strategie quadratiche pesano ora 7 minuti su 30. Il collo di bottiglia
+residuo non è quadratico: la strategia CIG costa 1075s (59%) per iterare
+199.330 CIG distinti, rifacendo ogni notte il lavoro su quelli già collegati —
+ottimizzabile, non urgente. La misura vale per il **run notturno** (DB con
+procedimenti già assegnati); una ricostruzione a freddo costerebbe di più.
+
+**731 test verdi** (erano 728; 3 nuovi, incluso quello che verifica che il
+collegamento per CIG continui a funzionare). Dettaglio in
+[TAL-71](docs/cards/TAL-71.md).
+
+### Da guardare, non affrontato
+
+- **I red flag sono passati da 665 a 13.964, e 12.892 sono `frazionamento`.**
+  Non è solo questione di volume: SmartCIG contiene *per definizione*
+  affidamenti sotto soglia, quindi una regola che cerca frazionamento
+  artificioso sotto le soglie di legge lì trova un terreno dove quasi tutto
+  somiglia a un segnale. Stimare i falsi positivi su un campione **prima**
+  di pubblicare.
+- **220.173 procedimenti su 327.704 atti**, 199.360 creati dal CIG: quasi uno
+  per contratto. Corretto in senso stretto, ma svuota di significato la
+  nozione di procedimento nelle aggregazioni.
+- **Agrigento restituisce 0 atti** da almeno due run consecutivi (12s, nessun
+  errore): pattern "muto" già visto con Caccamo (TAL-68).
+
+---
+
+## Sessione 2026-08-18 (2) — TAL-66 run giornaliero automatico + TAL-67 aggregati dashboard
+
+**Richiesta di Dom:** wiring per i run degli scraper, automazione giornaliera
+"come su Pathosphere", dashboard con aggregati mensili/settimanali/trimestrali/
+semestrali per comune e provincia + dettaglio giornaliero dei documenti
+ingeriti. Più: "credi ci sia altro che valga la pena fare? ci sono problemi da
+affrontare che non possiamo rimandare".
+
+### Il problema urgente trovato leggendo lo stato (TAL-66, P0)
+
+**L'ultimo run scraper era del 2026-08-06: 12 giorni prima.** La cadenza reale
+dei run è "quando qualcuno se ne ricorda" (5-11 giorni di intervallo). Non è
+un problema di igiene: quasi tutti gli scraper leggono l'**Albo Pretorio**,
+che espone solo gli atti *in pubblicazione* (finestra 15-30 giorni). Gli atti
+usciti dalla finestra **non sono più raccoglibili da lì, nessun backfill li
+recupera**. Il grafico di ingestione giornaliera della nuova tab lo mostra a
+colpo d'occhio: 13 giorni consecutivi a zero.
+
+### Fatto — TAL-66 (automazione)
+
+- **`scripts/run_daily.sh`**: lock (`mkdir` atomico + PID, con riconoscimento
+  del lock orfano — un run completo dura ~4h40m su 260 scraper e due run
+  sovrapposti si contenderebbero lo stesso SQLite), `caffeinate -i`, backup
+  del DB via `sqlite3 .backup` (consistente in WAL, a differenza di `cp`),
+  rotazione log/backup, notifica macOS su problemi.
+- **`scripts/setup_launchd.sh`**: agente `com.talia.scrapers`
+  (`--ora/--minuto/--status/--uninstall`). **Installato e caricato: 03:30 ora
+  locale, ogni giorno.**
+- **`src/talia/modulo2_scraping/run_report.py`** + **`scripts/report_run.py`**:
+  riepilogo con exit code non-zero sui problemi, che tiene **distinti** tre
+  stati con cause diverse — *fallito* (eccezione), *muto* (completato con 0
+  atti trovati: la fragilità nota "fallimento silenzioso" di CLAUDE.md, che
+  nessun exit code intercetterebbe) e *fermo* (attivo nel registro ma non
+  eseguito da N giorni: esattamente la condizione che ha prodotto questo
+  ritardo). Segnala esplicitamente quando l'ultimo run supera i 15 giorni.
+- **Due difetti dello schema Pathosphere non riportati qui**: il suo plist usa
+  `StartInterval` insieme a `KeepAlive true`, che su un job che *termina*
+  significa rilancio immediato in loop — su un run di 4-5h verso 260 server
+  comunali sarebbe stato un martellamento. Qui `StartCalendarInterval` +
+  `KeepAlive false` + `RunAtLoad false`, più `Nice`/`ProcessType Background`.
+- **Fix collaterale trovato guardando l'output reale, non i test**:
+  `scraper_runs.errore` conservava i *primi* 500 caratteri del traceback,
+  cioè quasi sempre senza la riga che nomina l'eccezione — il riepilogo
+  mostrava `esito = fn(` invece di `ConnectionRefusedError: ...`. Ora
+  l'eccezione è messa in testa prima di troncare, e `sintesi_errore()` sa
+  leggere anche il formato vecchio già in DB.
+- **Buco trovato nella soluzione stessa, verificando quali scraper girerebbero
+  davvero**: `agrigento` (capoluogo), `pachino` e `barrafranca` sono
+  `escluso_default` nel registro perché richiedono Playwright ed erano lenti
+  *per un run manuale* — motivazione che in un run notturno non vale più,
+  mentre la conseguenza sì (perdere per sempre gli atti di un capoluogo).
+  Aggiunto `--extra-scrapers` a `run_scrapers.py` (aggiunge alla lista invece
+  di sostituirla) e i tre al run notturno, sovrascrivibile con
+  `TALIA_EXTRA_SCRAPERS`. Costo reale misurato: **Pachino 9s**, non i ~3 min
+  stimati in CLAUDE.md. `anac` resta fuori (richiede `--anac-file`).
+- **Run reale di recupero lanciato** il 2026-08-18 alle 13:44 (backup preso
+  prima: `backups/talia.db.20260818`).
+
+### Fatto — TAL-67 (aggregati dashboard)
+
+- **`src/talia/modulo3_dashboard/aggregati.py`**: funzioni pure, nessun import
+  di Streamlit (testabili senza avviare l'app). Granularità giornaliera /
+  settimanale / mensile / trimestrale / semestrale, filtri per provincia e
+  comune, intervallo `da`/`a`.
+- **Due assi temporali tenuti esplicitamente distinti**: `atto`
+  (`COALESCE(data_atto, data_pub)` — l'80% degli atti reali ha `data_atto`
+  NULL, la trappola già costata un bug in TAL-48) e `ingestione`
+  (`date(data_accesso)`, salute della pipeline). La UI avvisa che sull'asse di
+  ingestione un backfill storico concentra anni di atti in un giorno solo.
+- Settimana ancorata al **lunedì** (`date(d,'weekday 0','-6 days')`) invece di
+  `strftime('%W')`: etichetta = data vera, ordinabile, senza ambiguità a
+  cavallo d'anno.
+- Date non plausibili escluse (sul DB reale esiste `0202-06-16`), ma il limite
+  superiore è oggi+90gg e non "oggi": `data_pub` è la data di *inizio*
+  pubblicazione e alcuni albi pubblicano con decorrenza futura — confermato
+  sui dati veri (una settimana `2026-08-31` con 1 atto).
+- **Tab 📅 Aggregati** in `app.py`: selettori territorio/granularità/asse,
+  serie con variazione sul periodo precedente, dettaglio giornaliero di
+  ingestione **con gli zeri espliciti** (un giorno omesso dal grafico
+  nasconderebbe proprio l'informazione utile), classifiche per provincia e per
+  comune, sezione "Stato degli scraper" che riusa `run_report`.
+- Nessuna nuova dipendenza: `st.bar_chart` con lista di dict + `x=`/`y=`.
+
+**698 test verdi (erano 655), ruff pulito.** Verificato dal vivo con
+`AppTest.from_file` su `talia.db` reale: 0 eccezioni.
+
+### Documentazione
+
+Nuova wiki [`docs/wiki/15-run-automatico.md`](docs/wiki/15-run-automatico.md)
+(perché locale e non CI, perché la continuità è critica, come si installa,
+cosa guardare quando qualcosa non torna). Card
+[TAL-66](docs/cards/TAL-66.md) e [TAL-67](docs/cards/TAL-67.md), entrambe in
+Review. TAL-60 spostata da Review a Done (PR #19 mergiata).
+
+### Non fatto / da decidere con Dom
+
+- **Nessuna PR aperta**: commit e push, come da convenzione il merge lo
+  conferma Dom.
+- **`--llm-modello` non è nel run automatico**: la classificazione LLM dei
+  procedimenti resta opt-in manuale.
+- **Amministrazione Trasparente ancora scollegata** dal run (TAL-62, due
+  decisioni aperte) — è la mitigazione strutturale del problema della
+  finestra di pubblicazione, non solo un'estensione di copertura.
+- **Se il Mac è spento, non gira niente.** launchd recupera il run al
+  risveglio, ma un Mac spento due settimane riproduce lo stesso buco.
+- **`anac` è muto da 41 giorni** (0 atti trovati, nessun errore): è il WAF
+  ANAC noto, che richiede `--anac-file`. Nel run automatico continuerà a
+  risultare "muto" finché non si decide se escluderlo dal default o
+  automatizzare il download.
+
+### TAL-68 — due scraper rotti, emersi dal primo report automatico
+
+Non cercati: sono comparsi da soli nel primo `report_run.py` eseguito dopo un
+run vero, che è precisamente il motivo per cui è stato scritto.
+
+- **`caccamo`** era **muto da almeno il 2026-07-14**: 5 run consecutivi con
+  `n_trovati=0`, `n_inseriti=0` e **mai un errore**. Causa: il portale URBI di
+  quel tenant risponde HTTP 200 con *"Attenzione: per procedere occorre
+  selezionare la tipologia"* e tabella vuota — `Tipologia=""` significa
+  "Tutte" per ogni altro tenant URBI (ed è anche l'etichetta della sua prima
+  `<option>`), ma questo la rifiuta. Verificato per confronto a parità di
+  codice: Raffadali 10 atti, Caccamo 0; con `Tipologia=44` Caccamo 7.
+  `urbi.py` ora scopre le tipologie dalla `<select>` e ripete una ricerca per
+  ciascuna — **da 0 a 181 atti**. La condizione di attivazione è il messaggio
+  del portale, non "zero atti": legarla a zero atti farebbe partire 26
+  ricerche inutili ad ogni run su un albo genuinamente vuoto. Nessun fallback
+  per i tenant che già funzionano, verificato dal vivo (Raffadali 20, Favara
+  19).
+- **`sangiuseppejato`**: `CERTIFICATE_VERIFY_FAILED`, catena servita
+  incompleta — stessa causa già nota per Siculiana/Joppolo/Mirabella.
+  `skip_ssl=true` nel registro, verificato: 14 atti.
+
+**Difetto del mio primo fix, trovato dal test e non dal run**: azzerare il
+contatore stop-on-known al confine di tipologia non bastava, perché lo stop
+scattava *prima* di arrivarci e `break` usciva dall'intera scansione — dal
+secondo run in poi lo scraper sarebbe tornato muto, stavolta in modo più
+subdolo perché con atti in DB a dare l'impressione che funzionasse.
+`_run_urbi_comune` ora distingue `break` (tenant normali, una sola scansione)
+da `salta_tipologia` (riprende dalla tipologia successiva). 2 test di
+regressione dedicati.
+
+**Costo a regime misurato prima di lasciarlo nel run notturno** — e non
+andava bene: il fix funzionava ma Caccamo costava **40 minuti** (2500s il
+primo run con 547 atti nuovi, 2412s il secondo con 0 inserimenti: lo
+stop-on-known filtra gli atti ma non ferma la paginazione, perché il
+generatore non conosce lo stato del DB). Un'ipotesi è stata scartata dalla
+misura invece che seguita: pensavo si scaricassero righe di altri enti per
+tenerne poche (la select `EnteMittente` ha 304 voci) e che bastasse filtrare
+server-side — misurato, pagine 2-6 danno 48 righe su 50 già di Caccamo, con e
+senza filtro. Il tempo è archivio vero (la sola tipologia elettorale supera
+le 50 pagine). Rimedio: tetto di 3 pagine per tipologia, disattivato dal
+backfill `--no-stop`, sicuro perché dentro ogni tipologia l'albo elenca dal
+più recente (verificato sui dati). **2412s → 152s.**
+
+**713 test verdi (erano 699), ruff pulito.**
+
+### Audit di copertura del run notturno (2026-08-19, richiesto da Dom)
+
+Domande: *"abbiamo collegato Agrigento? ci sono scraper scollegati e/o non
+verificati?"* e *"hai tenuto traccia degli scraper che non funzionano e dei
+comuni che non tornano righe da qualche giorno?"*
+
+**Copertura**: **263 dei 264 scraper eseguibili** sono nel run notturno
+(Agrigento incluso, via `--extra-scrapers`, sia nel runner sia nel report).
+Zero mai eseguiti, zero che non abbiano mai inserito nulla. L'unico
+eseguibile escluso è `anac` (richiede `--anac-file`).
+
+**Fuori dal run, per stato di registro**:
+- **38 `pending` senza modulo** — comuni censiti in TAL-51, nessuno scraper
+  mai scritto (comuni piccoli);
+- **8 `pending` con piattaforma riconosciuta ma 0 atti estratti**
+  (`acquavivaplatani`, `cianciana`, `floresta`, `monterossoalmo`,
+  `novaradisicilia`, `oliveri`, `sanmichelediganzaria`,
+  `valguarneracaropepe`) — **stessa classe di Caccamo/TAL-68**: piattaforma
+  giusta, estrazione vuota, accantonati a luglio/agosto senza diagnosi;
+- **2 `bloccato`** (Messina, Corleone).
+
+**Fuori dal registro**: Amministrazione Trasparente (TAL-62) resta non
+collegata a `run_scrapers.py` — deliberato, non dimenticato.
+
+**Nota importante sul primo scatto automatico**: alle 00:24 del 19/08
+l'agente risultava `runs = 0`. Non è un guasto — le 03:30 non erano ancora
+arrivate; il trigger è correttamente armato (`watching = 1`, Hour 3 /
+Minute 30). **Il primo run automatico vero non è ancora stato osservato**:
+va verificato.
+
+**Tracciamento — risposta onesta: parziale.** Falliti, muti e fermi sono
+tracciati (storico completo in `scraper_runs`: 1484 run dal 26/06, 67 errori
+conservati) e mostrati dal report. Gli **stagnanti** (righe restituite ma
+nessun atto nuovo da settimane) **non erano tracciati da niente**: trovati
+con una query a mano durante questo audit. Ora sono una card,
+[TAL-69](docs/cards/TAL-69.md): **20 scraper su 263**, di cui 11 fermi da 42
+giorni; i due senza spiegazione benigna sono `rometta` (atto più recente
+**2023-09-27**) e `paceco` (**2025-07-04**), entrambi che continuano a
+restituire 20 righe ad ogni run. Nota metodologica: la prima metrica provata
+(run consecutivi a 0 inserimenti) era falsata dai run manuali ripetuti del
+18/08 — sostituita con i giorni dall'ultimo inserimento.
+
+Debito collegato emerso qui: **`atti.fonte_scraper` contiene il modulo (13
+valori), non lo slug (263)** — per i 5 comuni con scraper gemelli (TAL-52) è
+impossibile capire quale dei due funzioni.
+
+### TAL-70 — bonifica scraper (mai diagnosticati, Corleone, ANAC, stagnanti)
+
+Richiesta di Dom: *"sistema anac con playwright, fai lo scraper nuovo per
+corleone. Sistema anche i mai diagnosticati, stagnanti e muti"*. Dettaglio in
+[TAL-70](docs/cards/TAL-70.md); qui i punti che cambiano il quadro.
+
+- **Muti: nessuno.** La categoria è vuota da TAL-68.
+- **Corleone: +499 atti senza uno scraper nuovo.** Era `bloccato` con la nota
+  "WordPress con CPT `documento_pubblico`": diagnosi errata — l'API REST non
+  espone quel tipo e la pagina albo contiene `DB_NAME`/`StwEvent`/`urbi`. È
+  un **URBI self-hosted**, quindi è bastato configurare `urbi.py`.
+- **hspromila leggeva una sola delle due skin del portale**: i tenant su
+  template legacy (`<tr class="itemstyle">`, 6 colonne invece di 10)
+  rispondevano 200 con la tabella piena e venivano letti come vuoti — stessa
+  lezione di Caccamo. Aggiunto `_parse_legacy` + paginazione `__doPostBack`
+  (con cookie di sessione condiviso, senza il quale WebForms risponde 200 e
+  zero righe). **Floresta 0→40, Cianciana 0→70**, attivati.
+- **6 casi restanti non sono colpa nostra**, e ora il registro lo dice con la
+  causa esatta invece di "0 atti, da verificare": 4 albi realmente vuoti
+  ("non ha prodotto risultati" / "Nessuna pubblicazione estratta") e 2 con
+  **"Errore 5052"** lato server.
+- **ANAC — risolto, ma non con Playwright, e dopo una mia conclusione
+  sbagliata.** Primo giro: avevo concluso che il CSV fosse stato dismesso e
+  restasse solo RDF Turtle da 1,8 GB per file. **Falso**, e l'ha fatto emergere
+  una domanda di Dom (*"su quale URL sei andato?"*): ero andato solo sull'URL
+  configurato nel codice — un **manifest** — e da quell'inventario avevo
+  dedotto quali risorse esistessero, invece di provare l'URL dei CSV per
+  analogia col nome dei TTL. I CSV ci sono: `smartcig_csv_{anno}_{mese}.zip`,
+  **~40 MB zippati a mese**, e anche per il **2025**, che il codice dava per
+  non pubblicato.
+  Resta vero il resto della diagnosi: l'URL configurato non è il dataset ma un
+  indice di 1288 byte — **è questa la ragione per cui ANAC era muto**, non il
+  WAF — e Playwright non serve (le pagine del portale sono respinte anche con
+  Chromium reale, i file di dati non sono mai stati bloccati).
+  Altri due bug emersi solo caricando i dati veri, che avrebbero lasciato ANAC
+  a zero anche con l'URL giusto: le colonne del tracciato sono
+  `*_appaltante`/`oggetto_lotto`/`importo_lotto` (aggiunti gli alias), e il
+  filtro `sezione_regionale == "Sicilia"` non matcha mai — quel campo vale
+  `"SEZIONE REGIONALE SICILIA"` e per alcuni enti siciliani perfino
+  `"SEZIONE REGIONALE CENTRALE"` (Casa di reclusione di San Cataldo): **si
+  perdevano righe in silenzio**, ora si filtra su `regione`. Aggiunto anche
+  l'aggancio dell'ente via `istat_comune` (esatto) invece del solo LIKE sul
+  nome. **Un quarto bug, trovato solo guardando i totali**: caricata l'annata 2025
+  (176.827 atti), la somma degli importi dava **98 mila miliardi di euro**.
+  `_parse_importo` era scritto per il formato italiano (`4.500,00`) e trattava
+  il punto come separatore di migliaia, mentre il tracciato mensile usa il
+  punto come **decimale** (`1550.0`, 100% delle righe): ogni importo
+  moltiplicato per **10^(numero di decimali)** — `"1046.2459"` diventava
+  10.462.459, ×10.000. Non è estetica — `frazionamento` e
+  `concentrazione_diretti` confrontano gli importi con soglie di legge, quindi
+  avrebbero prodotto red flag falsi su larga scala. Corretto distinguendo i
+  due formati sulla virgola (3 test di regressione); **le righe già inserite
+  sono state cancellate e ricaricate** invece di tentare di invertire la
+  corruzione.
+  **Verificato: 12.400 atti da un mese in 21s, 176.827 su 470 enti per
+  l'annata intera in 316s**, con gli importi ricontrollati riga per riga
+  contro il CSV sorgente su un campione casuale (10/10) e aggregati
+  plausibili (media 1.449 €, massimo 184.987 €). `anac` resta fuori dal run notturno (dataset
+  mensile), con il nuovo `--anac-anno`.
+- **Stagnanti: non è codice.** Gli albi sono fermi davvero (`rometta`
+  2023-09-27, `paceco` 2025-07-04, `mascalucia` 2026-06-03, contro `acate`
+  sano al 2026-08-03), i siti istituzionali linkano proprio l'albo che
+  leggiamo e non espongono risorse alternative. **Indagine sospesa**: aprendo
+  la pagina di Mascalucia con un browser è scattato un WAF (`MDAWAF001`) su
+  questo IP — coerentemente con la linea del progetto ho smesso di
+  interrogare quell'host, da riprendere a freddo.
+
+**721 test verdi (erano 714).**
+
+### Problemi misurati e segnalati a Dom (non affrontati in questa sessione)
+
+Numeri presi su `talia.db` reale il 2026-08-18, prima del run di recupero:
+
+1. **`testo_estratto` è 0 su 133.726 atti.** Ogni red flag, ogni catena e
+   ogni estrazione CIG lavorano sul solo `oggetto` (in media 205 caratteri,
+   88 atti sotto i 10). È il tetto strutturale su tutta la qualità del
+   Modulo 2 — ed è la stessa decisione già aperta in TAL-62 (#2, persistenza
+   del testo).
+2. **32% dei link è già morto** (41.700 atti su 130.358 con `data_scadenza`
+   già passata). Contro il principio n°1 del progetto ("nessun indicatore
+   senza link alla fonte"). La risposta strutturale è Amministrazione
+   Trasparente (TAL-62), bloccata su due decisioni che ora hanno numeri veri
+   dal notebook TAL-64 — non servono altre misurazioni, serve decidere.
+3. **`enti` ha "Comune di Messina" due volte** (`083053` e `083048`, entrambi
+   `bloccato`, 0 atti): riga di registro obsoleta già notata in TAL-61, mai
+   rimossa. Impatto basso ma gonfia i conteggi e compare doppia nei menù.
+4. **I backup stanno sullo stesso disco** del DB: `run_daily.sh` protegge da
+   una corruzione o da un backfill sbagliato, non da un guasto del Mac. Il DB
+   (154 MB, non versionato) è l'unico asset non riproducibile del progetto —
+   gli atti scaduti dall'albo non si riscaricano.
+5. **32% dei procedimenti ha `stato_finale='sconosciuto'`** (11.602 su
+   35.772) — probabilmente per lo stesso motivo del punto 1.
+
+---
 > **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun
 > commit ancora, in attesa di conferma"):** verificando lo stato reale del repo
 > a inizio sessione è emerso che TAL-59 era in realtà già stato completato,

@@ -7,6 +7,8 @@ funzionino correttamente su un database in memoria.
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -431,3 +433,77 @@ def test_mostra_report_fascicolo_espone_descrivi_citazione():
     citati = [c for e in report.esiti for c in e.citazioni]
     assert citati, "il fascicolo critico deve produrre almeno una citazione"
     assert descrivi_citazione(citati[0]).startswith("«")
+
+
+# ---------------------------------------------------------------------------
+# Tab 📅 Aggregati (TAL-67)
+# ---------------------------------------------------------------------------
+
+
+def test_tabella_serie_calcola_la_variazione():
+    from talia.modulo3_dashboard.aggregati import PuntoSerie
+    from talia.modulo3_dashboard.app import _tabella_serie
+
+    serie = [
+        PuntoSerie(periodo="2026-01", inizio="2026-01-01", n_atti=100, n_enti=3),
+        PuntoSerie(periodo="2026-02", inizio="2026-02-01", n_atti=150, n_enti=4),
+    ]
+    tabella = _tabella_serie(serie)
+    # Ordine invertito: il periodo più recente in cima.
+    assert [r["Periodo"] for r in tabella] == ["2026-02", "2026-01"]
+    assert tabella[0]["Var. su periodo prec."] == "+50%"
+    assert tabella[1]["Var. su periodo prec."] == "—"
+
+
+def test_tabella_serie_periodo_precedente_a_zero():
+    """Nessuna divisione per zero se il periodo precedente non ha atti."""
+    from talia.modulo3_dashboard.aggregati import PuntoSerie
+    from talia.modulo3_dashboard.app import _tabella_serie
+
+    serie = [
+        PuntoSerie(periodo="2026-01", inizio="2026-01-01", n_atti=0, n_enti=0),
+        PuntoSerie(periodo="2026-02", inizio="2026-02-01", n_atti=5, n_enti=1),
+    ]
+    assert _tabella_serie(serie)[0]["Var. su periodo prec."] == "—"
+
+
+def test_tabella_territorio():
+    from talia.modulo3_dashboard.aggregati import RigaTerritorio
+    from talia.modulo3_dashboard.app import _tabella_territorio
+
+    righe = _tabella_territorio(
+        [RigaTerritorio(nome="AG", n_atti=10, n_enti=2, primo="2026-01-01", ultimo=None)]
+    )
+    assert righe == [
+        {"Territorio": "AG", "Atti": 10, "Comuni": 2, "Dal": "2026-01-01", "Al": "?"}
+    ]
+
+
+def test_app_si_avvia_con_la_tab_aggregati(tmp_path, conn_popolato):
+    """Regressione TAL-60: gli import vanno verificati in modalità `streamlit run`.
+
+    `AppTest.from_file` esegue lo script come lo esegue Streamlit — è l'unico
+    modo per accorgersi di un import rotto in quella modalità (i test pytest
+    importano il pacchetto e non lo intercetterebbero).
+    """
+    from streamlit.testing.v1 import AppTest
+
+    db = tmp_path / "test_dashboard.db"
+    dest = sqlite3.connect(db)
+    conn_popolato.backup(dest)
+    dest.close()
+
+    app_path = Path(__file__).resolve().parents[1] / "src/talia/modulo3_dashboard/app.py"
+    at = AppTest.from_file(str(app_path), default_timeout=120)
+    vecchio = os.environ.get("TALIA_DB")
+    os.environ["TALIA_DB"] = str(db)
+    try:
+        at.run()
+    finally:
+        if vecchio is None:
+            os.environ.pop("TALIA_DB", None)
+        else:
+            os.environ["TALIA_DB"] = vecchio
+
+    assert not at.exception, [e.value for e in at.exception]
+    assert "📅 Aggregati" in {t.label for t in at.tabs}

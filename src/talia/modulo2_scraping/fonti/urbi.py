@@ -57,6 +57,26 @@ _FORM_RICERCA = {
     "OggettoType": "%like%",
 }
 
+# Alcuni tenant (es. Caccamo) rifiutano la ricerca con "Tipologia" vuota, che
+# per tutti gli altri significa "Tutte". Il portale risponde 200 con un avviso
+# e zero righe: senza riconoscerlo, lo scraper resta muto per sempre (Caccamo:
+# 0 atti in 5 run consecutivi, dal 2026-07-14, senza mai un errore — TAL-68).
+_RE_TIPOLOGIA_OBBLIGATORIA = re.compile(r"occorre selezionare la tipologia", re.I)
+_RE_SELECT_TIPOLOGIA = re.compile(
+    r'<select[^>]*name="Tipologia"[^>]*>(.*?)</select>', re.DOTALL | re.IGNORECASE
+)
+_RE_OPTION_VALUE = re.compile(r'<option[^>]*value="([^"]*)"')
+
+# Tetto di pagine per singola tipologia sui tenant che ne pretendono una
+# esplicita. Serve perché lì la ricerca attraversa l'**archivio**, non solo gli
+# atti in pubblicazione: su Caccamo la sola tipologia "ALBO/ELENCO ELETTORALE"
+# supera le 50 pagine (≥499 atti), e 26 tipologie a 50 pagine sono ~40 minuti
+# per un solo comune dentro un run notturno che ne ha 260 (misurato).
+# È sicuro perché dentro ogni tipologia l'albo elenca dal più recente
+# (verificato sui dati: 2021-08-12, 2020-08-20, 2020-08-10, …): il tetto
+# taglia la coda storica, mai le novità. Il backfill lo disattiva con `None`.
+MAX_PAGINE_PER_TIPOLOGIA = 3
+
 _RE_ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.DOTALL)
 _RE_ID = re.compile(r"IdMePubblica=(\d+)")
 _RE_ENTE = re.compile(r"Ente Mittente\s*<strong>([^<]*)</strong>")
@@ -156,6 +176,19 @@ def _post(opener: urllib.request.OpenerDirector, url: str, dati: dict[str, str])
         return r.read().decode("utf-8", errors="replace")
 
 
+def estrai_tipologie(html_form: str) -> list[str]:
+    """Valori non vuoti della select "Tipologia" nella pagina di ricerca.
+
+    Il valore vuoto (`Tutte`) è escluso di proposito: è esattamente quello che
+    i tenant "esigenti" rifiutano, ed è la ricerca già tentata prima di
+    arrivare qui.
+    """
+    select = _RE_SELECT_TIPOLOGIA.search(html_form)
+    if not select:
+        return []
+    return [v for v in _RE_OPTION_VALUE.findall(select.group(1)) if v.strip()]
+
+
 # ---------------------------------------------------------------------------
 # API pubblica
 # ---------------------------------------------------------------------------
@@ -168,6 +201,7 @@ def scarica_atti(
     ente_mittente: str,
     *,
     max_pagine: int = 100,
+    max_pagine_per_tipologia: int | None = MAX_PAGINE_PER_TIPOLOGIA,
 ) -> Iterator[AttoMetadato]:
     """Scarica gli atti in pubblicazione da un albo pretorio URBI (Cloud o self-hosted).
 
@@ -178,6 +212,9 @@ def scarica_atti(
         ente_mittente: nome esatto dell'ente da tenere (es. "COMUNE DI FAVARA"),
                        per scartare atti di altri enti ospitati sullo stesso albo.
         max_pagine:   numero massimo di pagine da scaricare.
+        max_pagine_per_tipologia: tetto di pagine per ciascuna tipologia, usato
+                      solo sui tenant che pretendono una `Tipologia` esplicita
+                      (vedi sotto). `None` lo disattiva, per il backfill.
 
     Si ferma alla prima pagina senza righe o quando una pagina ripete gli
     stessi id della precedente (il portale ripropone l'ultima pagina se
@@ -188,35 +225,80 @@ def scarica_atti(
 
     req = urllib.request.Request(f"{base_url}?{qs_base}", headers=_HEADERS)
     with opener.open(req, timeout=30) as r:
-        r.read()
+        html_form = r.read().decode("utf-8", errors="replace")
 
     totale = 0
     scartati = 0
-    ids_precedenti: set[str] = set()
-    for pagina in range(1, max_pagine + 1):
-        if pagina == 1:
-            html = _post(opener, f"{base_url}?{qs_base}&StwEvent=910001", _FORM_RICERCA)
-        else:
-            html = _post(
-                opener,
-                f"{base_url}?{qs_base}&StwEvent=9100030",
-                {
-                    "Stepper_StepAttivo": "2",
-                    "ElencoPubblicazioni_DimensionePagina": "10",
-                    "ElencoPubblicazioni_PaginaCorrente": str(pagina),
-                },
+    visti: set[str] = set()
+    tipologia_richiesta = False
+
+    def _ricerca(form: dict[str, str], tetto_pagine: int) -> Iterator[AttoMetadato]:
+        """Una ricerca completa (POST 910001 + paginazione), con i suoi contatori."""
+        nonlocal totale, scartati, tipologia_richiesta
+        ids_precedenti: set[str] = set()
+        for pagina in range(1, tetto_pagine + 1):
+            if pagina == 1:
+                html = _post(opener, f"{base_url}?{qs_base}&StwEvent=910001", form)
+                if _RE_TIPOLOGIA_OBBLIGATORIA.search(html):
+                    tipologia_richiesta = True
+                    return
+            else:
+                html = _post(
+                    opener,
+                    f"{base_url}?{qs_base}&StwEvent=9100030",
+                    {
+                        "Stepper_StepAttivo": "2",
+                        "ElencoPubblicazioni_DimensionePagina": "10",
+                        "ElencoPubblicazioni_PaginaCorrente": str(pagina),
+                    },
+                )
+            ids_pagina = set(_RE_ID.findall(html))
+            if ids_pagina and ids_pagina == ids_precedenti:
+                break  # oltre l'ultima pagina il portale ripete l'ultima
+            ids_precedenti = ids_pagina
+            atti, righe = _parse_pagina(html, base_url, qs_base, codice_istat, ente_mittente)
+            if righe == 0:
+                break
+            scartati += righe - len(atti)
+            # Le tipologie partizionano l'albo, ma un id ripetuto tra due
+            # ricerche produrrebbe comunque un duplicato: si filtra qui.
+            nuovi = [a for a in atti if a.url_fonte not in visti]
+            visti.update(a.url_fonte for a in nuovi)
+            totale += len(nuovi)
+            yield from nuovi
+            time.sleep(_PAUSA_SECONDI)
+
+    yield from _ricerca(_FORM_RICERCA, max_pagine)
+
+    if tipologia_richiesta:
+        # Il tenant pretende una tipologia esplicita: si riprova una ricerca
+        # per ciascuna, invece di arrendersi in silenzio. La condizione è il
+        # messaggio del portale, non "zero atti": un albo genuinamente vuoto
+        # non deve far partire 26 ricerche inutili ad ogni run.
+        tipologie = estrai_tipologie(html_form)
+        if tipologie:
+            tetto = (
+                max_pagine
+                if max_pagine_per_tipologia is None
+                else min(max_pagine, max_pagine_per_tipologia)
             )
-        ids_pagina = set(_RE_ID.findall(html))
-        if ids_pagina and ids_pagina == ids_precedenti:
-            break  # oltre l'ultima pagina il portale ripete l'ultima
-        ids_precedenti = ids_pagina
-        atti, righe = _parse_pagina(html, base_url, qs_base, codice_istat, ente_mittente)
-        if righe == 0:
-            break
-        scartati += righe - len(atti)
-        totale += len(atti)
-        yield from atti
-        time.sleep(_PAUSA_SECONDI)
+            logger.info(
+                "urbi %s: ricerca senza tipologia rifiutata — riprovo su %d tipologie"
+                " (max %d pagine ciascuna)",
+                base_url,
+                len(tipologie),
+                tetto,
+            )
+            for t in tipologie:
+                for atto in _ricerca({**_FORM_RICERCA, "Tipologia": t}, tetto):
+                    # Marca la tipologia di provenienza: il runner usa questo
+                    # confine per azzerare il contatore dello stop-on-known.
+                    # Senza, la prima tipologia tutta già nota interromperebbe
+                    # la scansione e le tipologie successive non verrebbero
+                    # mai raggiunte — lo scraper tornerebbe muto dal secondo
+                    # run in poi, in modo ancora più subdolo di prima.
+                    atto.metadati = {**atto.metadati, "tipologia_ricerca": t}
+                    yield atto
 
     if scartati:
         logger.info("urbi %s: scartati %d atti di altri enti mittenti", base_url, scartati)
