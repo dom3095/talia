@@ -61,6 +61,7 @@ Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 20
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
+| [TAL-74](TAL-74.md) | PortalePA/SoluzioniPA: 24 comuni bloccati dal filtro sull'User-Agent | 🕷️ SCR | P0; branch `fix/TAL-74-portalepa-user-agent` (da `main`); 403 dal 2026-09-15 su ogni UA con "bot", non per IP; UA `Mozilla/5.0 (compatible; TALIA/0.1; +URL)` (identificabile), **24/24 verificati dal vivo**; misura temporanea, **resta da inviare la richiesta al fornitore** (bozza nella card) |
 | [TAL-60](TAL-60.md) | UI Streamlit per Modulo 1 (tab "Analisi fascicolo") | 📊 FE | branch `feat/TAL-60-streamlit-modulo1`; catena di box "allega file + descrizione" (un documento alla volta, il successivo compare dopo l'upload) invece di un multi-upload; la descrizione concorre alla classificazione del ruolo (`classifica_ruolo`) e compare nel report, non è solo estetica; nessuna persistenza dei file; bug reale trovato solo con `AppTest.from_file` (import relativi rotti in modalità `streamlit run`) e corretto; drive-by: rimossa doppia esecuzione di tab Statistiche/Mappa in `main()`; 628 test verdi (erano 614) |
 | [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
 

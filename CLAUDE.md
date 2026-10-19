@@ -110,6 +110,7 @@ Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 ### Fragilità comuni
 
 - **Fallimento silenzioso a 0 atti**: quasi nessuno scraper logga WARNING esplicito se il parsing ritorna zero righe (Trapani ✅ fatto). Sempre aggiungere un log quando `len(atti) == 0`.
+- **Filtro WAF sull'User-Agent** (TAL-74, 2026-10-19, P0): dal 2026-09-15 i portali PortalePA/SoluzioniPA rispondono **403 a ogni UA che contiene "bot"** (`TALIA-bot/0.1`), non per IP: 24 comuni muti per un mese senza che il WARNING a 0 atti lo dicesse. Misura temporanea: `portalepa.USER_AGENT` = `Mozilla/5.0 (compatible; TALIA/0.1; +URL)` (identificabile, senza "bot"); richiesta di autorizzazione al fornitore in [TAL-74](docs/cards/TAL-74.md). Se l'UA o il run di un'intera piattaforma comincia a fallire, confrontare prima i client con `curl -A` sullo stesso URL. **Se il fornitore chiede di fermarsi, si ferma.**
 - **Nessun retry su HTTPError**: `jcitygov.py` gestisce solo `TimeoutError`; errori 4xx/5xx propagano senza retry.
 - **Regex fragili sull'HTML**: `_RE_PANEL` (Trapani) e `_RE_NEXT` (jCityGov) falliscono silenziosamente a struttura cambiata.
 - **Filtri data server-side controintuitivi**: e-pal.it esclude gli atti la cui pubblicazione termina dopo `dataPubblicazioneAl` — con `al=oggi` si perdono i più recenti (era BUG-4). Non fidarsi dei default "dal/al=oggi".

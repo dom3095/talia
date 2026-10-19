@@ -1,5 +1,30 @@
 # HANDOFF.md — Stato sessione
 
+## 2026-10-19 — TAL-74: 24 comuni PortalePA bloccati dall'User-Agent
+
+> Branch `fix/TAL-74-portalepa-user-agent`, **da `main`**, indipendente dalla
+> catena di PR #20-#23. ⚠️ Questo file su `main` è fermo al 18/08: mergiando la
+> #20 (che riscrive l'intestazione) ci sarà un conflitto banale solo qui e in
+> `BOARD.md`; il codice non confligge.
+
+Trovato dall'audit di `scraper_runs`: **24 scraper falliscono con 403 tutti i
+giorni dal 2026-09-15** (ultimo successo 14/09), tutti PortalePA/SoluzioniPA.
+Causa misurata: il filtro è sull'**User-Agent** (`TALIA-bot/0.1` → 403; UA senza
+"bot" → 200 sullo stesso URL), non sull'IP. Decisione di Dom: **opzione 4** —
+UA diverso come misura temporanea dichiarata + richiesta al fornitore.
+
+- `portalepa.USER_AGENT` = `Mozilla/5.0 (compatible; TALIA/0.1; +https://github.com/dom3095/talia)`,
+  usato anche da `siracusa.py`; le altre piattaforme restano `TALIA-bot` (non bloccate).
+- **Verificato dal vivo: 24/24** (1 pagina ciascuno, DB isolato). Test: 3 nuovi.
+- **Da fare (Dom):** inviare la richiesta al fornitore (bozza in
+  [TAL-74](docs/cards/TAL-74.md), da completare con nome ed email). Se chiede di
+  fermarsi, si ferma.
+- **Dopo il primo run notturno con la modifica:** controllare in `scraper_runs`
+  che i 24 non falliscano più. Il buco 15/09→oggi si recupera solo per gli atti
+  ancora in pubblicazione (15-30 giorni).
+
+---
+
 > Aggiornato: 2026-08-18 (branch `feat/TAL-60-streamlit-modulo1`, da `main`).
 >
 > **Correzione rispetto alla voce precedente (che descriveva TAL-59 come "nessun

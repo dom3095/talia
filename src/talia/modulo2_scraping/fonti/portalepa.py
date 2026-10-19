@@ -31,7 +31,15 @@ from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, 
 FONTE_SCRAPER = "portalepa"
 _ALBO_PATH = "/openweb/albo/albo_pretorio.php"
 
-_HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"}
+#: Dal 2026-09-15 i portali PortalePA/SoluzioniPA rispondono 403 a qualunque
+#: richiesta il cui User-Agent contenga "bot" (24 comuni, TAL-74): `curl -A
+#: "TALIA-bot/0.1 (...)"` → 403, lo stesso URL con un UA senza "bot" → 200, quindi
+#: il filtro è sull'UA, non sull'IP. Si usa il formato dei crawler dichiarati
+#: (`Mozilla/5.0 (compatible; <nome>/<versione>; +<url>)`): resta
+#: identificabile, con il riferimento al progetto. Misura temporanea in attesa di
+#: un'autorizzazione esplicita dal fornitore — vedi docs/cards/TAL-74.md.
+USER_AGENT = "Mozilla/5.0 (compatible; TALIA/0.1; +https://github.com/dom3095/talia)"
+_HEADERS = {"User-Agent": USER_AGENT}
 
 _RE_ROW = re.compile(r'<tr class="paginated_element">(.*?)</tr>', re.DOTALL)
 _RE_CELL = re.compile(r"<td[^>]*>(.*?)</td>", re.DOTALL)
