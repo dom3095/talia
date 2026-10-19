@@ -36,7 +36,12 @@ def test_errori_di_rete_sono_transitori(errore):
     assert e_transitorio(errore)
 
 
-@pytest.mark.parametrize("errore", [_CERT, _403, None, ""])
+_HANDSHAKE_FAILURE = (
+    "ssl.SSLError: [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] sslv3 alert handshake failure"
+)
+
+
+@pytest.mark.parametrize("errore", [_CERT, _403, _HANDSHAKE_FAILURE, None, ""])
 def test_errori_strutturali_non_si_ritentano(errore):
     assert not e_transitorio(errore)
 
