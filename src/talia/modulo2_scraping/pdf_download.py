@@ -169,7 +169,7 @@ def _url_display_format(url_fonte: str) -> str:
     return url_fonte
 
 
-def trova_allegati(url_fonte: str, opener=None) -> list[Allegato]:
+def trova_allegati(url_fonte: str, opener=None, *, solleva_errori: bool = False) -> list[Allegato]:
     """Estrae allegati dalla pagina di dettaglio di un atto jCityGov.
 
     Args:
@@ -194,6 +194,10 @@ def trova_allegati(url_fonte: str, opener=None) -> list[Allegato]:
     try:
         html = _fetch(opener, url_fonte)
     except urllib.error.URLError as e:
+        # `solleva_errori`: per chi deve distinguere "pagina irraggiungibile"
+        # (riprovare) da "pagina senza allegati" (definitivo) — TAL-77.
+        if solleva_errori:
+            raise
         _logger.warning(f"Errore fetch url_fonte {url_fonte}: {e}")
         return []
 

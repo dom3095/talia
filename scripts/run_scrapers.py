@@ -201,6 +201,34 @@ def ripassa_transitori(
     return esiti
 
 
+#: Tetto della fase di estrazione testo (TAL-77): ~2,5s per atto misurati,
+#: 400 atti ≈ 17 minuti; il tetto evita che un host lento la trascini per ore.
+TETTO_TESTO_S = 1800
+
+
+def esegui_testo_atti(conn, limite: int) -> None:
+    """Estrae il testo degli atti nuovi (TAL-77). Non fa mai fallire il run.
+
+    È un arricchimento: se manca `pdfplumber` o il portale non risponde, gli
+    atti restano con ``testo_estratto IS NULL`` e si riprovano la notte dopo,
+    finché sono nella finestra di :data:`testo_atti.GIORNI_DEFAULT` giorni.
+    """
+    from talia.modulo2_scraping.testo_atti import estrai_testo_atti
+
+    print(f"\n── TESTO ATTI (max {limite}) ──")
+    try:
+        with tetto_tempo(TETTO_TESTO_S if tetto_supportato() else None):
+            print(f"  {estrai_testo_atti(conn, limite=limite)}")
+    except TettoTempoSuperato:
+        # Come in `esegui_scraper`: si annulla solo l'atto a metà, gli altri
+        # sono già committati uno per uno.
+        if conn.in_transaction:
+            conn.rollback()
+        print(f"  interrotto dopo {TETTO_TESTO_S}s: gli atti già elaborati restano salvati")
+    except Exception:
+        print(traceback.format_exc(), file=sys.stderr)
+
+
 def _date_range(atti) -> tuple[str | None, str | None]:
     dates = [a.data_pub or a.data_atto for a in atti if a.data_pub or a.data_atto]
     return (min(dates) if dates else None, max(dates) if dates else None)
@@ -973,6 +1001,18 @@ Esempi:
         ),
     )
     p.add_argument(
+        "--testo-atti",
+        type=int,
+        default=0,
+        dest="testo_atti",
+        metavar="N",
+        help=(
+            "Dopo lo scraping, scarica il PDF ed estrae il testo di al massimo N atti"
+            " jCityGov recenti (determine, delibere, bandi…), salvando solo il testo."
+            " Default: 0 (disattivato); il run notturno usa 400 (TAL-77)."
+        ),
+    )
+    p.add_argument(
         "--llm-modello",
         default=None,
         dest="llm_modello",
@@ -1054,6 +1094,9 @@ def main() -> int:
                 risultati[nome] = f"INTERROTTO al ripasso (+{esito['inseriti']} ins)"
                 del falliti[nome]
     errori += len(falliti)
+
+    if args.testo_atti > 0:
+        esegui_testo_atti(conn, args.testo_atti)
 
     if not args.no_red_flags:
         print("\n── RED FLAGS ──")
