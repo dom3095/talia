@@ -115,6 +115,7 @@ notifica() {
     echo
 
     # --- Backup del DB ------------------------------------------------------
+    BACKUP_OK=0
     if [ -f "$DB_PATH" ]; then
         BACKUP_FILE="$BACKUP_DIR/talia.db.$(date +%Y%m%d)"
         # `.backup` di sqlite3 è consistente anche con il DB aperto in WAL,
@@ -134,14 +135,17 @@ notifica() {
                     rm -f "$BACKUP_FILE-shm" "$BACKUP_FILE-wal"
                 fi
                 echo "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+                BACKUP_OK=1
             fi
         else
-            cp "$DB_PATH" "$BACKUP_FILE" && echo "Backup (cp): $BACKUP_FILE"
+            cp "$DB_PATH" "$BACKUP_FILE" && echo "Backup (cp): $BACKUP_FILE" && BACKUP_OK=1
         fi
     fi
 
     # --- Copia fuori dal disco, una volta a settimana -----------------------
-    if [ -n "$OFFSITE_DIR" ] && [ -f "${BACKUP_FILE:-}" ]; then
+    # Solo da un backup locale riuscito: un `.backup` fallito a metà lascia un
+    # file parziale che `zstd -t` non riconoscerebbe come guasto.
+    if [ -n "$OFFSITE_DIR" ] && [ "$BACKUP_OK" = 1 ]; then
         ULTIMA="$(ls -1t "$OFFSITE_DIR"/talia.db.*.zst 2>/dev/null | head -1)"
         if [ -z "$ULTIMA" ] || [ -n "$(find "$ULTIMA" -mtime +6 2>/dev/null)" ]; then
             if ! command -v zstd >/dev/null 2>&1; then
