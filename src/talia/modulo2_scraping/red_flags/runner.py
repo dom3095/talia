@@ -213,9 +213,11 @@ def esegui_tutti(
     # Senza la cancellazione, `INSERT OR REPLACE` sulla chiave per periodo non
     # toglie mai un flag che la regola non produce più — dopo l'esclusione di
     # SmartCIG i 12.892 flag ANAC sarebbero rimasti in DB per sempre.
+    # Si calcola prima e si cancella dopo: se il calcolo fallisce, restano i
+    # flag della notte precedente invece di nessuno.
+    frazi = rileva_frazionamento(conn)
     conn.execute("DELETE FROM red_flags WHERE tipo_flag = 'frazionamento'")
     conn.commit()
-    frazi = rileva_frazionamento(conn)
     n_frazi_salvati = sum(1 for rf in frazi if _salva_frazionamento(conn, rf) > 0)
 
     # --- Regole disattivate: via i flag rimasti dai run precedenti ---
