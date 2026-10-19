@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** ⚙️ OPS
 - **Priorità:** P0 (perdita di dati in corso)
-- **Stato:** Review
+- **Stato:** Done — PR #20 mergiata
 - **Branch:** `feat/TAL-66-run-giornaliero-aggregati`
 
 ## 🎯 Obiettivo

@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** ⚙️ OPS + 🕷️ SCR
 - **Priorità:** P0
-- **Stato:** Review (codice + test; manca la misura sul run reale)
+- **Stato:** Done — PR #21 mergiata — misura della durata sul primo run notturno con il tetto ancora da fare
 - **Branch:** `feat/TAL-72-tetto-tempo-scraper`
 
 ## 🎯 Obiettivo

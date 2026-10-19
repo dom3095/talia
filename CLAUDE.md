@@ -51,7 +51,7 @@ talia/
 ├── HANDOFF.md               # stato corrente: branch, DB, prossimi passi (aggiornato a ogni sessione)
 ├── docs/
 │   ├── handoff/
-│   │   └── epica_E2.md      # architettura e debiti tecnici dell'Epica E2 (documento stabile)
+│   │   └── archivio_sessioni_2026.md  # storico di HANDOFF.md fino al 2026-10-19
 │   ├── wiki/                # wiki di progetto
 │   └── cards/               # board: backlog + card di sviluppo (BOARD.md + TAL-*.md)
 ├── src/talia/
@@ -190,7 +190,7 @@ Una card è "Done" quando:
 ### All'inizio di ogni sessione
 
 1. Leggi **`HANDOFF.md`** (root del repo) — stato del branch, DB, prossimi passi concordati.
-2. Se stai lavorando sull'architettura E2, leggi anche **`docs/handoff/epica_E2.md`**.
+2. Per sapere quando fermarsi: **`docs/wiki/16-definizione-mvp.md`** (criteri dell'MVP). Il perché delle scelte passate è in `docs/handoff/archivio_sessioni_2026.md`.
 3. Per la visione d'insieme: `talia.md` e `docs/wiki/`.
 
 ### Loop di esecuzione (per ogni card)

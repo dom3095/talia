@@ -3,7 +3,7 @@
 - **Epica:** E3 — Dashboard
 - **Ruolo:** 📊 FE
 - **Priorità:** P1
-- **Stato:** Review
+- **Stato:** Done — PR #20 mergiata
 - **Branch:** `feat/TAL-66-run-giornaliero-aggregati`
 
 ## 🎯 Obiettivo

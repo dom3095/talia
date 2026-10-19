@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P0
-- **Stato:** Review
+- **Stato:** Done — PR #20 mergiata
 - **Branch:** `feat/TAL-66-run-giornaliero-aggregati`
 
 ## 🎯 Problema

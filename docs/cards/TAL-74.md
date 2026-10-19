@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P0 (ogni giorno senza run è copertura persa: gli albi espongono gli atti 15-30 giorni)
-- **Stato:** Review — fix applicato e verificato dal vivo
+- **Stato:** Done — PR #24 mergiata — da verificare sul primo run notturno che i 24 non diano più 403
 - **Branch:** `fix/TAL-74-portalepa-user-agent` (da `main`, indipendente dalla catena #20-#23)
 
 ## 🎯 Obiettivo
