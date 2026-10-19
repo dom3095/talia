@@ -89,6 +89,28 @@ Esecuzione manuale, identica a quella schedulata:
 launchctl kickstart -k gui/$(id -u)/com.talia.scrapers   # via launchd
 ```
 
+## Backup fuori dal disco (TAL-78)
+
+`backups/` (7 copie giornaliere) sta sullo stesso disco del DB: protegge da
+un DB corrotto o da un backfill sbagliato, non da un guasto del Mac. Una volta
+a settimana `run_daily.sh` scrive anche una copia **compressa con zstd** in
+iCloud Drive (`~/Library/Mobile Documents/com~apple~CloudDocs/TALIA-backup/`),
+tenendone 4. Il DB da 1,1 GB diventa ~60 MB in ~5 s.
+
+- Altra destinazione: `TALIA_BACKUP_OFFSITE_DIR=/Volumes/Disco/talia`;
+  disattivare: `TALIA_BACKUP_OFFSITE_DIR=""`.
+- Il file è scritto come `.tmp`, verificato (`zstd -t`) e solo dopo rinominato:
+  iCloud sincronizza quello che trova, anche un file a metà.
+- Il DB contiene testo di atti pubblici con nomi (TAL-77): la copia resta
+  nell'account iCloud personale di chi fa girare il run, non va condivisa.
+
+Ripristino:
+
+```bash
+zstd -d ~/Library/Mobile\ Documents/com~apple~CloudDocs/TALIA-backup/talia.db.AAAAMMGG.zst -o talia.db
+sqlite3 talia.db "PRAGMA integrity_check; SELECT COUNT(*) FROM atti;"
+```
+
 ## Il tetto di tempo per scraper
 
 Il run è sequenziale, quindi la sua durata è la somma delle durate degli

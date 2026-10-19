@@ -7,7 +7,8 @@
 #   1. lock:      un run completo dura ~4-5h su 260 scraper — due run
 #                 sovrapposti si contenderebbero lo stesso SQLite.
 #   2. caffeinate: impedisce al Mac di addormentarsi a metà run.
-#   3. backup:    copia del DB prima di scrivere (il DB non è in git).
+#   3. backup:    copia del DB prima di scrivere (il DB non è in git), e una
+#                 volta a settimana una copia compressa fuori dal disco (iCloud).
 #   4. report:    riepilogo dei fallimenti + notifica macOS se qualcosa è rotto,
 #                 altrimenti un run fallito passa inosservato per giorni.
 #
@@ -49,6 +50,20 @@ EXTRA_SCRAPERS="${TALIA_EXTRA_SCRAPERS-agrigento pachino barrafranca}"
 # si riempie in fretta).
 MAX_LOG=30
 MAX_BACKUP=7
+
+# Copia settimanale compressa FUORI dal disco del Mac (TAL-78): i backup in
+# `backups/` proteggono da un DB corrotto o da un backfill sbagliato, non da un
+# guasto del disco — e il DB è l'unico asset non riproducibile (gli atti scaduti
+# dall'albo non si riscaricano). Default: iCloud Drive, se c'è. Compresso con
+# zstd il DB da 1,1 GB pesa ~60 MB. TALIA_BACKUP_OFFSITE_DIR="" disattiva.
+ICLOUD_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+if [ -d "$ICLOUD_DIR" ]; then
+    OFFSITE_DEFAULT="$ICLOUD_DIR/TALIA-backup"
+else
+    OFFSITE_DEFAULT=""
+fi
+OFFSITE_DIR="${TALIA_BACKUP_OFFSITE_DIR-$OFFSITE_DEFAULT}"
+MAX_OFFSITE=4
 
 mkdir -p "$LOG_DIR" "$BACKUP_DIR"
 
@@ -100,6 +115,7 @@ notifica() {
     echo
 
     # --- Backup del DB ------------------------------------------------------
+    BACKUP_OK=0
     if [ -f "$DB_PATH" ]; then
         BACKUP_FILE="$BACKUP_DIR/talia.db.$(date +%Y%m%d)"
         # `.backup` di sqlite3 è consistente anche con il DB aperto in WAL,
@@ -119,10 +135,42 @@ notifica() {
                     rm -f "$BACKUP_FILE-shm" "$BACKUP_FILE-wal"
                 fi
                 echo "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+                BACKUP_OK=1
             fi
         else
-            cp "$DB_PATH" "$BACKUP_FILE" && echo "Backup (cp): $BACKUP_FILE"
+            cp "$DB_PATH" "$BACKUP_FILE" && echo "Backup (cp): $BACKUP_FILE" && BACKUP_OK=1
         fi
+    fi
+
+    # --- Copia fuori dal disco, una volta a settimana -----------------------
+    # Solo da un backup locale riuscito: un `.backup` fallito a metà lascia un
+    # file parziale che `zstd -t` non riconoscerebbe come guasto.
+    if [ -n "$OFFSITE_DIR" ] && [ "$BACKUP_OK" = 1 ]; then
+        ULTIMA="$(ls -1t "$OFFSITE_DIR"/talia.db.*.zst 2>/dev/null | head -1)"
+        if [ -z "$ULTIMA" ] || [ -n "$(find "$ULTIMA" -mtime +6 2>/dev/null)" ]; then
+            if ! command -v zstd >/dev/null 2>&1; then
+                echo "Backup fuori disco: SALTATO, zstd non installato (brew install zstd)"
+            else
+                DEST="$OFFSITE_DIR/talia.db.$(date +%Y%m%d).zst"
+                # Si scrive su .tmp e si rinomina solo dopo la verifica: iCloud
+                # sincronizza quello che trova, anche un file a metà.
+                if mkdir -p "$OFFSITE_DIR" &&
+                    zstd -q -T0 -10 -f "$BACKUP_FILE" -o "$DEST.tmp" &&
+                    zstd -q -t "$DEST.tmp" &&
+                    mv "$DEST.tmp" "$DEST"; then
+                    echo "Backup fuori disco: $DEST ($(du -h "$DEST" | cut -f1))"
+                    ls -1t "$OFFSITE_DIR"/talia.db.*.zst 2>/dev/null |
+                        tail -n +$((MAX_OFFSITE + 1)) | while read -r f; do rm -f "$f"; done
+                else
+                    rm -f "$DEST.tmp"
+                    echo "Backup fuori disco: FALLITO verso $OFFSITE_DIR"
+                fi
+            fi
+        else
+            echo "Backup fuori disco: ultimo $(basename "$ULTIMA"), meno di 7 giorni fa"
+        fi
+    elif [ -z "$OFFSITE_DIR" ]; then
+        echo "Backup fuori disco: disattivato (TALIA_BACKUP_OFFSITE_DIR vuoto o iCloud assente)"
     fi
 
     # --- Scraping -----------------------------------------------------------
