@@ -299,6 +299,10 @@ def esegui_testo_atti(conn, limite: int) -> None:
         with tetto_tempo(TETTO_TESTO_S if tetto_supportato() else None):
             print(f"  {estrai_testo_atti(conn, limite=limite)}")
     except TettoTempoSuperato:
+        # Come in `esegui_scraper`: si annulla solo l'atto a metà, gli altri
+        # sono già committati uno per uno.
+        if conn.in_transaction:
+            conn.rollback()
         print(f"  interrotto dopo {TETTO_TESTO_S}s: gli atti già elaborati restano salvati")
     except Exception:
         print(traceback.format_exc(), file=sys.stderr)
