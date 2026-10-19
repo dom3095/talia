@@ -118,7 +118,9 @@ def causa_errore(errore: str | None) -> CausaErrore:
 #: Volutamente fuori: certificato non valido e risposte HTTP 4xx/5xx, che si
 #: ripresentano identiche dopo pochi minuti (TAL-75).
 _RE_TRANSITORIO = re.compile(
-    r"timed out|TimeoutError|handshake|Connection reset|RemoteDisconnected"
+    # Non "handshake" da solo: `SSLV3_ALERT_HANDSHAKE_FAILURE` è strutturale;
+    # l'handshake in timeout ("The handshake operation timed out") è già "timed out".
+    r"timed out|TimeoutError|Connection reset|RemoteDisconnected"
     r"|IncompleteRead|Connection aborted|Broken pipe"
     r"|nodename nor servname|Name or service not known|name resolution"
     r"|Network is unreachable|No route to host|Network is down",
