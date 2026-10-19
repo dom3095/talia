@@ -113,6 +113,34 @@ def causa_errore(errore: str | None) -> CausaErrore:
     return CausaErrore(sintesi_errore(errore))
 
 
+#: Errori che non dicono nulla del portale ma solo di quella notte: rete
+#: lenta o instabile, host sovraccarico, DNS locale. Ritentare ha senso.
+#: Volutamente fuori: certificato non valido e risposte HTTP 4xx/5xx, che si
+#: ripresentano identiche dopo pochi minuti (TAL-75).
+_RE_TRANSITORIO = re.compile(
+    r"timed out|TimeoutError|handshake|Connection reset|RemoteDisconnected"
+    r"|IncompleteRead|Connection aborted|Broken pipe"
+    r"|nodename nor servname|Name or service not known|name resolution"
+    r"|Network is unreachable|No route to host|Network is down",
+    re.IGNORECASE,
+)
+
+
+def e_transitorio(errore: str | None) -> bool:
+    """Vero se l'errore è di rete/transitorio e vale un secondo tentativo (TAL-75).
+
+    Come :func:`causa_errore`, guarda solo la riga dell'eccezione: una
+    ``CERTIFICATE_VERIFY_FAILED`` sollevata dentro una lettura con timeout non
+    deve diventare transitoria perché il traceback contiene ``timeout=``.
+    """
+    if not errore:
+        return False
+    testo = sintesi_errore(errore, max_len=300)
+    if re.search(r"CERTIFICATE_VERIFY_FAILED|HTTP Error \d{3}", testo):
+        return False
+    return bool(_RE_TRANSITORIO.search(testo))
+
+
 def trova_causa_dominante(
     falliti: list[StatoScraper],
     *,

@@ -10,7 +10,7 @@ barcellonapg,Comune di Barcellona Pozzo di Gotto,083005,,halley,Halley EG,https:
 baucina,Comune di Baucina,082008,,halley,Halley EG,https://comune.baucina.pa.it,,,,attivo,
 bompensiere,Comune di Bompensiere,085002,,halley,Halley EG,https://servizionline.comune.bompensiere.cl.it,,,,attivo,
 brolo,Comune di Brolo,083007,,halley,Halley EG,https://servizi.comune.brolo.me.it,,,true,attivo,"skip_ssl=true (catena cert incompleta lato server, verificato 2026-07-26 — stesso pattern di Siculiana/Joppolo Giancaxio)"
-calatafimisegesta,Comune di Calatafimi-Segesta,081003,,halley,Halley EG,https://servizi.comune.calatafimisegesta.tp.it,,,,attivo,
+calatafimisegesta,Comune di Calatafimi-Segesta,081003,,halley,Halley EG,https://servizi.comune.calatafimisegesta.tp.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 caltavuturo,Comune di Caltavuturo,082015,,halley,Halley EG,https://trasparenza.comune.caltavuturo.pa.it,,,,attivo,
 camastra,Comune di Camastra,084008,,halley,Halley EG,https://trasparenza.comune.camastra.ag.it,,,,attivo,
 cammarata,Comune di Cammarata,084009,,halley,Halley EG,https://trasparenza.comune.cammarata.ag.it,,,,attivo,
@@ -18,24 +18,24 @@ campofelicediroccella,Comune di Campofelice di Roccella,082017,,halley,Halley EG
 campofranco,Comune di Campofranco,085005,,halley,Halley EG,https://trasparenza.comune.campofranco.cl.it,,,,attivo,
 castelbuono,Comune di Castelbuono,082022,,halley,Halley EG,https://servizi.comune.castelbuono.pa.it,,,,attivo,
 castellumberto,Comune di Castell'Umberto,083014,,halley,Halley EG,https://servizi.comune.castellumberto.me.it,,,,attivo,
-casteltermini,Comune di Casteltermini,084012,,halley,Halley EG,https://trasparenza.comune.casteltermini.ag.it,,,,attivo,
-cattolicaeraclea,Comune di Cattolica Eraclea,084014,,halley,Halley EG,https://trasparenza.comune.cattolicaeraclea.ag.it,,,,attivo,
+casteltermini,Comune di Casteltermini,084012,,halley,Halley EG,https://trasparenza.comune.casteltermini.ag.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
+cattolicaeraclea,Comune di Cattolica Eraclea,084014,,halley,Halley EG,https://trasparenza.comune.cattolicaeraclea.ag.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 cefaladiana,Comune di Cefalà Diana,082026,,halley,Halley EG,https://servizionline.comune.cefaladiana.pa.it,,,,attivo,
 cerda,Comune di Cerda,082028,,halley,Halley EG,https://servizi.comune.cerda.pa.it,,,,attivo,
 cesaro,Comune di Cesarò,083017,,halley,Halley EG,https://servizionline.comune.cesaro.me.it,,,,attivo,
 chiusasclafani,Comune di Chiusa Sclafani,082029,,halley,Halley EG,https://servizionline.comune.chiusasclafani.pa.it,,,,attivo,
 ciminna,Comune di Ciminna,082030,,halley,Halley EG,https://servizi.comune.ciminna.pa.it,,,,attivo,
-condro,Comune di Condrò,083018,,halley,Halley EG,https://servizi.comune.condro.me.it,,,,attivo,
+condro,Comune di Condrò,083018,,halley,Halley EG,https://servizi.comune.condro.me.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 favignana_halley,Comune di Favignana,081009,,halley,Halley EG,https://trasparenza.comune.favignana.tp.it,,,,attivo,
 ferla,Comune di Ferla,089008,,halley,Halley EG,https://servizi.comune.ferla.sr.it,,,,attivo,
 francavilladisicilia,Comune di Francavilla di Sicilia,083025,,halley,Halley EG,https://servizionline.comune.francavilladisicilia.me.it,,,,attivo,
 gioiosamarea,Comune di Gioiosa Marea,083033,,halley,Halley EG,https://servizionline.comune.gioiosamarea.me.it,,,,attivo,
-giuliana,Comune di Giuliana,082039,,halley,Halley EG,https://servizi.comune.giuliana.pa.it,,,,attivo,
+giuliana,Comune di Giuliana,082039,,halley,Halley EG,https://servizi.comune.giuliana.pa.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 isnello,Comune di Isnello,082042,,halley,Halley EG,https://servizi.comune.isnello.pa.it,,,,attivo,
 joppologiancaxio,Comune di Joppolo Giancaxio,084019,,halley,Halley EG,https://trasparenza.comune.joppologiancaxio.ag.it,,,true,attivo,skip_ssl=true (catena cert incompleta)
 lampedusaelinosa,Comune di Lampedusa e Linosa,084020,,halley,Halley EG,https://servizi.comune.lampedusaelinosa.ag.it,,,,attivo,
 lipari,Comune di Lipari,083041,,halley,Halley EG,https://servizi.comune.lipari.me.it,,,,attivo,
-maletto,Comune di Maletto,087022,,halley,Halley EG,https://servizi.comune.maletto.ct.it,,,,attivo,
+maletto,Comune di Maletto,087022,,halley,Halley EG,https://servizi.comune.maletto.ct.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 marianopoli,Comune di Marianopoli,085008,,halley,Halley EG,https://servizionline.comune.marianopoli.cl.it,,,,attivo,
 marineo,Comune di Marineo,082046,,halley,Halley EG,https://servizi.comune.marineo.pa.it,,,,attivo,
 mazzarino,Comune di Mazzarino,085009,,halley,Halley EG,https://servizi.comune.mazzarino.cl.it,,,,attivo,
@@ -48,7 +48,7 @@ montagnareale,Comune di Montagnareale,083056,,halley,Halley EG,https://servizion
 montedoro,Comune di Montedoro,085011,,halley,Halley EG,https://servizionline.comune.montedoro.cl.it,,,,attivo,
 montevago,Comune di Montevago,084025,,halley,Halley EG,https://servizi.comune.montevago.ag.it,,,,attivo,
 mussomeli,Comune di Mussomeli,085012,,halley,Halley EG,https://servizi.comune.mussomeli.cl.it,,,,attivo,
-pacedelmela,Comune di Pace del Mela,083064,,halley,Halley EG,https://trasparenza.comune.pacedelmela.me.it,,,,attivo,
+pacedelmela,Comune di Pace del Mela,083064,,halley,Halley EG,https://trasparenza.comune.pacedelmela.me.it,,,true,attivo,skip_ssl=true (certificato scaduto: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 partanna,Comune di Partanna,081015,,halley,Halley EG,https://servizi.comune.partanna.tp.it,,,,attivo,
 piazzaarmerina,Comune di Piazza Armerina,086014,,halley,Halley EG,https://servizi.comune.piazzaarmerina.en.it,,,,attivo,
 piraino,Comune di Piraino,083068,,halley,Halley EG,https://servizi.comune.piraino.me.it,,,,attivo,
@@ -56,7 +56,7 @@ poggioreale,Comune di Poggioreale,081016,,halley,Halley EG,https://trasparenza.c
 portoempedocle,Comune di Porto Empedocle,084028,,halley,Halley EG,https://servizi.comune.portoempedocle.ag.it,,,,attivo,
 pozzallo,Comune di Pozzallo,088008,,halley,Halley EG,https://comune.pozzallo.rg.it,,,true,attivo,"skip_ssl=true (catena cert incompleta lato server, verificato 2026-07-26 — stesso pattern di Siculiana/Joppolo Giancaxio)"
 prizzi,Comune di Prizzi,082060,,halley,Halley EG,https://trasparenza.comune.prizzi.pa.it,,,,attivo,
-racalmuto_halley,Comune di Racalmuto,084029,,halley,Halley EG,https://trasparenza.comune.racalmuto.ag.it,,,,attivo,
+racalmuto_halley,Comune di Racalmuto,084029,,halley,Halley EG,https://trasparenza.comune.racalmuto.ag.it,,,true,attivo,skip_ssl=true (certificato scaduto: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 randazzo,Comune di Randazzo,087038,,halley,Halley EG,https://servizionline.comune.randazzo.ct.it,,,,attivo,
 realmonte,Comune di Realmonte,084032,,halley,Halley EG,http://80.88.89.218/realmonte,,,,attivo,
 roccamena,Comune di Roccamena,082061,,halley,Halley EG,https://servizi.comune.roccamena.pa.it,,,,attivo,
@@ -73,7 +73,7 @@ sanpieropatti,Comune di San Piero Patti,083081,,halley,Halley EG,https://servizi
 santeodoro,Comune di San Teodoro,083090,,halley,Halley EG,https://servizionline.comune.santeodoro.me.it,,,,attivo,
 santagatadimilitello,Comune di Sant'Agata di Militello,083084,,halley,Halley EG,https://servizi.comune.santagatadimilitello.me.it,,,,attivo,
 santalfio,Comune di Sant'Alfio,087046,,halley,Halley EG,https://servizi.comune.santalfio.ct.it,,,,attivo,
-santacristinagela,Comune di Santa Cristina Gela,082066,,halley,Halley EG,https://servizi.comune.santacristinagela.pa.it,,,,attivo,
+santacristinagela,Comune di Santa Cristina Gela,082066,,halley,Halley EG,https://servizi.comune.santacristinagela.pa.it,,,true,attivo,skip_ssl=true (certificato scaduto: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 santaluciadelmela,Comune di Santa Lucia del Mela,083086,,halley,Halley EG,https://servizi.comune.santaluciadelmela.me.it,,,,attivo,
 santaninfa,Comune di Santa Ninfa,081019,,halley,Halley EG,https://servizionline.comune.santaninfa.tp.it,,,,attivo,
 santavenerina,Comune di Santa Venerina,087048,,halley,Halley EG,https://servizi.comune.santavenerina.ct.it,,,,attivo,
@@ -83,13 +83,13 @@ serradifalco,Comune di Serradifalco,085018,,halley,Halley EG,https://servizi.com
 siculiana,Comune di Siculiana,084042,,halley,Halley EG,https://trasparenza.comune.siculiana.ag.it,,,true,attivo,skip_ssl=true (catena cert incompleta)
 sommatino,Comune di Sommatino,085019,,halley,Halley EG,https://servizionline.comune.sommatino.cl.it,,,,attivo,
 sortino,Comune di Sortino,089019,,halley,Halley EG,https://servizi.comune.sortino.sr.it,,,true,attivo,"skip_ssl=true (catena cert incompleta lato server, verificato 2026-07-26 — stesso pattern di Siculiana/Joppolo Giancaxio)"
-sperlinga,Comune di Sperlinga,086017,,halley,Halley EG,https://servizi.comune.sperlinga.en.it,,,,attivo,
+sperlinga,Comune di Sperlinga,086017,,halley,Halley EG,https://servizi.comune.sperlinga.en.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 sutera,Comune di Sutera,085020,,halley,Halley EG,https://servizionline.comune.sutera.cl.it,,,,attivo,
 torretta,Comune di Torretta,082072,,halley,Halley EG,https://comune.torretta.pa.it,,,,attivo,
-tortorici,Comune di Tortorici,083099,,halley,Halley EG,https://servizi.comune.tortorici.me.it,,,,attivo,
+tortorici,Comune di Tortorici,083099,,halley,Halley EG,https://servizi.comune.tortorici.me.it,,,true,attivo,skip_ssl=true (certificato scaduto: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 trecastagni,Comune di Trecastagni,087050,,halley,Halley EG,https://trasparenza.comune.trecastagni.ct.it,,,,attivo,
 valledolmo,Comune di Valledolmo,082076,,halley,Halley EG,https://servizi.comune.valledolmo.pa.it/valledolmo,,,,attivo,
-venetico,Comune di Venetico,083104,,halley,Halley EG,https://trasparenza.comune.venetico.me.it,,,,attivo,
+venetico,Comune di Venetico,083104,,halley,Halley EG,https://trasparenza.comune.venetico.me.it,,,true,attivo,skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 ventimigliadisicilia,Comune di Ventimiglia di Sicilia,082077,,halley,Halley EG,https://servizionline.comune.ventimigliadisicilia.pa.it,,,,attivo,
 viagrande,Comune di Viagrande,087053,,halley,Halley EG,https://trasparenza.comune.viagrande.ct.it,,,,attivo,
 villafrati,Comune di Villafrati,082080,,halley,Halley EG,https://trasparenza.comune.villafrati.pa.it,,,,attivo,
@@ -293,7 +293,7 @@ basico,Comune di Basicò,083006,ME,hspromila,Halley ASP.NET,https://servizionlin
 acisantantonio,Comune di Aci Sant'Antonio,087005,CT,halley,Halley EG,https://egov.comune.acisantantonio.ct.it/acisantantonio,,,,attivo,Sweep comuni residui 2026-08-06: 20 atti verificati reali (slug trovato: acisantantonio)
 buccheri,Comune di Buccheri,089003,SR,halley,Halley EG,https://egov.comune.buccheri.sr.it/buccheri,,,,attivo,Sweep comuni residui 2026-08-06: 20 atti verificati reali (slug trovato: buccheri)
 calascibetta,Comune di Calascibetta,086005,EN,halley,Halley EG,https://egov.comune.calascibetta.en.it/calascibetta,,,,attivo,Sweep comuni residui 2026-08-06: 14 atti verificati reali (slug trovato: calascibetta)
-fiumefreddodisicilia,Comune di Fiumefreddo di Sicilia,087016,CT,halley,Halley EG,https://servizi.comune.fiumefreddo-di-sicilia.ct.it,,,,attivo,Sweep comuni residui 2026-08-06: 20 atti verificati reali (slug trovato: fiumefreddo-di-sicilia)
+fiumefreddodisicilia,Comune di Fiumefreddo di Sicilia,087016,CT,halley,Halley EG,https://servizi.comune.fiumefreddo-di-sicilia.ct.it,,,true,attivo,Sweep comuni residui 2026-08-06: 20 atti verificati reali (slug trovato: fiumefreddo-di-sicilia); skip_ssl=true (catena cert incompleta: CERTIFICATE_VERIFY_FAILED in 8/8 run dal 12 al 19/10/2026 - TAL-75)
 furcisiculo,Comune di Furci Siculo,083027,ME,hspromila,Halley ASP.NET,https://servizionline.hspromilaprod.hypersicapp.net/cmsfurci/portale/albopretorio/albopretorioconsultazione.aspx?P=400,,,,attivo,Sweep comuni residui 2026-08-06: 21 atti verificati reali (slug trovato: furci)
 gualtierisicamino,Comune di Gualtieri Sicaminò,083035,ME,jcitygov,jCityGov/Liferay,https://gualtieri.trasparenza-valutazione-merito.it,,,,attivo,Sweep comuni residui 2026-08-06: 20 atti verificati reali (slug trovato: gualtieri)
 militelloinvaldicatania,Comune di Militello in Val di Catania,087025,CT,halley,Halley EG,https://servizi.comune.militello.ct.it,,,,attivo,Sweep comuni residui 2026-08-06: 20 atti verificati reali (slug trovato: militello)
