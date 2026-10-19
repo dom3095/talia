@@ -27,18 +27,21 @@ Molti albi allegano lo stesso atto due volte, firmato (`.pdf.p7m`, busta
 CAdES) e in chiaro: si prende il primo allegato che è davvero un PDF (magic
 bytes `%PDF`), fino a :data:`MAX_ALLEGATI_PROVATI` per atto.
 
-Stato per atto: `testo_estratto IS NULL` = mai tentato; `''` = tentato senza
-risultato (nessun PDF in chiaro, scansione, errore) — non si ritenta ogni
-notte lo stesso atto.
+Stato per atto: `testo_estratto IS NULL` = mai tentato, o tentato con un
+errore di rete (si riprova la notte dopo, finché l'atto è nella finestra);
+`''` = tentato senza risultato definitivo (nessun PDF in chiaro, scansione,
+pagina non più esistente) — non si ritenta.
 """
 
 from __future__ import annotations
 
+import http.client
 import logging
 import re
 import sqlite3
 import tempfile
 import time
+import urllib.error
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,12 +93,14 @@ class EsitoTesto:
     tentati: int = 0
     con_testo: int = 0
     senza_testo: int = 0
+    rimandati: int = 0
     cig_aggiunti: int = 0
 
     def __str__(self) -> str:
         return (
             f"{self.tentati} atti: {self.con_testo} con testo, {self.senza_testo} senza"
-            f" (scansione, solo .p7m o errore); CIG ricavati dal testo: {self.cig_aggiunti}"
+            f" (scansione o solo .p7m), {self.rimandati} rimandati per errore di rete;"
+            f" CIG ricavati dal testo: {self.cig_aggiunti}"
         )
 
 
@@ -139,15 +144,29 @@ def cig_univoco(testo: str) -> str | None:
     return propri.pop() if len(propri) == 1 else None
 
 
+class ErroreRete(Exception):
+    """Pagina o allegato non raggiungibili: l'atto va riprovato, non marcato."""
+
+
+def _transitorio(exc: BaseException) -> bool:
+    """Errore di rete da riprovare. 404/410 = la pagina non c'è più: definitivo."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code not in (404, 410)
+    return isinstance(exc, (ErroreRete, OSError, http.client.HTTPException))
+
+
 def _primo_pdf(url_fonte: str, opener, cartella: Path, delay: float) -> tuple[str, str] | None:
     """``(testo, hash)`` del primo allegato che è un PDF vero, oppure ``None``."""
-    allegati = [a for a in trova_allegati(url_fonte, opener=opener) if a.url_download]
+    allegati = trova_allegati(url_fonte, opener=opener, solleva_errori=True)
+    allegati = [a for a in allegati if a.url_download]
+    download_falliti = 0
     for i, allegato in enumerate(allegati[:MAX_ALLEGATI_PROVATI]):
         time.sleep(delay)
         risultato = scarica_pdf_allegato(
             allegato.url_download, cartella / f"{i}_{allegato.chiave_allegato}", opener=opener
         )
-        if risultato is None:
+        if risultato is None:  # `scarica_pdf_allegato` inghiotte l'errore
+            download_falliti += 1
             continue
         percorso, _nome, hash_sha = risultato
         try:
@@ -156,6 +175,10 @@ def _primo_pdf(url_fonte: str, opener, cartella: Path, delay: float) -> tuple[st
             return testo_pdf_nativo(percorso), hash_sha
         finally:
             percorso.unlink(missing_ok=True)
+    if download_falliti:
+        # Nessun PDF trovato *e* almeno un download non riuscito: forse il PDF
+        # in chiaro era proprio quello. Marcare l'atto lo perderebbe per sempre.
+        raise ErroreRete(f"{download_falliti} allegati non scaricati")
     return None
 
 
@@ -188,6 +211,11 @@ def estrai_testo_atti(
             try:
                 risultato = estrai(url_fonte, opener, cartella, delay)
             except Exception as exc:  # un atto rotto non deve fermare gli altri
+                if _transitorio(exc):
+                    # Resta NULL: si riprova la notte dopo, il link è ancora vivo.
+                    _logger.warning(f"Atto {atto_id}: rimandato, errore di rete: {exc}")
+                    esito.rimandati += 1
+                    continue
                 _logger.warning(f"Atto {atto_id}: estrazione testo fallita: {exc}")
                 risultato = None
 
