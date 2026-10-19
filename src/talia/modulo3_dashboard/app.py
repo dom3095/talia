@@ -28,6 +28,12 @@ from typing import TYPE_CHECKING
 import pydeck as pdk
 import streamlit as st
 
+# Import assoluti (non relativi): l'app gira anche come script standalone via
+# `streamlit run src/talia/modulo3_dashboard/app.py`, dove non esiste un
+# pacchetto padre e `from ..x import y` fallisce (bug trovato in TAL-60).
+from talia.modulo2_scraping.run_report import formatta_markdown, riepiloga
+from talia.modulo3_dashboard import aggregati as agg
+
 if TYPE_CHECKING:
     from talia.modulo1_fascicolo.report import Report
 
@@ -647,6 +653,182 @@ def _mostra_statistiche(conn: sqlite3.Connection) -> None:
     st.caption(f"Red flags totali nel database: {stats['tot_red_flags']:,}")
 
 
+def _mostra_aggregati(conn: sqlite3.Connection, enti: list[sqlite3.Row]) -> None:
+    """Tab 📅 Aggregati (TAL-67): serie temporali per comune/provincia + salute run."""
+    st.subheader("Aggregati temporali")
+    st.markdown(
+        "Volumi di atti per periodo, filtrabili per provincia o singolo comune. "
+        "**Un volume alto o basso non è di per sé un'anomalia**: dipende dalla "
+        "dimensione del comune e da quanto a lungo il suo albo espone gli atti."
+    )
+
+    province = agg.province_disponibili(conn)
+    per_denominazione = {r["denominazione"]: r for r in enti}
+
+    col_terr, col_gran, col_asse = st.columns(3)
+    with col_terr:
+        livello = st.radio(
+            "Territorio",
+            ["Tutta la Sicilia", "Provincia", "Comune"],
+            horizontal=True,
+            key="agg_livello",
+        )
+    with col_gran:
+        granularita = st.selectbox(
+            "Granularità",
+            list(agg.GRANULARITA),
+            index=list(agg.GRANULARITA).index("mensile"),
+            format_func=lambda g: agg.GRANULARITA[g],
+            key="agg_granularita",
+        )
+    with col_asse:
+        asse = st.selectbox(
+            "Asse temporale",
+            list(agg.ASSI),
+            format_func=lambda a: "Data dell'atto" if a == "atto" else "Data di ingestione",
+            key="agg_asse",
+        )
+
+    provincia_sel: str | None = None
+    ente_sel: sqlite3.Row | None = None
+    if livello == "Provincia" and province:
+        provincia_sel = st.selectbox("Provincia", province, key="agg_provincia")
+    elif livello == "Comune" and per_denominazione:
+        scelta = st.selectbox("Comune", list(per_denominazione), key="agg_comune")
+        ente_sel = per_denominazione[scelta]
+
+    st.caption(agg.ASSI[asse])
+    if asse == "ingestione":
+        st.caption(
+            "⚠️ Sull'asse di ingestione i picchi riflettono quando TALIA ha raccolto "
+            "gli atti (un backfill storico concentra anni di atti in un giorno solo), "
+            "non quando il comune li ha prodotti."
+        )
+
+    serie = agg.serie_temporale(
+        conn,
+        granularita=granularita,
+        asse=asse,
+        provincia=provincia_sel,
+        ente_id=ente_sel["id"] if ente_sel is not None else None,
+    )
+    if not serie:
+        st.info("Nessun atto con una data valida per i filtri selezionati.")
+    else:
+        st.bar_chart(
+            [{"periodo": p.periodo, "atti": p.n_atti} for p in serie],
+            x="periodo",
+            y="atti",
+        )
+        st.dataframe(
+            _tabella_serie(serie),
+            width="stretch",
+            hide_index=True,
+        )
+
+    # --- Dettaglio giornaliero di ingestione --------------------------------
+    st.divider()
+    st.markdown("#### Documenti ingeriti per giorno")
+    st.caption(
+        "Salute della pipeline di raccolta: un giorno a zero significa che nessuno "
+        "scraper ha girato (o non ha trovato nulla di nuovo), non che il comune "
+        "non abbia pubblicato atti."
+    )
+    giorni = st.slider(
+        "Finestra (giorni)", min_value=7, max_value=180, value=30, step=1, key="agg_giorni"
+    )
+    ingestione = agg.ingestione_giornaliera(
+        conn,
+        giorni=giorni,
+        provincia=provincia_sel,
+        ente_id=ente_sel["id"] if ente_sel is not None else None,
+    )
+    totale = sum(p.n_atti for p in ingestione)
+    giorni_attivi = sum(1 for p in ingestione if p.n_atti)
+    col1, col2, col3 = st.columns(3)
+    col1.metric(f"Atti ingeriti in {giorni} giorni", f"{totale:,}")
+    col2.metric("Giorni con ingestione", f"{giorni_attivi}/{len(ingestione)}")
+    col3.metric("Media giornaliera", f"{totale / max(len(ingestione), 1):,.0f}")
+    st.bar_chart(
+        [{"giorno": p.periodo, "atti": p.n_atti} for p in ingestione],
+        x="giorno",
+        y="atti",
+    )
+
+    # --- Classifiche territoriali -------------------------------------------
+    st.divider()
+    col_prov, col_com = st.columns(2)
+    with col_prov:
+        st.markdown("#### Totali per provincia")
+        righe = agg.aggregati_per_provincia(conn, asse=asse)
+        st.dataframe(_tabella_territorio(righe), width="stretch", hide_index=True)
+    with col_com:
+        titolo = (
+            f"Comuni della provincia di {provincia_sel}" if provincia_sel else "Comuni (top 25)"
+        )
+        st.markdown(f"#### {titolo}")
+        righe = agg.aggregati_per_comune(conn, asse=asse, provincia=provincia_sel, limite=25)
+        st.dataframe(_tabella_territorio(righe), width="stretch", hide_index=True)
+
+    # --- Salute dei run ------------------------------------------------------
+    st.divider()
+    st.markdown("#### Stato degli scraper")
+    riepilogo = riepiloga(conn)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Scraper OK", f"{riepilogo.ok}/{riepilogo.totale}")
+    col2.metric("Falliti", len(riepilogo.falliti))
+    col3.metric("Muti (0 atti)", len(riepilogo.muti))
+    col4.metric(
+        "Ultimo run",
+        f"{riepilogo.giorni_da_ultimo_run:.1f}g fa"
+        if riepilogo.giorni_da_ultimo_run is not None
+        else "mai",
+    )
+    if riepilogo.rischio_perdita_dati:
+        st.error(
+            "Nessun run scraper da più di "
+            f"{riepilogo.giorni_da_ultimo_run:.0f} giorni. Gli albi pretori espongono "
+            "solo gli atti in pubblicazione (~15-30 giorni): quelli scaduti nel "
+            "frattempo non sono più recuperabili da lì."
+        )
+    with st.expander("Riepilogo completo dei run"):
+        st.markdown(formatta_markdown(riepilogo))
+
+
+def _tabella_serie(serie: list[agg.PuntoSerie]) -> list[dict]:
+    """Serie temporale con la variazione rispetto al periodo precedente."""
+    tabella: list[dict] = []
+    precedente: int | None = None
+    for p in serie:
+        if precedente is None or precedente == 0:
+            variazione = "—"
+        else:
+            variazione = f"{100 * (p.n_atti - precedente) / precedente:+.0f}%"
+        tabella.append(
+            {
+                "Periodo": p.periodo,
+                "Atti": p.n_atti,
+                "Comuni": p.n_enti,
+                "Var. su periodo prec.": variazione,
+            }
+        )
+        precedente = p.n_atti
+    return list(reversed(tabella))
+
+
+def _tabella_territorio(righe: list[agg.RigaTerritorio]) -> list[dict]:
+    return [
+        {
+            "Territorio": r.nome,
+            "Atti": r.n_atti,
+            "Comuni": r.n_enti,
+            "Dal": r.primo or "?",
+            "Al": r.ultimo or "?",
+        }
+        for r in righe
+    ]
+
+
 def _mostra_mappa(conn: sqlite3.Connection) -> None:
     st.subheader("Copertura scraper — comuni siciliani")
     st.markdown(
@@ -912,6 +1094,7 @@ def main() -> None:
         tab_procedimenti,
         tab_virtuosi,
         tab_statistiche,
+        tab_aggregati,
         tab_mappa,
     ) = st.tabs(
         [
@@ -921,6 +1104,7 @@ def main() -> None:
             "⛓️ Procedimenti",
             "✅ Comuni virtuosi",
             "📈 Statistiche",
+            "📅 Aggregati",
             "🗺️ Mappa copertura",
         ]
     )
@@ -957,6 +1141,9 @@ def main() -> None:
 
     with tab_statistiche:
         _mostra_statistiche(conn)
+
+    with tab_aggregati:
+        _mostra_aggregati(conn, enti)
 
     with tab_mappa:
         _mostra_mappa(conn)

@@ -198,8 +198,10 @@ def test_runner_halley_propaga_skip_ssl_da_entry(rs, monkeypatch, db):
 def test_runner_urbi_propaga_qs_base_e_ente_mittente(rs, monkeypatch, db):
     chiamate = []
 
-    def _finto_scarica_atti(base_url, qs_base, codice_istat, ente_mittente, max_pagine=50):
-        chiamate.append((base_url, qs_base, codice_istat, ente_mittente))
+    def _finto_scarica_atti(
+        base_url, qs_base, codice_istat, ente_mittente, max_pagine=50, **kwargs
+    ):
+        chiamate.append((base_url, qs_base, codice_istat, ente_mittente, kwargs))
         return iter([])
 
     monkeypatch.setattr("talia.modulo2_scraping.fonti.urbi.scarica_atti", _finto_scarica_atti)
@@ -213,6 +215,110 @@ def test_runner_urbi_propaga_qs_base_e_ente_mittente(rs, monkeypatch, db):
     runner = rs._make_urbi_runner(entry)
     runner(db, max_pagine=1)
 
+    from talia.modulo2_scraping.fonti.urbi import MAX_PAGINE_PER_TIPOLOGIA
+
     assert chiamate == [
-        ("https://test.example.com", "DB_NAME=abc123&w3cbt=S", "999999", "COMUNE DI TEST")
+        (
+            "https://test.example.com",
+            "DB_NAME=abc123&w3cbt=S",
+            "999999",
+            "COMUNE DI TEST",
+            {"max_pagine_per_tipologia": MAX_PAGINE_PER_TIPOLOGIA},
+        )
     ]
+
+
+def test_runner_urbi_backfill_disattiva_il_tetto_per_tipologia(rs, monkeypatch, db):
+    """`--no-stop` significa "voglio tutto l'archivio", tetto incluso."""
+    chiamate = []
+
+    def _finto_scarica_atti(*_a, **kwargs):
+        chiamate.append(kwargs.get("max_pagine_per_tipologia"))
+        return iter([])
+
+    monkeypatch.setattr("talia.modulo2_scraping.fonti.urbi.scarica_atti", _finto_scarica_atti)
+    runner = rs._make_urbi_runner(
+        _entry(slug="comune_urbi", modulo="urbi", qs_base="DB_NAME=x", ente_mittente="COMUNE X")
+    )
+    runner(db, max_pagine=1, no_stop=True)
+    assert chiamate == [None]
+
+
+# ---------------------------------------------------------------------------
+# Stop-on-known per tipologia (TAL-68)
+# ---------------------------------------------------------------------------
+
+
+def _atto_urbi(n: int, tipologia: str | None):
+    from talia.modulo2_scraping.db import AttoMetadato
+
+    return AttoMetadato(
+        ente_codice_istat="082022",
+        tipo="determina",
+        url_fonte=f"https://cloud.urbi.it/atto/{n}",
+        fonte_scraper="urbi",
+        data_accesso="2026-08-18T00:00:00+00:00",
+        oggetto=f"Atto {n}",
+        metadati={"tipologia_ricerca": tipologia} if tipologia else {},
+    )
+
+
+def test_stop_on_known_si_azzera_al_cambio_tipologia(rs, monkeypatch):
+    """Regressione Caccamo: senza il reset, la prima tipologia già nota
+    interromperebbe anche la scansione di tutte le successive."""
+    from talia.modulo2_scraping.fonti import urbi
+
+    # Tipologia "83": abbastanza duplicati da far scattare lo stop.
+    # Tipologia "44": atti nuovi, che devono comunque essere raggiunti.
+    noti = [_atto_urbi(i, "83") for i in range(rs._STOP_CONSECUTIVI + 5)]
+    nuovi = [_atto_urbi(1000 + i, "44") for i in range(3)]
+    monkeypatch.setattr(urbi, "scarica_atti", lambda *_a, **_k: iter(noti + nuovi))
+
+    conn = connetti(":memory:")
+    inizializza_db(conn)
+    # Primo giro: tutto nuovo, popola il DB.
+    rs._run_urbi_comune(
+        conn,
+        "caccamo",
+        "https://x",
+        "DB_NAME=y",
+        "082022",
+        "COMUNE DI CACCAMO",
+        "Comune di Caccamo",
+    )
+    # Secondo giro: gli atti "83" sono ora duplicati, i "44" restano nuovi solo
+    # se la scansione non si è fermata alla prima tipologia.
+    monkeypatch.setattr(
+        urbi,
+        "scarica_atti",
+        lambda *_a, **_k: iter(noti + [_atto_urbi(2000 + i, "44") for i in range(3)]),
+    )
+    esito = rs._run_urbi_comune(
+        conn,
+        "caccamo",
+        "https://x",
+        "DB_NAME=y",
+        "082022",
+        "COMUNE DI CACCAMO",
+        "Comune di Caccamo",
+    )
+    assert esito["inseriti"] == 3
+
+
+def test_stop_on_known_invariato_senza_tipologie(rs, monkeypatch):
+    """I tenant normali (nessuna tipologia sugli atti) mantengono lo stop."""
+    from talia.modulo2_scraping.fonti import urbi
+
+    noti = [_atto_urbi(i, None) for i in range(rs._STOP_CONSECUTIVI + 5)]
+    monkeypatch.setattr(urbi, "scarica_atti", lambda *_a, **_k: iter(noti))
+
+    conn = connetti(":memory:")
+    inizializza_db(conn)
+    rs._run_urbi_comune(
+        conn, "favara", "https://x", "DB_NAME=y", "082022", "COMUNE DI FAVARA", "Comune di Favara"
+    )
+    esito = rs._run_urbi_comune(
+        conn, "favara", "https://x", "DB_NAME=y", "082022", "COMUNE DI FAVARA", "Comune di Favara"
+    )
+    # Si ferma dopo _STOP_CONSECUTIVI duplicati, senza leggere gli ultimi.
+    assert esito["duplicati"] == rs._STOP_CONSECUTIVI

@@ -23,6 +23,9 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 | [11 — Implementazione motore](11-implementazione-motore.md) | Layout del codice, decisioni di design, pipeline Modulo 1 |
 | [12 — Schema DB](12-schema-db.md) | Tabelle SQLite: atti, enti, red_flags, procedimenti, scraper_runs |
 | [13 — Stato scraper per capoluogo](13-scraper-status.md) | Test 2026-06-28: status, problemi, piattaforme di tutti i 9 capoluoghi siciliani |
+| [14 — Censimento albi](14-censimento-albi.md) | Copertura comune per comune: piattaforma, stato, note di ricognizione |
+| [14 — PDF on-demand](14-pdf-on-demand.md) | Download e estrazione testo dei PDF citati dai red flag |
+| [15 — Run automatico](15-run-automatico.md) | launchd giornaliero, perché in locale, riepilogo esiti e diagnosi |
 
 ## Link rapidi
 

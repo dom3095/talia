@@ -143,3 +143,174 @@ def test_salva_atti_idempotente():
 def test_salva_atti_lista_vuota():
     esito = salva_atti([], _db())
     assert esito["inseriti"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Tenant che pretendono una Tipologia esplicita (TAL-68)
+# ---------------------------------------------------------------------------
+
+_HTML_FORM_CON_TIPOLOGIE = """
+<form>
+<select name="Tipologia" id="idTipologia">
+  <option value="">Tutte</option>
+  <option value="83">ALBO/ELENCO ELETTORALE / Albi ed Elenchi</option>
+  <option value="44">BANDI DI GARA E CONTRATTI / Avvisi e Bandi</option>
+  <option value=" ">separatore spurio</option>
+</select>
+<select name="EnteMittente"><option value="">Tutti</option></select>
+</form>
+"""
+
+_HTML_AVVISO_TIPOLOGIA = """
+<div class="alert alert-warning" role="alert">
+Attenzione: per procedere occorre selezionare la tipologia.
+</div>
+"""
+
+
+def test_estrai_tipologie_esclude_il_valore_vuoto():
+    """ "Tutte" (valore vuoto) è proprio la ricerca che questi tenant rifiutano."""
+    from talia.modulo2_scraping.fonti.urbi import estrai_tipologie
+
+    assert estrai_tipologie(_HTML_FORM_CON_TIPOLOGIE) == ["83", "44"]
+
+
+def test_estrai_tipologie_select_assente():
+    from talia.modulo2_scraping.fonti.urbi import estrai_tipologie
+
+    assert estrai_tipologie("<html><body>niente form</body></html>") == []
+
+
+def test_riconosce_avviso_tipologia_obbligatoria():
+    from talia.modulo2_scraping.fonti.urbi import _RE_TIPOLOGIA_OBBLIGATORIA
+
+    assert _RE_TIPOLOGIA_OBBLIGATORIA.search(_HTML_AVVISO_TIPOLOGIA)
+    assert not _RE_TIPOLOGIA_OBBLIGATORIA.search(_HTML_PAGINA)
+
+
+def test_fallback_per_tipologia_quando_il_tenant_lo_pretende(monkeypatch):
+    """Regressione Caccamo: 0 atti in 5 run consecutivi, mai un errore.
+
+    Con `Tipologia` vuota il portale risponde 200 con un avviso e zero righe;
+    solo una ricerca per tipologia esplicita restituisce gli atti.
+    """
+    from talia.modulo2_scraping.fonti import urbi
+
+    chiamate: list[str] = []
+
+    def _fake_post(_opener, url, dati):
+        if "StwEvent=910001" in url:
+            tipologia = dati.get("Tipologia", "")
+            chiamate.append(tipologia)
+            if not tipologia:
+                return _HTML_AVVISO_TIPOLOGIA
+            return _HTML_PAGINA if tipologia == "83" else "<table><tbody></tbody></table>"
+        return "<table><tbody></tbody></table>"  # pagine successive: vuote
+
+    monkeypatch.setattr(urbi, "_post", _fake_post)
+    monkeypatch.setattr(urbi, "_PAUSA_SECONDI", 0)
+    monkeypatch.setattr(urbi.urllib.request, "build_opener", lambda *_a, **_k: _OpenerFinto())
+
+    atti = list(urbi.scarica_atti(_BASE, _QS, _ISTAT, _ENTE, max_pagine=2))
+
+    # Prima la ricerca normale (vuota), poi una per ciascuna tipologia.
+    assert chiamate == ["", "83", "44"]
+    assert len(atti) == 2  # le due righe di _HTML_PAGINA di COMUNE DI FAVARA
+
+
+def test_nessun_fallback_se_il_tenant_accetta_tipologia_vuota(monkeypatch):
+    """Un albo genuinamente vuoto non deve far partire 26 ricerche per run."""
+    from talia.modulo2_scraping.fonti import urbi
+
+    chiamate: list[str] = []
+
+    def _fake_post(_opener, url, dati):
+        if "StwEvent=910001" in url:
+            chiamate.append(dati.get("Tipologia", ""))
+        return "<table><tbody></tbody></table>"
+
+    monkeypatch.setattr(urbi, "_post", _fake_post)
+    monkeypatch.setattr(urbi, "_PAUSA_SECONDI", 0)
+    monkeypatch.setattr(urbi.urllib.request, "build_opener", lambda *_a, **_k: _OpenerFinto())
+
+    assert list(urbi.scarica_atti(_BASE, _QS, _ISTAT, _ENTE, max_pagine=2)) == []
+    assert chiamate == [""]
+
+
+class _RispostaFinta:
+    def __init__(self, corpo: str):
+        self._corpo = corpo.encode()
+
+    def read(self):
+        return self._corpo
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+class _OpenerFinto:
+    """Sostituisce l'opener HTTP: la GET iniziale serve solo la pagina form."""
+
+    def open(self, *_args, **_kwargs):
+        return _RispostaFinta(_HTML_FORM_CON_TIPOLOGIE)
+
+
+def test_tetto_pagine_per_tipologia(monkeypatch):
+    """Senza tetto, 26 tipologie × 50 pagine sono ~40 min per un solo comune.
+
+    Sicuro perché dentro ogni tipologia l'albo elenca dal più recente: il tetto
+    taglia la coda storica, mai le novità.
+    """
+    from talia.modulo2_scraping.fonti import urbi
+
+    pagine_per_tipologia: dict[str, int] = {}
+
+    def _fake_post(_opener, url, dati):
+        if "StwEvent=910001" in url:
+            tipologia = dati.get("Tipologia", "")
+            if not tipologia:
+                return _HTML_AVVISO_TIPOLOGIA
+            pagine_per_tipologia[tipologia] = 1
+            return _HTML_PAGINA
+        # pagina successiva: attribuita alla tipologia in corso
+        corrente = max(pagine_per_tipologia, key=lambda k: pagine_per_tipologia[k], default=None)
+        ultima = list(pagine_per_tipologia)[-1]
+        pagine_per_tipologia[ultima] += 1
+        assert corrente is not None
+        return _HTML_PAGINA.replace(
+            "IdMePubblica=1", f"IdMePubblica=9{pagine_per_tipologia[ultima]}"
+        )
+
+    monkeypatch.setattr(urbi, "_post", _fake_post)
+    monkeypatch.setattr(urbi, "_PAUSA_SECONDI", 0)
+    monkeypatch.setattr(urbi.urllib.request, "build_opener", lambda *_a, **_k: _OpenerFinto())
+
+    list(urbi.scarica_atti(_BASE, _QS, _ISTAT, _ENTE, max_pagine=50, max_pagine_per_tipologia=3))
+    assert set(pagine_per_tipologia) == {"83", "44"}
+    assert all(n <= 3 for n in pagine_per_tipologia.values()), pagine_per_tipologia
+
+
+def test_tetto_disattivabile_per_backfill(monkeypatch):
+    from talia.modulo2_scraping.fonti import urbi
+
+    pagine = {"n": 0}
+
+    def _fake_post(_opener, url, dati):
+        if "StwEvent=910001" in url:
+            if not dati.get("Tipologia", ""):
+                return _HTML_AVVISO_TIPOLOGIA
+            pagine["n"] += 1
+            return _HTML_PAGINA
+        pagine["n"] += 1
+        return _HTML_PAGINA.replace("IdMePubblica=1", f"IdMePubblica=9{pagine['n']}")
+
+    monkeypatch.setattr(urbi, "_post", _fake_post)
+    monkeypatch.setattr(urbi, "_PAUSA_SECONDI", 0)
+    monkeypatch.setattr(urbi.urllib.request, "build_opener", lambda *_a, **_k: _OpenerFinto())
+
+    list(urbi.scarica_atti(_BASE, _QS, _ISTAT, _ENTE, max_pagine=6, max_pagine_per_tipologia=None))
+    # 2 tipologie × 6 pagine: nessun tetto applicato.
+    assert pagine["n"] == 12
