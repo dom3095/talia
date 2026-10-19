@@ -177,6 +177,7 @@ def inizializza_db(conn: sqlite3.Connection) -> None:
     conn.commit()
     _estendi_enti(conn)
     _estendi_atti(conn)
+    _crea_atti_fonti(conn)
 
 
 def _estendi_enti(conn: sqlite3.Connection) -> None:
@@ -206,6 +207,59 @@ def _estendi_atti(conn: sqlite3.Connection) -> None:
     # chiamata, quindi un CREATE INDEX in _DDL (eseguito prima di _estendi_atti)
     # fallirebbe con "no such column" sui DB creati prima di questa migrazione.
     conn.execute("CREATE INDEX IF NOT EXISTS idx_atti_cig_padre ON atti (cig_padre)")
+    conn.commit()
+
+
+_DDL_ATTI_FONTI = """\
+CREATE TABLE IF NOT EXISTS atti_fonti (
+    id             INTEGER PRIMARY KEY,
+    atto_id        INTEGER NOT NULL REFERENCES atti(id) ON DELETE CASCADE,
+    fonte_scraper  TEXT    NOT NULL,
+    url_fonte      TEXT    NOT NULL,
+    url_pdf        TEXT,
+    data_pub       TEXT,
+    data_scadenza  TEXT,
+    data_accesso   TEXT    NOT NULL,
+    hash_sha256    TEXT,
+    UNIQUE (atto_id, fonte_scraper, url_fonte)
+);
+CREATE INDEX IF NOT EXISTS idx_atti_fonti_atto  ON atti_fonti (atto_id);
+CREATE INDEX IF NOT EXISTS idx_atti_ente_cig_num ON atti (ente_id, cig, numero);
+CREATE INDEX IF NOT EXISTS idx_atti_ente_tipo_num ON atti (ente_id, tipo, numero);
+"""
+
+
+def _crea_atti_fonti(conn: sqlite3.Connection) -> None:
+    """Crea `atti_fonti` e la popola 1:1 dagli atti che non hanno ancora una fonte (TAL-64).
+
+    `atti_fonti` registra **ogni** pubblicazione in cui un atto è stato trovato
+    (Albo Pretorio, Amministrazione Trasparente, …): la stessa determina può
+    stare su due portali, con URL, date di pubblicazione e scadenza diverse.
+
+    Le colonne per-fonte restano anche in `atti` e descrivono la **prima** fonte
+    da cui l'atto è stato acquisito: decine di query (catene, red flag,
+    dashboard, `COALESCE(data_atto, data_pub)`) le leggono da lì, e spostarle
+    tutte in un colpo solo su un DB di 300k+ atti, senza poterlo verificare,
+    sarebbe stato il rischio maggiore di questa card. `atti_fonti` è quindi
+    additiva: niente di ciò che oggi legge `atti` cambia comportamento.
+
+    Il backfill è idempotente e riguarda solo gli atti senza alcuna fonte: al
+    primo avvio copia l'intero DB (una riga per atto, nessun merge — oggi non
+    esistono duplicati reali, vedi la card), poi diventa un no-op.
+    """
+    conn.executescript(_DDL_ATTI_FONTI)
+    conn.execute(
+        """
+        INSERT INTO atti_fonti (
+            atto_id, fonte_scraper, url_fonte, url_pdf,
+            data_pub, data_scadenza, data_accesso, hash_sha256
+        )
+        SELECT a.id, a.fonte_scraper, a.url_fonte, a.url_pdf,
+               a.data_pub, a.data_scadenza, a.data_accesso, a.hash_sha256
+        FROM atti a
+        WHERE NOT EXISTS (SELECT 1 FROM atti_fonti f WHERE f.atto_id = a.id)
+        """
+    )
     conn.commit()
 
 
@@ -282,10 +336,107 @@ def azzera_info_scraper(conn: sqlite3.Connection, codice_istat: str) -> None:
     conn.commit()
 
 
+def _numero_valido(numero: str | None) -> bool:
+    """`"0"` è una sentinella dei portali (13% delle righe AT in TAL-64), non un numero."""
+    return bool(numero) and numero.strip() not in ("", "0")
+
+
+def _anno(atto: AttoMetadato) -> str | None:
+    data = atto.data_atto or atto.data_pub
+    return data[:4] if data and data[:4].isdigit() else None
+
+
+def trova_stesso_atto(conn: sqlite3.Connection, ente_id: int, atto: AttoMetadato) -> int | None:
+    """Cerca un atto già in DB che sia **lo stesso documento** pubblicato altrove (TAL-64).
+
+    Ritorna l'``id`` solo se il candidato è **unico**; con zero o più candidati
+    ritorna ``None`` e l'atto viene inserito come nuovo. Fondere due atti
+    diversi è un errore peggiore che tenerne due copie: una copia in più si
+    vede, una fusione sbagliata sparisce.
+
+    Regole (spec della card, confermate con Dom):
+
+    * **Solo tra fonti diverse.** Un candidato già visto dalla stessa
+      ``fonte_scraper`` non è mai lo stesso atto: dentro un portale, URL
+      diverso = atto diverso, come oggi. Il caso da deduplicare è Albo
+      Pretorio vs Amministrazione Trasparente.
+    * Con CIG: chiave ``(ente_id, cig, numero)``, CIG **esatto** — il CIG da
+      solo non basta (il 40% dei CIG copre più atti: determina a contrarre,
+      aggiudicazione, liquidazione…). Mai ``cig_padre``: è condiviso da tutte
+      le adesioni a un accordo quadro.
+    * Senza CIG: ``(ente_id, tipo, numero)``. ``data_atto`` è fuori dalla chiave
+      (mai valorizzato in Amministrazione Trasparente); per non fondere la
+      determina n. 12 del 2019 con quella del 2026 si richiede però lo stesso
+      anno quando è noto da entrambe le parti.
+    * ``numero`` assente o ``"0"`` (sentinella): nessuna deduplicazione.
+    """
+    if not _numero_valido(atto.numero):
+        return None
+    if atto.cig:
+        condizione, parametri = "a.cig = ?", [atto.cig]
+    else:
+        condizione, parametri = "a.cig IS NULL AND a.tipo = ?", [atto.tipo]
+    righe = conn.execute(
+        f"""
+        SELECT a.id, COALESCE(a.data_atto, a.data_pub) AS data
+        FROM atti a
+        WHERE a.ente_id = ? AND a.numero = ? AND {condizione}
+          AND NOT EXISTS (
+              SELECT 1 FROM atti_fonti f
+              WHERE f.atto_id = a.id AND f.fonte_scraper = ?
+          )
+        LIMIT 3
+        """,
+        [ente_id, atto.numero, *parametri, atto.fonte_scraper],
+    ).fetchall()
+    anno = _anno(atto)
+    candidati = [
+        r["id"]
+        for r in righe
+        if anno is None or not r["data"] or r["data"][:4] == anno or not r["data"][:4].isdigit()
+    ]
+    return candidati[0] if len(candidati) == 1 else None
+
+
+def _aggiungi_fonte(conn: sqlite3.Connection, atto_id: int, atto: AttoMetadato) -> bool:
+    """Registra una pubblicazione dell'atto; ``False`` se era già registrata."""
+    cur = conn.execute(
+        """
+        INSERT OR IGNORE INTO atti_fonti (
+            atto_id, fonte_scraper, url_fonte, url_pdf,
+            data_pub, data_scadenza, data_accesso, hash_sha256
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            atto_id,
+            atto.fonte_scraper,
+            atto.url_fonte,
+            atto.url_pdf,
+            atto.data_pub,
+            atto.data_scadenza,
+            atto.data_accesso,
+            atto.hash_sha256,
+        ),
+    )
+    return cur.rowcount > 0
+
+
 def inserisci_atto(conn: sqlite3.Connection, atto: AttoMetadato) -> int | None:
     """Inserisce un atto nuovo; ritorna l'``id`` se inserito, ``None`` se già presente.
 
     La chiave di unicità è ``(ente_id, url_fonte)``: un re-run non duplica.
+
+    Dal TAL-64 "già presente" ha due casi in più, entrambi registrati in
+    `atti_fonti` invece di essere scartati:
+
+    * stesso URL ma **fonte diversa** (su jCityGov Albo Pretorio e
+      Amministrazione Trasparente condividono il backend e quindi l'URL): prima
+      l'insert falliva sull'UNIQUE e l'informazione "è anche in AT, con
+      ritenzione di anni" andava persa in silenzio;
+    * URL diverso ma **stesso documento** secondo `trova_stesso_atto`.
+
+    In entrambi i casi il ritorno resta ``None``: l'atto non è nuovo, e i
+    conteggi "inseriti" degli scraper non cambiano significato.
     """
     row_ente = conn.execute(
         "SELECT id FROM enti WHERE codice_istat = ?", (atto.ente_codice_istat,)
@@ -296,6 +447,20 @@ def inserisci_atto(conn: sqlite3.Connection, atto: AttoMetadato) -> int | None:
             "Chiama prima upsert_ente()."
         )
     ente_id = row_ente["id"]
+
+    esistente = conn.execute(
+        "SELECT id FROM atti WHERE ente_id = ? AND url_fonte = ?", (ente_id, atto.url_fonte)
+    ).fetchone()
+    if esistente is not None:
+        if _aggiungi_fonte(conn, esistente["id"], atto):
+            conn.commit()
+        return None
+
+    stesso = trova_stesso_atto(conn, ente_id, atto)
+    if stesso is not None:
+        _aggiungi_fonte(conn, stesso, atto)
+        conn.commit()
+        return None
 
     try:
         cur = conn.execute(
@@ -326,11 +491,30 @@ def inserisci_atto(conn: sqlite3.Connection, atto: AttoMetadato) -> int | None:
                 json.dumps(atto.metadati, ensure_ascii=False),
             ),
         )
+        _aggiungi_fonte(conn, cur.lastrowid, atto)
         conn.commit()
         return cur.lastrowid
     except sqlite3.IntegrityError:
         conn.rollback()
         return None
+
+
+def fonti_atto(conn: sqlite3.Connection, atto_id: int) -> list[sqlite3.Row]:
+    """Tutte le pubblicazioni note di un atto, la più duratura per prima (TAL-64).
+
+    L'ordine serve al link da mostrare all'utente: l'Albo Pretorio espone un
+    atto per 15-30 giorni, Amministrazione Trasparente per anni — linkare la
+    fonte con la scadenza più lontana (o senza scadenza) evita i link morti che
+    avevano aperto il filone TAL-62.
+    """
+    return conn.execute(
+        """
+        SELECT * FROM atti_fonti
+        WHERE atto_id = ?
+        ORDER BY data_scadenza IS NOT NULL, data_scadenza DESC, id
+        """,
+        (atto_id,),
+    ).fetchall()
 
 
 def conta_atti(conn: sqlite3.Connection, ente_id: int | None = None) -> int:
@@ -504,4 +688,6 @@ __all__ = [
     "inizia_run",
     "termina_run",
     "ultimo_run_riuscito",
+    "fonti_atto",
+    "trova_stesso_atto",
 ]
