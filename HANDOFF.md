@@ -23,10 +23,67 @@ Causa misurata: il filtro è sull'**User-Agent** (`TALIA-bot/0.1` → 403; UA se
 ---
 
 > Aggiornato: 2026-10-19 (catena di PR **stacked**: #20 TAL-66…71 → #21 TAL-72
-> `feat/TAL-72-tetto-tempo-scraper` → TAL-64 `feat/TAL-64-atti-fonti`). Sessione
-> da cloud, **senza accesso al Mac né a `talia.db`**: tutto verificato con i
-> test, niente misurato sul DB reale. La sessione precedente (TAL-60…65) è in
+> → #22 TAL-64 → TAL-73 `feat/TAL-73-diagnosi-frazionamento`). Le sessioni
+> (1)-(3) erano da cloud, senza `talia.db`; la (4) è sul Mac e misura sul DB
+> reale. La sessione precedente (TAL-60…65) è in
 > `main` come **PR #19** (`520d697`).
+
+---
+
+## Sessione 2026-10-19 (4) — audit dei run reali e misura TAL-73 sul Mac
+
+**Audit `scraper_runs` (20/08 → 19/10), sola lettura.** Nessuna delle PR
+#20-#23 è ancora in `main`, quindi **il run notturno gira ancora senza tetto di
+tempo**:
+
+- **Giorni senza alcun run:** 24/08, 28/08, **08/09, 03/10**.
+- **Fallimenti di massa con causa unica, mai segnalati:** 31/08 (232/266),
+  23/09 (261/266), **29/09 e 30/09 (266/266, 0 atti, run chiuso in 5 min)** — in
+  tutti `URLError [Errno 8] nodename nor servname` = DNS locale. Due giornate
+  intere perse a fine settembre; il report di #21 le avrebbe segnalate.
+- **Run ancora troppo lunghi:** 02/10 fine 17:57, 09/10 sconfinato nel giorno
+  dopo, 15/10 fine 16:29; `cerda` fino a 167 min, `catania` in media 19,4 min.
+- **Falliti cronici in crescita:** da ~7 (inizio settembre) a 35-55/giorno;
+  **37 scraper falliti tutti i giorni dell'ultima settimana**. Cause: 403
+  (24 scraper, nuovo, probabile WAF), handshake SSL in timeout (19), certificato
+  non verificabile (16), connessione chiusa (7). **Non ancora indagati.**
+- Lo stash `stash@{0}` contiene una versione locale precedente e superata di
+  TAL-72 (confrontata riga per riga con #21: sottoinsieme, default 300s contro
+  1200s; il default di #21 è più prudente perché `catania`/`palermo` espongono
+  solo atti in pubblicazione).
+
+**TAL-73 misurato su `talia.db`** (dettaglio nella card, Tentativo 2): tutti i
+12.892 flag sono `solo_anac`, mediana 190 atti/flag, importi medi 1,4k€; H1
+non si conferma. Lo script aveva H4/H5 inutili sui dati ANAC reali (`oggetto` =
+solo il tipo di appalto): **corretto** (tipo letto da `oggetto`, H5 "non
+valutabile", avviso nel report, CSV troncato a 10 atti per flag perché una cella
+da 939 atti non si apriva). Test **790 verdi**, ruff pulito.
+
+**Prossimi passi, in ordine** (priorità: mettere a terra):
+1. Mergiare #20 → #21 → #22 → #23 (il merge lo fa Dom). Senza #21 ogni run
+   lungo continua a far saltare il giorno dopo.
+2. Indagare i 37 scraper cronici (24 con 403).
+3. Decidere su TAL-73: escludere SmartCIG dalla regola `frazionamento`.
+
+---
+
+## Sessione 2026-10-19 (3) — TAL-73 diagnosi dei red flag di frazionamento
+
+Nuova card per il punto "da guardare" lasciato aperto in TAL-71 (12.892
+`frazionamento` su 13.964 dopo SmartCIG). Non tocca la regola: prima si misura.
+
+- `red_flags/diagnosi_frazionamento.py` + `scripts/diagnosi_frazionamento.py`
+  (DB aperto read-only): conta 5 ipotesi di falso positivo strutturale e scrive
+  `reports/tal73/{diagnosi.md,campione.csv}` (`reports/` in `.gitignore`).
+- **Trovato leggendo la regola:** nessuno cancella i red flag del giro
+  precedente. `INSERT OR REPLACE` su `(ente, tipo, periodo_da, periodo_a)` non
+  sostituisce un flag la cui finestra si è allungata, quindi ne restano due.
+  Parte dei 12.892 potrebbe essere accumulo tra run (ipotesi H1, misurata).
+  Probabilmente vale anche per gli altri flag a finestra mobile.
+- 8 test, **758 verdi**.
+
+**Sul Mac:** `python scripts/diagnosi_frazionamento.py`, incollare la tabella
+nella card, etichettare i 60 flag del CSV.
 
 ---
 
