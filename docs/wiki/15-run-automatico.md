@@ -138,6 +138,16 @@ risponde quasi sempre.
   quindi un recupero risulta OK. Più righe per lo stesso scraper nello stesso
   giorno = recupero al ripasso.
 
+## Amministrazione Trasparente jCityGov (TAL-62)
+
+Con `--trasparenza` (attivo nel run notturno), dopo lo scraping si leggono
+anche "Bandi di concorso" e "Bandi di gara e contratti" (con tutte le
+sottovoci) della sezione Amministrazione Trasparente dei comuni jCityGov: la
+ritenzione è di anni, quindi recupera gli atti persi nei giorni senza run.
+Tetto 2400s; i comuni non raggiunti si riprendono la notte dopo. Non scrive in
+`scraper_runs`: il riepilogo è nel log (`totale: N comuni, …`). Halley è
+escluso di proposito (doppioni, vedi la card).
+
 ## Il testo degli atti nuovi (TAL-77)
 
 Dopo lo scraping e il ripasso, `run_daily.sh` passa `--testo-atti 400`: per

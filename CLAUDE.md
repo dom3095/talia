@@ -87,16 +87,15 @@ Aggiornato: 2026-07-07.
 
 Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov, backfill storico ✅ completato 2026-06-26: 748 atti, 2018→2026 — tutto lo storico esposto dall'albo) e, dal 2026-07-07 (TAL-49), **66 comuni jCityGov** trovati con sweep del pattern `<slug>.trasparenza-valutazione-merito.it` e verificati con atti reali (elenco in `scripts/run_scrapers.py::_JCITYGOV_COMUNI`, censimento completo in `docs/wiki/14-censimento-albi.md`). 6 di questi (Milazzo, Aragona, Gaggi, Letojanni, Noto, Racalmuto) richiedono un percorso alternativo (`papca-ap/igrid/<id>`, risorsa "Albo pretorio" o "Storico atti") invece dello standard `papca-g`: `jcitygov.py` lo scopre e usa automaticamente quando il percorso standard ritorna 0 risultati.
 
-**Amministrazione Trasparente (TAL-62, 2026-08-16, non ancora in produzione):**
-`jcitygov.py`/`halley.py` espongono anche `scarica_atti_trasparenza()` — raccoglie
-dalla sezione Amministrazione Trasparente (D.lgs. 33/2013, ritenzione anni, non i
-15-30gg dell'Albo Pretorio) invece che dall'Albo Pretorio, con `fonte_scraper`
-distinto (`jcitygov_trasparenza`/`halley_trasparenza`). Verificato dal vivo su
-Ragusa e Aci Bonaccorsi. **Non collegata a `run_scrapers.py`**: la deduplicazione con l'Albo Pretorio
-c'è dal TAL-64 (`atti_fonti` + `trova_stesso_atto()` in `db.py`, solo tra fonti
-diverse), manca la decisione su download/persistenza del testo — senza, Halley
-AT non ha né CIG né numero e resta non deduplicabile. Vedi
-[TAL-62](docs/cards/TAL-62.md) e [TAL-64](docs/cards/TAL-64.md).
+**Amministrazione Trasparente (TAL-62):** `jcitygov.py`/`halley.py` espongono
+`scarica_atti_trasparenza()` — sezione AT (D.lgs. 33/2013, ritenzione di anni,
+non i 15-30gg dell'Albo Pretorio), `fonte_scraper` distinto
+(`jcitygov_trasparenza`/`halley_trasparenza`). **Dal 2026-10-19 jCityGov è nel
+run notturno** (`--trasparenza`, attivato da `run_daily.sh`): categorie per
+prefisso (molti tenant hanno solo sottovoci "Bandi di gara e contratti - …"),
+stop per categoria sugli atti già visti, deduplicazione con l'albo via
+`atti_fonti` (TAL-64, stesso URL). **Halley AT resta fuori** per scelta: URL
+diversi e nessun CIG/numero → doppioni. Vedi [TAL-62](docs/cards/TAL-62.md).
 
 Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)

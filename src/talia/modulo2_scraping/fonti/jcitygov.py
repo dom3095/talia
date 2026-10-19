@@ -31,7 +31,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from html import unescape
 
 from talia.modulo2_scraping.db import AttoMetadato, inserisci_atto
@@ -391,6 +391,24 @@ def scopri_categorie_trasparenza(
     return {label: path for label, path in tutte.items() if "/papca" in path}
 
 
+def categorie_corrispondenti(disponibili: dict[str, str], richieste: Iterable[str]) -> list[str]:
+    """Etichette esposte che corrispondono alle categorie richieste, per prefisso.
+
+    Su molti tenant il menu è gerarchico: non c'è "Bandi di gara e contratti"
+    ma "Bandi di gara e contratti - Contratti con bandi e avvisi pubblicati
+    dopo il 1 gennaio 2024 - Affidamento" e simili (verificato dal vivo su
+    Modica, Acate, Milazzo, 2026-10-19). Con il confronto esatto quei tenant
+    risultavano senza categorie.
+    """
+    scelte = []
+    for richiesta in richieste:
+        for etichetta in disponibili:
+            if etichetta == richiesta or etichetta.startswith(f"{richiesta} - "):
+                if etichetta not in scelte:
+                    scelte.append(etichetta)
+    return scelte
+
+
 def scarica_atti_trasparenza(
     base_url: str,
     codice_istat: str,
@@ -399,53 +417,65 @@ def scarica_atti_trasparenza(
     limit_per_categoria: int = _DEFAULT_LIMIT,
     delay: float = _DEFAULT_DELAY,
     skip_ssl: bool = False,
+    e_noto: Callable[[str], bool] | None = None,
+    stop_dopo_noti: int = 20,
     _opener=None,
 ) -> Iterator[AttoMetadato]:
     """Scarica atti dalla sezione Amministrazione Trasparente di un comune.
 
     Gli atti hanno `fonte_scraper = "jcitygov_trasparenza"` (non
     "jcitygov"): stessa piattaforma, fonte distinguibile da quella
-    dell'Albo Pretorio. Nessuna deduplicazione qui con gli atti già raccolti
-    dall'Albo Pretorio per lo stesso comune — probabile sovrapposizione (un
-    bando pubblicato sull'Albo può comparire anche qui), gestione della
-    catena/deduplicazione valutata separatamente (non ancora implementata).
+    dell'Albo Pretorio. La deduplicazione è a valle, in `db.inserisci_atto`
+    (TAL-64): stesso URL su fonte diversa → registrato in `atti_fonti`.
+
+    ``categorie`` sono prefissi (vedi :func:`categorie_corrispondenti`). Con
+    ``e_noto`` (``url_fonte -> bool``), una categoria si interrompe dopo
+    ``stop_dopo_noti`` atti consecutivi già noti: le liste sono dal più
+    recente, e oltre quel punto è archivio già letto. Il confine è per
+    categoria, non per comune — fermare tutto alla prima categoria già vista
+    lascerebbe le successive mai lette (stesso errore corretto in TAL-68).
     """
     opener = _opener or _build_opener(skip_ssl=skip_ssl)
     base = base_url.rstrip("/")
 
-    categorie_disponibili = scopri_categorie_trasparenza(
-        base_url, skip_ssl=skip_ssl, _opener=opener
-    )
+    categorie = list(categorie)
+    disponibili = scopri_categorie_trasparenza(base_url, skip_ssl=skip_ssl, _opener=opener)
+    scelte = categorie_corrispondenti(disponibili, categorie)
+    if not scelte:
+        logger.warning(
+            "jcitygov trasparenza %s: nessuna categoria tra %r (esposte: %d)",
+            base,
+            categorie,
+            len(disponibili),
+        )
+        return
 
-    for nome_categoria in categorie:
-        percorso = categorie_disponibili.get(nome_categoria)
-        if not percorso:
-            logger.warning(
-                "jcitygov trasparenza %s: categoria %r non trovata tra quelle esposte",
-                base,
-                nome_categoria,
-            )
-            continue
-
+    totale = 0
+    for nome_categoria in scelte:
+        percorso = disponibili[nome_categoria]
         html = _fetch(opener, f"{base}{percorso}")
         papca_path = percorso.split("/-/papca")[0]
 
-        raccolti = 0
-        while raccolti < limit_per_categoria:
+        raccolti = noti_consecutivi = 0
+        fermo = False
+        while raccolti < limit_per_categoria and not fermo:
             atti = _parse_pagina(html, base, codice_istat, papca_path)
             if not atti:
-                if raccolti == 0:
-                    logger.warning("jcitygov trasparenza %s: 0 atti in %r", base, nome_categoria)
                 break
 
             for atto in atti:
                 if raccolti >= limit_per_categoria:
                     break
                 atto.fonte_scraper = FONTE_SCRAPER_TRASPARENZA
+                noto = bool(e_noto and e_noto(atto.url_fonte))
                 yield atto
                 raccolti += 1
+                noti_consecutivi = noti_consecutivi + 1 if noto else 0
+                if e_noto and noti_consecutivi >= stop_dopo_noti:
+                    fermo = True
+                    break
 
-            if not _RE_NEXT.search(html) or raccolti >= limit_per_categoria:
+            if fermo or not _RE_NEXT.search(html) or raccolti >= limit_per_categoria:
                 break
 
             time.sleep(delay)
@@ -455,6 +485,10 @@ def scarica_atti_trasparenza(
                 f"&_{_PORTLET}_paginationAction=NEXT&_{_PORTLET}_action=mostraLista"
             )
             html = _fetch(opener, next_url)
+        totale += raccolti
+
+    if totale == 0:
+        logger.warning("jcitygov trasparenza %s: 0 atti in %d categorie", base, len(scelte))
 
 
 # ---------------------------------------------------------------------------

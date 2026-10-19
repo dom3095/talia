@@ -416,3 +416,83 @@ def test_scarica_atti_trasparenza_rispetta_limit_per_categoria():
         )
     )
     assert len(atti) == 1
+
+
+# --- TAL-62: categorie gerarchiche e stop per categoria -----------------------
+
+_HTML_MENU_GERARCHICO = (
+    # Menu di Modica/Acate/Milazzo: nessuna voce "Bandi di gara e contratti"
+    # esatta, solo sottovoci (verificato dal vivo 2026-10-19).
+    '<a data-resource="Bandi di gara e contratti - Contratti dopo il 1 gennaio 2024 - Affidamento" '
+    'data-mainurl="/web/trasparenza/papca-g/-/papca/igrid/1163156"></a>'
+    '<a data-resource="Bandi di gara e contratti - Varianti" '
+    'data-mainurl="/web/trasparenza/papca-g/-/papca/igrid/1163157"></a>'
+    '<a data-resource="Bandi di gara e contrattistica varia" '
+    'data-mainurl="/web/trasparenza/papca-g/-/papca/igrid/1163158"></a>'
+)
+
+
+def test_categorie_corrispondenti_per_prefisso():
+    from talia.modulo2_scraping.fonti.jcitygov import (
+        CATEGORIE_TRASPARENZA_DEFAULT,
+        categorie_corrispondenti,
+    )
+
+    disponibili = {
+        "Bandi di concorso": "/a",
+        "Bandi di gara e contratti - X - Affidamento": "/b",
+        "Bandi di gara e contratti - Varianti": "/c",
+        # Prefisso testuale ma non una sottovoce: non deve corrispondere.
+        "Bandi di gara e contrattistica varia": "/d",
+        "Altri contenuti": "/e",
+    }
+    assert categorie_corrispondenti(disponibili, CATEGORIE_TRASPARENZA_DEFAULT) == [
+        "Bandi di concorso",
+        "Bandi di gara e contratti - X - Affidamento",
+        "Bandi di gara e contratti - Varianti",
+    ]
+
+
+def test_scarica_atti_trasparenza_sottocategorie():
+    opener = _FakeOpener(
+        {
+            "/web/trasparenza/trasparenza": _HTML_MENU_GERARCHICO,
+            "igrid/1163156": _HTML_LISTA,
+            "igrid/1163157": _HTML_LISTA_PAGINA_2,
+        }
+    )
+    atti = list(
+        scarica_atti_trasparenza(
+            "https://modica.trasparenza-valutazione-merito.it",
+            "088006",
+            categorie=["Bandi di gara e contratti"],
+            _opener=opener,
+            delay=0,
+        )
+    )
+    assert len(atti) == 3
+
+
+def test_stop_dopo_noti_e_per_categoria():
+    """Gli atti già visti fermano la categoria corrente, non le successive."""
+    opener = _FakeOpener(
+        {
+            "/web/trasparenza/trasparenza": _HTML_MENU_GERARCHICO,
+            "paginationAction=NEXT": _HTML_LISTA_PAGINA_2,
+            "igrid/1163156": _HTML_LISTA_CON_NEXT,
+            "igrid/1163157": _HTML_LISTA_PAGINA_2,
+        }
+    )
+    atti = list(
+        scarica_atti_trasparenza(
+            "https://modica.trasparenza-valutazione-merito.it",
+            "088006",
+            categorie=["Bandi di gara e contratti"],
+            e_noto=lambda _url: True,
+            stop_dopo_noti=1,
+            _opener=opener,
+            delay=0,
+        )
+    )
+    # 1 dalla prima categoria (stop, niente pagina 2) + 1 dalla seconda.
+    assert len(atti) == 2
