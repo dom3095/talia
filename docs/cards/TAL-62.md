@@ -3,8 +3,9 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1
-- **Stato:** In Progress
-- **Branch:** `feat/TAL-60-streamlit-modulo1` (continua sullo stesso branch, su
+- **Stato:** Review — jCityGov nel run notturno (2026-10-19); Halley deliberatamente fuori
+- **Branch:** `feat/TAL-62-trasparenza-jcitygov-run` (stacked su TAL-77)
+- **Branch storico:** `feat/TAL-60-streamlit-modulo1` (continua sullo stesso branch, su
   richiesta di Dom — tema diverso da TAL-60/61 ma stessa sessione)
 
 ## 🎯 Obiettivo
@@ -110,10 +111,25 @@ concorso" attraverso più pagine (paginazione confermata), tutti con
 - Nessuna registrazione in `registry.py`/`run_scrapers.py` ancora: le funzioni esistono
   e sono testate/verificate dal vivo, ma non fanno ancora parte del run automatico.
 
+## ✅ Decisioni (2026-10-19, delegate da Dom)
+
+1. **Deduplicazione — jCityGov: risolta da TAL-64.** Stesso URL su fonte
+   diversa → `inserisci_atto` registra la fonte in `atti_fonti` invece di
+   perderla. **Halley: AT resta fuori dal run.** URL diversi dall'albo e
+   nessun CIG/numero sulle righe AT: ogni atto pubblicato in entrambe le
+   sezioni diventerebbe un doppione in `atti`, quindi nelle catene e nei
+   conteggi. Si riapre quando gli atti Halley avranno il testo (TAL-77 è solo
+   jCityGov), che dà CIG e numero.
+2. **Testo: persistito, incrementale** — vedi [TAL-77](TAL-77.md).
+3. **Wiring:** fase `--trasparenza` di `run_scrapers.py`, attivata da
+   `run_daily.sh`, sui comuni jCityGov del run; tetto 2400s, stop per
+   categoria dopo 20 atti già visti in AT, un comune in errore non ferma gli
+   altri né fa fallire il run.
+4. **Altre piattaforme:** fuori scope (invariato).
+
 ## ❓ Domande aperte (bloccanti prima della messa in produzione)
 
-- [ ] **Deduplicazione con l'Albo Pretorio** — **quantificata dal vivo, non ancora
-  decisa**. Il profilo è opposto tra le due piattaforme, non un problema unico:
+- [x] **Deduplicazione con l'Albo Pretorio** — decisa, vedi sopra. (Testo originale:) Il profilo è opposto tra le due piattaforme, non un problema unico:
   - **jCityGov**: Amministrazione Trasparente e Albo Pretorio condividono lo stesso
     backend "igrid" (vedi Tentativo 1) — `_url_dettaglio()` genera lo **stesso
     `url_fonte`** indipendentemente dal percorso di scoperta. Verificato su Ragusa:
@@ -135,14 +151,37 @@ concorso" attraverso più pagine (paginazione confermata), tutti con
     creerebbe comunque due righe distinte) — imparentato con TAL-52 (dedup atti
     tra scraper ridondanti), stesso problema concettuale ma dentro la stessa
     piattaforma invece che tra piattaforme diverse.
-- [ ] **Download/persistenza del documento**: la discussione che ha originato questa
+- [x] **Download/persistenza del documento** (decisa: TAL-77): la discussione che ha originato questa
   card aveva anche sollevato se scaricare/estrarre il testo (non solo l'URL) per gli
   atti citati nei red flag. Non ancora affrontato — `testo_estratto`/`hash_sha256`
   restano vuoti anche per gli atti raccolti qui.
-- [ ] Wiring in `registry.py`/`run_scrapers.py` per il run automatico (oggi le funzioni
+- [x] Wiring in `registry.py`/`run_scrapers.py` (solo jCityGov) per il run automatico (oggi le funzioni
   sono richiamabili ma non collegate).
 - [ ] Estensione alle altre piattaforme (portalepa, catania, palermo, urbi, trapani,
   hspromila — 14% dei dati, non ancora verificate per fattibilità).
+
+### 2026-10-19 — Tentativo N: messa in produzione su jCityGov
+**Approccio:** misura dal vivo su Ragusa, Modica, Acate, Milazzo contro
+`talia.db` (sola lettura), poi fase notturna.
+**Esito:** ✅
+**Appreso:**
+- **Il confronto esatto delle categorie mancava la maggior parte dei tenant.**
+  Ragusa espone "Bandi di gara e contratti"; Modica, Acate e Milazzo solo
+  sottovoci ("Bandi di gara e contratti - Contratti con bandi e avvisi
+  pubblicati dopo il 1 gennaio 2024 - Affidamento", ecc.) → 0 categorie, 0
+  atti, solo un WARNING per categoria. Ora le categorie sono prefissi
+  (`categorie_corrispondenti`).
+- **Valore molto diverso da comune a comune**: Ragusa 200/200 già in DB
+  (nessuna informazione nuova), Acate **230 atti mai visti** su 231, Modica
+  15 su 18, Milazzo 0 (sottocategorie vuote).
+- **Costo**: primo giro 3-45 s a comune (Ragusa 1.241 atti con tutte le
+  sottovoci); secondo giro sullo stesso DB 17 s per tre comuni, 0 nuovi. Il
+  primo giro sui 74 comuni supera il tetto e si distribuisce su 2-3 notti.
+- Lo stop sugli atti già visti è **per categoria**: fermare il comune alla
+  prima categoria nota lascerebbe le successive mai lette (l'errore di TAL-68).
+- Da verificare dopo i primi run: gli atti AT di Acate non hanno `data_pub`
+  (`COALESCE(data_atto, data_pub)` NULL → invisibili alle regole a finestra
+  temporale) e i volumi dei red flag non devono saltare.
 
 ## 🧪 Criteri di accettazione (per ora)
 
@@ -151,8 +190,8 @@ concorso" attraverso più pagine (paginazione confermata), tutti con
 - [x] Non tocca/non rischia gli scraper Albo Pretorio esistenti (funzioni nuove,
   nessuna modifica al comportamento di `scarica_atti()`).
 - [x] Test con fixture realistiche per entrambe le piattaforme.
-- [ ] Deduplicazione con l'Albo Pretorio (bloccante prima del run automatico).
-- [ ] Decisione su download/persistenza (bloccante prima del run automatico, vedi
+- [x] Deduplicazione con l'Albo Pretorio (jCityGov via TAL-64; Halley fuori dal run).
+- [x] Decisione su download/persistenza (TAL-77; vedi
   discussione in HANDOFF.md 2026-08-16).
 
 ## 📝 Note

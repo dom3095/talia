@@ -201,6 +201,80 @@ def ripassa_transitori(
     return esiti
 
 
+#: Tetto complessivo della fase Amministrazione Trasparente (TAL-62). Il primo
+#: giro legge fino a 200 atti per categoria di ogni comune (~3-45 s a comune,
+#: misurati); dalle notti successive lo stop sugli atti già visti la riduce a
+#: pochi secondi a comune. I comuni non raggiunti si riprendono la notte dopo.
+TETTO_TRASPARENZA_S = 2400
+
+
+def esegui_trasparenza(conn, entries: list[EntryRegistro]) -> dict[str, int]:
+    """Raccoglie Amministrazione Trasparente dei comuni jCityGov (TAL-62).
+
+    AT ha la ritenzione del D.lgs. 33/2013 (anni), non i 15-30 giorni
+    dell'albo: recupera atti mai visti — i giorni senza run, gli atti
+    pubblicati prima che lo scraper esistesse — e registra in `atti_fonti`
+    che un atto già noto ha anche una pubblicazione di lunga durata.
+    Su jCityGov albo e AT condividono il backend e quindi l'URL: la
+    deduplicazione la fa `inserisci_atto` (TAL-64). Halley resta fuori: lì gli
+    URL sono diversi e gli atti AT non hanno né CIG né numero, quindi ogni
+    atto pubblicato in entrambe le sezioni diventerebbe un doppione.
+
+    Un comune che fallisce non ferma gli altri e non fa fallire il run: è un
+    arricchimento, l'albo resta la fonte primaria.
+    """
+    from talia.modulo2_scraping.db import inserisci_atto
+    from talia.modulo2_scraping.fonti.jcitygov import (
+        FONTE_SCRAPER_TRASPARENZA,
+        scarica_atti_trasparenza,
+    )
+
+    print(f"\n── AMMINISTRAZIONE TRASPARENTE (jCityGov, {len(entries)} comuni) ──")
+    noti = {
+        r[0]
+        for r in conn.execute(
+            "SELECT url_fonte FROM atti_fonti WHERE fonte_scraper = ?",
+            (FONTE_SCRAPER_TRASPARENZA,),
+        )
+    }
+    tot = {"comuni": 0, "letti": 0, "nuovi": 0, "errori": 0}
+    try:
+        with tetto_tempo(TETTO_TRASPARENZA_S if tetto_supportato() else None):
+            for entry in entries:
+                letti = nuovi = 0
+                try:
+                    for atto in scarica_atti_trasparenza(
+                        entry.base_url,
+                        entry.codice_istat,
+                        skip_ssl=entry.skip_ssl,
+                        e_noto=noti.__contains__,
+                    ):
+                        letti += 1
+                        if inserisci_atto(conn, atto) is not None:
+                            nuovi += 1
+                        noti.add(atto.url_fonte)
+                except Exception as exc:
+                    tot["errori"] += 1
+                    print(f"  {entry.slug}: ERRORE {type(exc).__name__}: {exc}", file=sys.stderr)
+                tot["comuni"] += 1
+                tot["letti"] += letti
+                tot["nuovi"] += nuovi
+                if letti:
+                    print(f"  {entry.slug}: {letti} letti, {nuovi} nuovi")
+    except TettoTempoSuperato:
+        print(
+            f"  tetto di {TETTO_TRASPARENZA_S}s: {len(entries) - tot['comuni']} comuni"
+            " rimandati alla notte dopo"
+        )
+    print(
+        f"  totale: {tot['comuni']} comuni, {tot['letti']} atti letti,"
+        f" {tot['nuovi']} nuovi, {tot['errori']} comuni in errore"
+    )
+    if tot["comuni"] and not tot["letti"]:
+        print("  WARNING: nessun atto letto da Amministrazione Trasparente", file=sys.stderr)
+    return tot
+
+
 #: Tetto della fase di estrazione testo (TAL-77): ~2,5s per atto misurati,
 #: 400 atti ≈ 17 minuti; il tetto evita che un host lento la trascini per ore.
 TETTO_TESTO_S = 1800
@@ -997,6 +1071,15 @@ Esempi:
         ),
     )
     p.add_argument(
+        "--trasparenza",
+        action="store_true",
+        help=(
+            "Dopo lo scraping, raccoglie anche Amministrazione Trasparente (bandi di gara"
+            " e di concorso) dei comuni jCityGov eseguiti: ritenzione di anni invece dei"
+            " 15-30 giorni dell'albo. Il run notturno la attiva (TAL-62)."
+        ),
+    )
+    p.add_argument(
         "--testo-atti",
         type=int,
         default=0,
@@ -1090,6 +1173,10 @@ def main() -> int:
                 risultati[nome] = f"INTERROTTO al ripasso (+{esito['inseriti']} ins)"
                 del falliti[nome]
     errori += len(falliti)
+
+    if args.trasparenza:
+        jcity = [e for e in registro if e.modulo == "jcitygov" and e.slug in da_eseguire]
+        esegui_trasparenza(conn, jcity)
 
     if args.testo_atti > 0:
         esegui_testo_atti(conn, args.testo_atti)
