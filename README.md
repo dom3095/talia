@@ -73,9 +73,11 @@ TALIA_DB=/tmp/prova.db streamlit run src/talia/modulo3_dashboard/app.py
 
 Il run completo gira ogni notte con `scripts/run_daily.sh`
 ([wiki/15](docs/wiki/15-run-automatico.md)). Gira in locale e non in CI perché
-alcuni portali bloccano gli IP dei datacenter. Gli scraper si presentano con un
-User-Agent identificabile e rallentano tra una richiesta e l'altra: **se il
-gestore di un portale chiede di fermarsi, ci si ferma.**
+alcuni portali bloccano gli IP dei datacenter. Gli scraper rallentano tra una
+richiesta e l'altra e l'obiettivo è che tutti si presentino con un User-Agent
+identificabile (oggi è così per PortalePA e per gli scraper `TALIA-bot`, non
+ancora per jCityGov). **Se il gestore di un portale chiede di fermarsi, ci si
+ferma.**
 
 ## Contribuire
 
