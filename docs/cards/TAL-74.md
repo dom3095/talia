@@ -3,15 +3,14 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P0 (ogni giorno senza run è copertura persa: gli albi espongono gli atti 15-30 giorni)
-- **Stato:** Review — fix applicato e verificato dal vivo; resta aperta la richiesta al fornitore
+- **Stato:** Review — fix applicato e verificato dal vivo
 - **Branch:** `fix/TAL-74-portalepa-user-agent` (da `main`, indipendente dalla catena #20-#23)
 
 ## 🎯 Obiettivo
 
 Far tornare a produrre atti i 24 scraper PortalePA/SoluzioniPA (23 con
 `portalepa.py`, 1 con `siracusa.py`) bloccati con HTTP 403 dal 2026-09-15, senza
-mascherare l'identità del progetto, e chiedere al fornitore un'autorizzazione
-esplicita.
+mascherare l'identità del progetto.
 
 ## 📋 Spec
 
@@ -42,8 +41,7 @@ riguarda solo PortalePA.
 
 ### Decisione (Dom, 2026-10-19): opzione 4
 
-UA diverso **come misura temporanea dichiarata** + richiesta di autorizzazione
-al fornitore. Si è scelta la variante che **mantiene l'identificazione**
+UA diverso **dichiarato** + richiesta di autorizzazione al fornitore. Si è scelta la variante che **mantiene l'identificazione**
 (`Mozilla/5.0 (compatible; TALIA/0.1; +https://github.com/dom3095/talia)`, il
 formato dei crawler dichiarati) invece di uno UA Chrome puro come in `anac.py`
 (BUG-2): il gestore del portale che legge i log vede chi siamo e dove contattarci.
@@ -61,8 +59,11 @@ formato dei crawler dichiarati) invece di uno UA Chrome puro come in `anac.py`
 ## ❓ Domande aperte
 
 - [x] ~~Quale UA usare / come gestire il blocco?~~ → opzione 4, Dom 2026-10-19.
-- [ ] Il fornitore risponde? (richiesta da inviare, testo qui sotto) — finché non
-      risponde, lo UA resta misura temporanea.
+- [x] ~~Richiesta di autorizzazione al fornitore~~ → **non perseguita** (Dom,
+      2026-10-19): un contatto tecnico su un portale per piccoli comuni non
+      risponderebbe, e l'attesa non cambierebbe nulla per i 24 comuni. Lo UA
+      identificabile resta la misura stabile; la bozza sotto è archiviata,
+      riutilizzabile se un gestore si fa vivo.
 
 ## ✅ Task
 
@@ -71,7 +72,6 @@ formato dei crawler dichiarati) invece di uno UA Chrome puro come in `anac.py`
       l'header arriva davvero nella richiesta
 - [x] Verifica dal vivo di tutti e 24 gli scraper (1 pagina ciascuno, DB isolato): 24/24 OK
 - [x] CLAUDE.md: fragilità "filtro WAF sull'UA"
-- [ ] Inviare la richiesta al fornitore (testo sotto) — **Dom**
 - [ ] Dopo il primo run notturno con la modifica: verificare in `scraper_runs` che i 24 non falliscano più
 
 ## 🔬 Tentativi
@@ -85,10 +85,11 @@ passa e mantiene l'identificazione. Il backfill del buco 15/09→oggi **non** è
 possibile in generale (gli albi espongono 15-30 giorni): si recupera solo ciò che
 è ancora in pubblicazione, quindi il primo run con la modifica è il più importante.
 
-## 📝 Bozza di richiesta al fornitore
+## 📝 Bozza di richiesta al fornitore (archiviata, non inviata)
 
-*Scritta per: il supporto tecnico di SoluzioniPA (o i referenti dei singoli comuni
-se non c'è un contatto centrale). Da completare con i recapiti prima dell'invio.*
+*Non perseguita per decisione di Dom (vedi Domande aperte). Conservata nel caso un
+gestore di portale contatti il progetto tramite l'URL nello User-Agent. Scritta per
+il supporto tecnico di SoluzioniPA; da completare con i recapiti prima di qualsiasi uso.*
 
 > **Oggetto:** Richiesta di autorizzazione all'accesso automatizzato in lettura all'Albo Pretorio — progetto civico open source TALIA
 >

@@ -10,15 +10,15 @@
 Trovato dall'audit di `scraper_runs`: **24 scraper falliscono con 403 tutti i
 giorni dal 2026-09-15** (ultimo successo 14/09), tutti PortalePA/SoluzioniPA.
 Causa misurata: il filtro è sull'**User-Agent** (`TALIA-bot/0.1` → 403; UA senza
-"bot" → 200 sullo stesso URL), non sull'IP. Decisione di Dom: **opzione 4** —
-UA diverso come misura temporanea dichiarata + richiesta al fornitore.
+"bot" → 200 sullo stesso URL), non sull'IP. Decisione di Dom: UA diverso
+**identificabile**; la richiesta di autorizzazione al fornitore è stata
+**scartata** (non risponderebbe).
 
 - `portalepa.USER_AGENT` = `Mozilla/5.0 (compatible; TALIA/0.1; +https://github.com/dom3095/talia)`,
   usato anche da `siracusa.py`; le altre piattaforme restano `TALIA-bot` (non bloccate).
 - **Verificato dal vivo: 24/24** (1 pagina ciascuno, DB isolato). Test: 3 nuovi.
-- **Da fare (Dom):** inviare la richiesta al fornitore (bozza in
-  [TAL-74](docs/cards/TAL-74.md), da completare con nome ed email). Se chiede di
-  fermarsi, si ferma.
+- Nessuna richiesta inviata al fornitore (bozza archiviata in
+  [TAL-74](docs/cards/TAL-74.md)). Se un gestore chiede di fermarsi, si ferma.
 - **Dopo il primo run notturno con la modifica:** controllare in `scraper_runs`
   che i 24 non falliscano più. Il buco 15/09→oggi si recupera solo per gli atti
   ancora in pubblicazione (15-30 giorni).
