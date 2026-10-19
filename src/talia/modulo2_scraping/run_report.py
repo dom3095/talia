@@ -34,7 +34,7 @@ import sqlite3
 import statistics
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 
 from talia.modulo2_scraping.tetto_tempo import e_interruzione_tetto
 
@@ -197,7 +197,9 @@ def trova_stagnanti(
     gemello che fa il lavoro — TAL-52). La soglia è relativa al comune:
     ``max(GIORNI_STAGNANTE_MIN, MULTIPLO × intervallo tipico)``.
     """
-    oggi = oggi or date.today()
+    # In UTC come `scraper_runs.avviato_a` (`utcnow`): con la data locale, dopo
+    # mezzanotte in Italia i giorni di silenzio risultavano uno in più.
+    oggi = oggi or datetime.now(UTC).date()
     giorni_con_atti: dict[str, list[date]] = {}
     for scraper_id, giorno in conn.execute(
         """
