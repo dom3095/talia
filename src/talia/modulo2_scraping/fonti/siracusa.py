@@ -25,6 +25,7 @@ from talia.modulo2_scraping.db import (
     inserisci_atto,
     upsert_ente,
 )
+from talia.modulo2_scraping.fonti.portalepa import USER_AGENT
 from talia.modulo2_scraping.utils import estrai_cig, estrai_cig_padre, ora_utc, parse_data_iso
 
 # ---------------------------------------------------------------------------
@@ -37,7 +38,7 @@ CODICE_ISTAT = "089017"
 _BASE_URL = "https://portalepa.comune.siracusa.it"
 _ALBO_PATH = "/openweb/albo/albo_pretorio.php"
 
-_HEADERS = {"User-Agent": "TALIA-bot/0.1 (civic transparency; https://github.com/dom3095/talia)"}
+_HEADERS = {"User-Agent": USER_AGENT}  # stesso UA di portalepa.py (TAL-74)
 
 _RE_ROW = re.compile(r'<tr class="paginated_element">(.*?)</tr>', re.DOTALL)
 _RE_CELL = re.compile(r"<td[^>]*>(.*?)</td>", re.DOTALL)

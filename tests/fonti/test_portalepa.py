@@ -188,3 +188,49 @@ def test_salva_atti_idempotente():
 def test_salva_atti_lista_vuota():
     esito = salva_atti([], _db())
     assert esito["inseriti"] == 0
+
+
+# --- User-Agent (TAL-74) -----------------------------------------------------
+# Dal 2026-09-15 i portali SoluzioniPA rispondono 403 se l'UA contiene "bot".
+
+
+def test_user_agent_non_contiene_bot_ma_identifica_il_progetto():
+    from talia.modulo2_scraping.fonti.portalepa import USER_AGENT
+
+    assert "bot" not in USER_AGENT.lower()
+    assert "TALIA" in USER_AGENT
+    assert "github.com/dom3095/talia" in USER_AGENT  # contatto per il gestore del portale
+
+
+def test_siracusa_usa_lo_stesso_user_agent():
+    from talia.modulo2_scraping.fonti import siracusa
+    from talia.modulo2_scraping.fonti.portalepa import USER_AGENT
+
+    assert siracusa._HEADERS["User-Agent"] == USER_AGENT
+
+
+def test_la_richiesta_porta_lo_user_agent(monkeypatch):
+    """La richiesta effettiva, non solo la costante: l'header deve arrivare al server."""
+    import urllib.request
+
+    from talia.modulo2_scraping.fonti.portalepa import USER_AGENT, scarica_atti
+
+    viste = []
+
+    class _Risposta:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"<html></html>"
+
+    def _finto_open(self, req, *a, **kw):
+        viste.append(req.get_header("User-agent"))
+        return _Risposta()
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", _finto_open)
+    assert list(scarica_atti(_BASE, _ISTAT, max_pagine=1)) == []
+    assert viste == [USER_AGENT]
