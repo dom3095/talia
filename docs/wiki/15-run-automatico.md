@@ -131,6 +131,7 @@ condizioni che hanno cause diverse e vanno lette diversamente:
 | 🔇 **muto** | run completato, **0 atti trovati**, nessun errore | HTML del portale cambiato, regex che non aggancia più nulla — nessun exit code se ne accorgerebbe |
 | 🕒 **fermo** | attivo nel registro, non eseguito da N giorni | il Mac era spento, l'agente non è installato, il lock è rimasto appeso |
 | ⏱️ **interrotto** | fermato dal tetto di tempo, non da un'eccezione (informativo) | host lento o semi-morto; se stava inserendo, tetto troppo basso |
+| 🥶 **stagnante** | gira, trova righe, ma nessun atto nuovo da più di `max(14 gg, 3 × intervallo tipico del comune)` (informativo, TAL-69) | albo fermo davvero, pagina d'archivio al posto dell'albo vivo, gemello dello stesso comune (TAL-52) che fa il lavoro |
 
 Lo stato *muto* è la fragilità nota già elencata in `CLAUDE.md` ("fallimento
 silenzioso a 0 atti"): uno scraper rotto continua a "riuscire" per settimane.

@@ -3,8 +3,8 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR + ⚙️ OPS
 - **Priorità:** P1
-- **Stato:** To Do
-- **Branch:** —
+- **Stato:** Review
+- **Branch:** `feat/TAL-69-stagnanti`
 
 ## 🎯 Obiettivo
 
@@ -85,12 +85,17 @@ lasciando online la vecchia.
 
 ## ❓ Domande aperte
 
-- [ ] La soglia va sui giorni o va rapportata alla frequenza storica del
-      singolo comune? Enna pubblica ~3 atti/mese (documentato in CLAUDE.md):
+- [x] La soglia va sui giorni o va rapportata alla frequenza storica del
+      singolo comune? → **Entrambe** (decisione delegata da Dom, 2026-10-19):
+      `max(14, 3 × mediana dei giorni tra due giorni con inserimenti negli
+      ultimi 180)`; con meno di 4 giorni con inserimenti vale 14. Nel report
+      si spiega da sola: "nessun atto nuovo da 62 giorni (di solito ogni 13)". Enna pubblica ~3 atti/mese (documentato in CLAUDE.md):
       una soglia fissa la segnalerebbe ingiustamente. Una soglia relativa
       ("silenzioso da 3× il suo intervallo mediano") sarebbe più giusta ma è
       più difficile da spiegare in un report.
-- [ ] Contarla nell'exit code dopo la bonifica, o mai?
+- [x] Contarla nell'exit code dopo la bonifica, o mai? → **Mai**: è un
+      invito a indagare, non un guasto, e una lista di stagnanti benigni (albi
+      davvero fermi, gemelli) farebbe suonare la notifica ogni notte.
 
 ## 📎 Debito collegato emerso nello stesso audit
 
@@ -99,3 +104,20 @@ lasciando online la vecchia.
 quindi impossibile attribuire un atto a una specifica entry di registro, e
 capire quale dei due funziona. Non bloccante per questa card, ma è ciò che
 impedisce una diagnosi automatica dei casi del punto 1.
+
+## 🔬 Tentativi
+
+### 2026-10-19 — Tentativo 1 (implementazione)
+**Approccio:** `run_report.trova_stagnanti()` su `scraper_runs` (giorni con
+`n_inseriti > 0`), sezione 🥶 informativa nel report e nella tab Aggregati
+della dashboard (che riusa `formatta_markdown`). I gemelli di TAL-52 sono
+annotati dal registro (`gemelli_da_registro`, stesso codice ISTAT tra gli
+attivi).
+**Esito:** ✅ — sul DB reale **15 stagnanti**, tra cui `rometta`, `paceco`,
+`blufi`, `favignana` e `sangiovannilapunta` (104 giorni, cioè da quando esiste
+lo storico); `favignana` e `sangiovannilapunta` annotati come gemelli. Rispetto
+all'audit di agosto (20) sono usciti, tra gli altri, `mascalucia`, `licata`,
+`carini`; entrati `pedara` e `augusta` (24-30 giorni, di solito ogni 7).
+**Appreso:** la diagnosi di `rometta`/`paceco` era già stata fatta in TAL-70
+(albi fermi davvero, nessuna risorsa alternativa sul sito istituzionale); il
+report ora li mostra ogni notte invece che solo quando qualcuno lancia la query.

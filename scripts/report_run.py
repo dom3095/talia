@@ -33,6 +33,7 @@ from talia.modulo2_scraping.registry import (  # noqa: E402
 from talia.modulo2_scraping.run_report import (  # noqa: E402
     GIORNI_STALE_DEFAULT,
     formatta_markdown,
+    gemelli_da_registro,
     riepiloga,
 )
 
@@ -79,15 +80,20 @@ def main() -> int:
         return 2
 
     attesi = None
+    gemelli = None
     if not args.no_registro:
         try:
-            attesi = [*entries_default(carica_registro()), *args.extra_scrapers]
+            registro = carica_registro()
+            attesi = [*entries_default(registro), *args.extra_scrapers]
+            gemelli = gemelli_da_registro(registro)
         except Exception as exc:  # registro malformato: il report resta utile lo stesso
             print(f"Attenzione: registro non caricato ({exc})", file=sys.stderr)
 
     conn = connetti(db_path)
     try:
-        riepilogo = riepiloga(conn, scraper_attesi=attesi, giorni_stale=args.giorni_stale)
+        riepilogo = riepiloga(
+            conn, scraper_attesi=attesi, giorni_stale=args.giorni_stale, gemelli=gemelli
+        )
     finally:
         conn.close()
 
