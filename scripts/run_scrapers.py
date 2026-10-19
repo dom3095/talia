@@ -262,6 +262,11 @@ def esegui_trasparenza(conn, entries: list[EntryRegistro]) -> dict[str, int]:
                 if letti:
                     print(f"  {entry.slug}: {letti} letti, {nuovi} nuovi")
     except TettoTempoSuperato:
+        # Il tetto può scattare tra l'INSERT di un atto e il commit (prima che
+        # `atti_fonti` sia scritta): senza rollback il primo commit successivo
+        # salverebbe un atto a metà. Gli atti precedenti sono già committati.
+        if conn.in_transaction:
+            conn.rollback()
         print(
             f"  tetto di {TETTO_TRASPARENZA_S}s: {len(entries) - tot['comuni']} comuni"
             " rimandati alla notte dopo"

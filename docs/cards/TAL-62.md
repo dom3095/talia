@@ -183,6 +183,18 @@ concorso" attraverso più pagine (paginazione confermata), tutti con
   (`COALESCE(data_atto, data_pub)` NULL → invisibili alle regole a finestra
   temporale) e i volumi dei red flag non devono saltare.
 
+### 2026-10-20 — Review
+**Esito:** ✅ un caso limite corretto, un limite documentato.
+- Se il tetto della fase scatta tra l'`INSERT` di un atto e il commit, la
+  transazione restava aperta e il primo commit successivo avrebbe salvato un
+  atto senza la riga in `atti_fonti`: ora rollback, come in `esegui_scraper`.
+- **Limite accettato:** lo stop "20 atti già visti" parte dalla cima della
+  lista. Una categoria letta solo in parte (tetto scattato, o oltre i 200 atti
+  per categoria) non verrà più letta in profondità nelle notti successive.
+  Il valore di AT sta nei mesi recenti persi (in cima), non nell'archivio
+  remoto; per un recupero completo di un comune: `scarica_atti_trasparenza`
+  senza `e_noto`, a mano.
+
 ## 🧪 Criteri di accettazione (per ora)
 
 - [x] `scarica_atti_trasparenza()` funzionante e verificata dal vivo su jCityGov
