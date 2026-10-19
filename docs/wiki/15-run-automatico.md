@@ -120,6 +120,24 @@ Se uno scraper viene interrotto **mentre stava ancora inserendo atti**, il
 report lo marca: è il segnale che il tetto è troppo basso per quel comune, non
 che lo scraper è rotto.
 
+## Il ripasso dei falliti transitori (TAL-75)
+
+A fine loop, gli scraper falliti per cause di rete **transitorie** (timeout,
+handshake TLS in timeout, connessione chiusa o resettata, risposta troncata,
+DNS) vengono ritentati **una volta**. Nella settimana 12-19/10/2026 Catania è
+fallita 3 volte su 8 e Palermo e Trapani 2 su 8, sempre nelle stesse notti e
+sempre per timeout, mentre di norma finiscono in 2 minuti: ore dopo, l'host
+risponde quasi sempre.
+
+- Non si ritentano certificati non validi né risposte HTTP 4xx/5xx: si
+  ripresenterebbero identici (`run_report.e_transitorio()`).
+- Budget complessivo `--budget-ripasso` (default 3600s, `0` = disattivato):
+  in una notte di rete degradata decine di scraper possono andare in timeout,
+  e ritentarli tutti col tetto da 20 minuti riporterebbe il run oltre le 24h.
+- Il tentativo scrive una sua riga in `scraper_runs`; il report legge l'ultima,
+  quindi un recupero risulta OK. Più righe per lo stesso scraper nello stesso
+  giorno = recupero al ripasso.
+
 ## Il riepilogo: stati distinti
 
 `scripts/report_run.py` (e la tab 📅 Aggregati della dashboard) distinguono

@@ -50,6 +50,7 @@ from talia.modulo2_scraping.registry import (  # noqa: E402
     filtra_eseguibili,
     sincronizza_enti_da_registro,
 )
+from talia.modulo2_scraping.run_report import e_transitorio  # noqa: E402
 from talia.modulo2_scraping.tetto_tempo import (  # noqa: E402
     TETTO_SCRAPER_DEFAULT_S,
     TettoTempoSuperato,
@@ -141,8 +142,9 @@ def esegui_scraper(conn, nome: str, fn, kwargs: dict, tetto_s: int | None) -> tu
     except Exception:
         msg = traceback.format_exc()
         print(f"  ERRORE:\n{msg}", file=sys.stderr)
-        termina_run(conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=_errore_db(msg))
-        return "errore", {}
+        errore = _errore_db(msg)
+        termina_run(conn, run_id, n_trovati=0, n_inseriti=0, n_duplicati=0, errore=errore)
+        return "errore", {"errore": errore}
     termina_run(
         conn,
         run_id,
@@ -153,6 +155,50 @@ def esegui_scraper(conn, nome: str, fn, kwargs: dict, tetto_s: int | None) -> tu
         data_max=esito.get("data_max"),
     )
     return "ok", esito
+
+
+#: Tempo massimo complessivo del ripasso a fine run (TAL-75). In una notte di
+#: rete degradata possono fallire per timeout decine di scraper: ritentarli
+#: tutti col tetto da 20 minuti ciascuno riporterebbe il run oltre le 24h, che
+#: è esattamente il guasto di TAL-72.
+BUDGET_RIPASSO_DEFAULT_S = 3600
+
+
+def ripassa_transitori(
+    conn,
+    falliti: dict[str, str],
+    scrapers: dict,
+    kwargs: dict,
+    tetto_s: int | None,
+    budget_s: int | None,
+    orologio=time.monotonic,
+) -> dict[str, tuple[str, dict]]:
+    """Ritenta una volta gli scraper falliti per cause transitorie (TAL-75).
+
+    Le notti con rete instabile fanno fallire per timeout anche i capoluoghi
+    (Catania 3 volte su 8, Palermo e Trapani 2 su 8 nella settimana 12-19/10),
+    che di norma finiscono in 2 minuti: ore dopo il primo tentativo, quasi
+    sempre l'host risponde. Gli errori strutturali (certificato, 403) si
+    ripresenterebbero identici e non si ritentano.
+
+    Il nuovo tentativo scrive una sua riga in ``scraper_runs``: il report legge
+    l'ultima, quindi un recupero risulta come OK senza perdere traccia del primo
+    fallimento. Superato ``budget_s`` i restanti non vengono ritentati.
+    """
+    candidati = [n for n, err in falliti.items() if e_transitorio(err)]
+    if not candidati:
+        return {}
+    print(f"\n── RIPASSO ({len(candidati)} falliti per cause transitorie) ──")
+    inizio = orologio()
+    esiti: dict[str, tuple[str, dict]] = {}
+    for nome in candidati:
+        if budget_s and orologio() - inizio >= budget_s:
+            saltati = len(candidati) - len(esiti)
+            print(f"  budget di {budget_s}s esaurito: {saltati} non ritentati")
+            break
+        print(f"\n── {nome.upper()} (ripasso) ──")
+        esiti[nome] = esegui_scraper(conn, nome, scrapers[nome], kwargs, tetto_s)
+    return esiti
 
 
 def _date_range(atti) -> tuple[str | None, str | None]:
@@ -915,6 +961,18 @@ Esempi:
         ),
     )
     p.add_argument(
+        "--budget-ripasso",
+        type=int,
+        default=BUDGET_RIPASSO_DEFAULT_S,
+        dest="budget_ripasso",
+        metavar="SECONDI",
+        help=(
+            "A fine run ritenta una volta gli scraper falliti per cause di rete"
+            " transitorie (timeout, connessione chiusa, DNS), entro questo tempo"
+            f" complessivo. Default: {BUDGET_RIPASSO_DEFAULT_S}s; 0 = nessun ripasso (TAL-75)."
+        ),
+    )
+    p.add_argument(
         "--llm-modello",
         default=None,
         dest="llm_modello",
@@ -956,6 +1014,7 @@ def main() -> int:
     print(f"Registro sincronizzato: {n_sync} enti")
 
     risultati: dict[str, dict | str] = {}
+    falliti: dict[str, str] = {}
     errori = 0
 
     # `dict.fromkeys` invece di un set: preserva l'ordine e non riesegue uno
@@ -983,7 +1042,18 @@ def main() -> int:
             risultati[nome] = f"INTERROTTO dopo {tetto_s}s (+{esito['inseriti']} ins)"
         else:
             risultati[nome] = "ERRORE"
-            errori += 1
+            falliti[nome] = esito.get("errore", "")
+
+    if args.budget_ripasso > 0:
+        ripasso = ripassa_transitori(conn, falliti, scrapers, kwargs, tetto_s, args.budget_ripasso)
+        for nome, (stato, esito) in ripasso.items():
+            if stato == "ok":
+                risultati[nome] = esito
+                del falliti[nome]
+            elif stato == "interrotto":
+                risultati[nome] = f"INTERROTTO al ripasso (+{esito['inseriti']} ins)"
+                del falliti[nome]
+    errori += len(falliti)
 
     if not args.no_red_flags:
         print("\n── RED FLAGS ──")
