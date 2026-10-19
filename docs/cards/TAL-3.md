@@ -3,7 +3,7 @@
 - **Epica:** E1 — Motore + Modulo 1
 - **Ruolo:** 🔤 NLP
 - **Priorità:** P0
-- **Stato:** Review
+- **Stato:** Done (2026-10-19)
 - **Branch:** `feat/TAL-1-modulo1-prototipo` (sviluppo congiunto Sprint 1)
 
 ## 🎯 Obiettivo
@@ -21,7 +21,7 @@ Primo stadio del motore ([wiki/02](../wiki/02-architettura.md)). Molti atti sono
 
 ## 🧪 Criteri di accettazione
 - [x] Estrae testo corretto da un PDF nativo campione
-- [ ] Estrae testo da una scansione campione via OCR
+- [x] Estrae testo da una scansione campione via OCR (`test_estrai_testo_scansione_via_ocr`, scansione sintetica generata nel test)
 - [x] Ogni porzione di testo è risalibile alla pagina (serve per citazioni)
 - [x] Test su `data/samples/` (anonimizzati)
 
@@ -41,3 +41,17 @@ per pagina; fonte NATIVO/OCR/MISTO. Mapping testo→pagina via offset (`PaginaTe
 `da_testo` senza dipendenze esterne per test e campioni `.txt`.
 **Aperto:** manca un PDF scansionato campione in `data/samples/` per il test OCR reale
 (oggi i test usano `.txt`); import lazy di pdfplumber/pytesseract con errore esplicativo.
+
+## 🔬 Tentativi
+
+### 2026-10-19 — Chiusura del gap OCR
+**Approccio:** invece di cercare un PDF scansionato da anonimizzare e
+committare, il test genera una pagina A4 di sola immagine con Pillow (nessun
+livello di testo) e la passa a `estrai_testo`.
+**Esito:** ✅ — la pagina va nel ramo OCR (`FonteTesto.OCR`), Tesseract `ita`
+riconosce tutte le parole attese.
+**Appreso:** esercita lo stesso codice di una scansione vera senza alcun dato
+personale. Il test si salta da solo se mancano `pytesseract`, Pillow o il
+binario `tesseract` (CI senza OCR). Non misura la qualità su scansioni sporche
+(storte, a bassa risoluzione): resta valido il suggerimento di deskew/threshold
+se l'OCR reale risultasse scarso sui fascicoli di TAL-12.
