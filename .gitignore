@@ -84,3 +84,6 @@ backups/
 
 # Lock del run giornaliero
 .run_daily.lock/
+
+# Output di diagnosi locali (contengono oggetti e URL di atti reali, TAL-73)
+reports/
