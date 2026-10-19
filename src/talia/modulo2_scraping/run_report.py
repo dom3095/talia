@@ -13,13 +13,28 @@ Tre condizioni distinte, deliberatamente separate: un run *fallito* (eccezione,
 atti trovati: parsing rotto in silenzio, la fragilità nota di CLAUDE.md) né di
 uno scraper *fermo* (attivo nel registro ma non eseguito da giorni — la causa
 per cui il DB può invecchiare senza che nessuno se ne accorga).
+
+Dal TAL-72 se ne aggiungono due:
+
+* *interrotto*: lo scraper ha superato il tetto di tempo per scraper ed è stato
+  fermato dall'orchestratore. Non è un'eccezione dello scraper e non concorre
+  all'exit code: è informativo, ma resta visibile — e se lo scraper stava
+  ancora inserendo atti, il report lo dice, perché è il segnale che il tetto è
+  troppo basso e non che lo scraper è rotto;
+* *causa dominante*: quando una sola causa spiega la gran parte dei falliti
+  (il 31/08/2026: 225 errori DNS su 232) è un guasto unico — di solito la rete
+  locale — e non 225 portali rotti. Il report lo dice in testa e separa quei
+  falliti dalle rotture vere, invece di elencarne 15 a caso.
 """
 
 from __future__ import annotations
 
 import re
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass, field
+
+from talia.modulo2_scraping.tetto_tempo import e_interruzione_tetto
 
 #: Quanti scraper elencare per sezione prima di riassumere il resto: quando
 #: *nessun* run gira da giorni la sezione "fermi" contiene tutti e 265 gli
@@ -32,6 +47,86 @@ GIORNI_STALE_DEFAULT = 3
 #: Finestra di pubblicazione tipica di un albo pretorio: oltre questa soglia
 #: senza run, gli atti nel frattempo pubblicati e già scaduti sono persi.
 GIORNI_PERDITA_DATI = 15
+
+#: Una causa è "dominante" se spiega almeno questa quota dei falliti…
+QUOTA_CAUSA_DOMINANTE = 0.6
+#: …e almeno questo numero di scraper: con 3 falliti su 266, due errori uguali
+#: sono una coincidenza, non un guasto comune.
+MIN_FALLITI_CAUSA_DOMINANTE = 10
+
+
+@dataclass(frozen=True)
+class CausaErrore:
+    """Famiglia di errore, per raggruppare cause uguali scritte in modi diversi."""
+
+    descrizione: str
+    #: Vero se la causa è quasi certamente dalla nostra parte (rete, DNS
+    #: della macchina che fa girare il run) e non dei portali.
+    locale: bool = False
+
+
+#: Famiglie riconosciute, nell'ordine in cui vanno provate. I messaggi variano
+#: tra macOS e Linux (`[Errno 8] nodename nor servname` vs `[Errno -2] Name or
+#: service not known`): raggrupparli è il punto, altrimenti lo stesso guasto
+#: DNS sembra due cause diverse.
+_FAMIGLIE_ERRORE: list[tuple[re.Pattern[str], CausaErrore]] = [
+    (
+        re.compile(
+            r"nodename nor servname|Name or service not known|name resolution"
+            r"|getaddrinfo failed|No address associated with hostname",
+            re.IGNORECASE,
+        ),
+        CausaErrore("risoluzione DNS fallita", locale=True),
+    ),
+    (
+        re.compile(r"Network is unreachable|No route to host|Network is down", re.IGNORECASE),
+        CausaErrore("rete non raggiungibile", locale=True),
+    ),
+    (
+        re.compile(r"CERTIFICATE_VERIFY_FAILED|SSLError|\[SSL|handshake", re.IGNORECASE),
+        CausaErrore("errore SSL/TLS"),
+    ),
+    (
+        re.compile(r"timed out|TimeoutError|\bTimeout\b", re.IGNORECASE),
+        CausaErrore("timeout di rete"),
+    ),
+    (
+        re.compile(r"Connection refused|Connection reset|RemoteDisconnected", re.IGNORECASE),
+        CausaErrore("connessione rifiutata o chiusa dal server"),
+    ),
+]
+
+
+def causa_errore(errore: str | None) -> CausaErrore:
+    """Riconduce un errore registrato alla sua famiglia.
+
+    Si guarda solo la riga dell'eccezione, non il traceback intero: un
+    timeout durante una lettura TLS ha `ssl.py` tra i frame, e classificarlo
+    come errore SSL sarebbe sbagliato. Se nessuna famiglia nota corrisponde, la
+    causa è la riga stessa: due errori identici restano raggruppabili anche se
+    non previsti qui.
+    """
+    testo = sintesi_errore(errore, max_len=300)
+    for regex, causa in _FAMIGLIE_ERRORE:
+        if regex.search(testo):
+            return causa
+    return CausaErrore(sintesi_errore(errore))
+
+
+def trova_causa_dominante(
+    falliti: list[StatoScraper],
+    *,
+    quota: float = QUOTA_CAUSA_DOMINANTE,
+    minimo: int = MIN_FALLITI_CAUSA_DOMINANTE,
+) -> CausaErrore | None:
+    """La causa che spiega almeno ``quota`` dei falliti (e almeno ``minimo``), se c'è."""
+    if len(falliti) < minimo:
+        return None
+    conteggio = Counter(causa_errore(s.errore) for s in falliti)
+    causa, n = conteggio.most_common(1)[0]
+    if n >= minimo and n / len(falliti) >= quota:
+        return causa
+    return None
 
 
 @dataclass(frozen=True)
@@ -47,8 +142,13 @@ class StatoScraper:
     giorni_fa: float | None
 
     @property
+    def interrotto(self) -> bool:
+        """Fermato dall'orchestratore per tetto di tempo (TAL-72), non da un'eccezione."""
+        return e_interruzione_tetto(self.errore)
+
+    @property
     def fallito(self) -> bool:
-        return bool(self.errore)
+        return bool(self.errore) and not self.interrotto
 
     @property
     def muto(self) -> bool:
@@ -69,6 +169,11 @@ class RiepilogoRun:
     #: Scraper con run in DB ma non più previsti (bloccati o esclusi dal
     #: default): informativi, mai contati come problemi — vedi `riepiloga`.
     non_previsti: list[StatoScraper] = field(default_factory=list)
+    #: Fermati per tetto di tempo (TAL-72): informativi, non concorrono a
+    #: `ha_problemi` — vedi la docstring del modulo.
+    interrotti: list[StatoScraper] = field(default_factory=list)
+    #: Causa che spiega la gran parte dei falliti, se c'è (TAL-72).
+    causa_dominante: CausaErrore | None = None
     atti_inseriti: int = 0
     ultimo_run: str | None = None
     giorni_da_ultimo_run: float | None = None
@@ -76,6 +181,13 @@ class RiepilogoRun:
     @property
     def ha_problemi(self) -> bool:
         return bool(self.falliti or self.muti or self.fermi or self.mai_eseguiti)
+
+    @property
+    def falliti_per_altra_causa(self) -> list[StatoScraper]:
+        """I falliti non spiegati dalla causa dominante: le rotture da guardare una a una."""
+        if self.causa_dominante is None:
+            return self.falliti
+        return [s for s in self.falliti if causa_errore(s.errore) != self.causa_dominante]
 
     @property
     def rischio_perdita_dati(self) -> bool:
@@ -147,7 +259,9 @@ def riepiloga(
         if attesi is not None and stato.scraper_id not in attesi:
             riepilogo.non_previsti.append(stato)
             continue
-        if stato.fallito:
+        if stato.interrotto:
+            riepilogo.interrotti.append(stato)
+        elif stato.fallito:
             riepilogo.falliti.append(stato)
         elif stato.muto:
             riepilogo.muti.append(stato)
@@ -157,6 +271,7 @@ def riepiloga(
             riepilogo.fermi.append(stato)
 
     riepilogo.totale -= len(riepilogo.non_previsti)
+    riepilogo.causa_dominante = trova_causa_dominante(riepilogo.falliti)
     if attesi:
         riepilogo.mai_eseguiti = sorted(attesi - set(ultimi))
 
@@ -196,6 +311,12 @@ def sintesi_errore(errore: str | None, *, max_len: int = 120) -> str:
 
 def _riga_scraper(s: StatoScraper) -> str:
     quando = f"{s.giorni_fa:.1f}g fa" if s.giorni_fa is not None else "?"
+    if s.interrotto:
+        riga = f"- `{s.scraper_id}` ({quando}): {s.n_inseriti} atti inseriti prima dello stop"
+        if s.n_inseriti:
+            # Stava lavorando, non era appeso: è il tetto a essere stretto.
+            riga += " — ⚠️ stava ancora inserendo: valutare se il tetto è troppo basso"
+        return riga
     if s.fallito:
         return f"- `{s.scraper_id}` ({quando}): {sintesi_errore(s.errore)}"
     return f"- `{s.scraper_id}` ({quando}): {s.n_trovati} trovati, {s.n_inseriti} inseriti"
@@ -221,10 +342,30 @@ def formatta_markdown(riepilogo: RiepilogoRun, *, giorni_stale: int = GIORNI_STA
             "",
         ]
 
+    causa = riepilogo.causa_dominante
+    falliti_elencati = riepilogo.falliti_per_altra_causa
+    if causa is not None:
+        n_causa = len(riepilogo.falliti) - len(falliti_elencati)
+        origine = (
+            "probabile guasto di rete locale della macchina del run, non dei portali"
+            if causa.locale
+            else "probabile causa comune, da guardare una volta sola"
+        )
+        righe += [
+            f"> 🌐 **{n_causa} dei {len(riepilogo.falliti)} falliti hanno la stessa causa:"
+            f" {causa.descrizione}** — {origine}. Il prossimo run recupera gli atti ancora"
+            " in pubblicazione; quelli usciti dall'albo nel frattempo restano persi.",
+            "",
+        ]
+
     sezioni = [
-        ("❌ Falliti", riepilogo.falliti),
+        (
+            "❌ Falliti" + (" per altre cause" if causa is not None else ""),
+            falliti_elencati,
+        ),
         ("🔇 Muti (0 atti trovati, nessun errore)", riepilogo.muti),
         (f"🕒 Fermi da più di {giorni_stale} giorni", riepilogo.fermi),
+        ("⏱️ Interrotti per tetto di tempo (informativo)", riepilogo.interrotti),
     ]
     for titolo, elenco in sezioni:
         if elenco:

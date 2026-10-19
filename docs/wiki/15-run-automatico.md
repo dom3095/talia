@@ -69,6 +69,12 @@ Scelte del plist, e perché:
    automatico esiste per risolvere. Modificabile con
    `TALIA_EXTRA_SCRAPERS="..."` (o `""` se Playwright non è installato).
    `anac` resta fuori: richiede `--anac-file`.
+
+   Ogni scraper ha un **tetto di tempo** (default 20 minuti, `--timeout-scraper`,
+   TAL-72): oltre, l'orchestratore lo interrompe e passa al successivo. Senza
+   tetto il run del 22/08/2026 era finito il 24/08 e il lock aveva fatto saltare
+   due notti — un singolo host appeso teneva in ostaggio tutti gli altri.
+   Dettagli nella sezione *Il tetto di tempo per scraper* più sotto.
 4. **`scripts/report_run.py`** — riepilogo in `logs/ultimo_report.md`.
 5. **Rotazione** log (30 file) e backup (7 copie).
 6. **Notifica macOS** se qualcosa è andato storto.
@@ -83,16 +89,48 @@ Esecuzione manuale, identica a quella schedulata:
 launchctl kickstart -k gui/$(id -u)/com.talia.scrapers   # via launchd
 ```
 
-## Il riepilogo: tre stati distinti
+## Il tetto di tempo per scraper
+
+Il run è sequenziale, quindi la sua durata è la somma delle durate degli
+scraper — e quella somma era dominata da pochissimi. Misurato il 01/09/2026 su
+`scraper_runs`: ~10 scraper su 266 facevano il 98% dei 53.011s, e quattro dei
+sette peggiori spendevano ore in retry e timeout di socket per restituire
+**zero** atti. I timeout per singola richiesta c'erano già; mancava un tetto
+sulla loro somma.
+
+- **Meccanismo:** `SIGALRM` (`src/talia/modulo2_scraping/tetto_tempo.py`).
+  Interrompe anche una `recv` bloccata o la `sleep` di un backoff. L'eccezione
+  deriva da `BaseException`, così i `except Exception` di retry dentro gli
+  scraper non la intercettano.
+- **Nessun lavoro perso:** `inserisci_atto` committa atto per atto; gli atti
+  salvati prima dello stop restano e vengono contati in `scraper_runs.n_inseriti`.
+- **Registrazione distinta:** `scraper_runs.errore` inizia con
+  `TettoTempoSuperato` e riporta *dove* lo scraper era fermo (i tre frame più
+  interni), che è l'informazione utile per capire perché.
+- **Non è un fallimento del run:** non alza l'exit code di `run_scrapers.py` né
+  quello di `report_run.py`, quindi non fa scattare la notifica. Un host lento
+  interrotto ogni notte non deve far suonare l'allarme ogni notte.
+- **Default 1200s**, scelto sulle durate misurate: gli scraper sani stanno
+  sotto i 3 minuti (~35s di media). Nel caso peggiore, con una decina di host
+  appesi, il run resta sulle ~6 ore invece delle 14,7 misurate.
+- **Backfill esente:** con `--no-stop` il tetto è disattivato, salvo valore
+  esplicito. `--timeout-scraper 0` lo disattiva sempre.
+
+Se uno scraper viene interrotto **mentre stava ancora inserendo atti**, il
+report lo marca: è il segnale che il tetto è troppo basso per quel comune, non
+che lo scraper è rotto.
+
+## Il riepilogo: stati distinti
 
 `scripts/report_run.py` (e la tab 📅 Aggregati della dashboard) distinguono
-tre condizioni che hanno cause diverse e vanno lette diversamente:
+condizioni che hanno cause diverse e vanno lette diversamente:
 
 | Stato | Significato | Causa tipica |
 |-------|-------------|--------------|
 | ❌ **fallito** | eccezione in `scraper_runs.errore` | rete, host giù, cert scaduto |
 | 🔇 **muto** | run completato, **0 atti trovati**, nessun errore | HTML del portale cambiato, regex che non aggancia più nulla — nessun exit code se ne accorgerebbe |
 | 🕒 **fermo** | attivo nel registro, non eseguito da N giorni | il Mac era spento, l'agente non è installato, il lock è rimasto appeso |
+| ⏱️ **interrotto** | fermato dal tetto di tempo, non da un'eccezione (informativo) | host lento o semi-morto; se stava inserendo, tetto troppo basso |
 
 Lo stato *muto* è la fragilità nota già elencata in `CLAUDE.md` ("fallimento
 silenzioso a 0 atti"): uno scraper rotto continua a "riuscire" per settimane.
@@ -113,6 +151,21 @@ non verrebbero mai segnalati.
 
 Il report segnala inoltre in modo esplicito quando l'ultimo run è più vecchio
 di 15 giorni, con il motivo (finestra di pubblicazione dell'albo superata).
+
+### Fallimento di massa con causa unica
+
+Il 31/08/2026 232 scraper su 266 sono falliti, 225 con lo stesso
+`[Errno 8] nodename nor servname provided`: un guasto DNS della macchina, non
+225 portali rotti. Il report di allora elencava 15 righe a caso, indistinguibile
+da una giornata con qualche rottura vera.
+
+Ora, se una sola causa spiega almeno il **60% dei falliti** (e almeno 10
+scraper), il report lo dice in testa, specifica se la causa è quasi certamente
+locale (DNS, rete non raggiungibile) e nella sezione *Falliti per altre cause*
+elenca solo le rotture che restano da guardare una a una. Le cause sono
+raggruppate per famiglia (DNS, rete, SSL/TLS, timeout, connessione rifiutata)
+sulla riga dell'eccezione, così lo stesso guasto non appare come due cause
+diverse tra macOS e Linux. La giornata resta un problema (exit code non-zero).
 
 ## Dove guardare quando qualcosa non torna
 
