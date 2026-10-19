@@ -3,8 +3,8 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1 (blocca la messa in produzione di TAL-62 — Amministrazione Trasparente)
-- **Stato:** To Do (spec confermata con Dom, non ancora implementata)
-- **Branch:** `feat/TAL-60-streamlit-modulo1` (o nuovo branch dedicato in apertura lavori)
+- **Stato:** Review — fase 1 (`atti_fonti` additiva + dedup tra fonti), vedi Tentativo 5
+- **Branch:** `feat/TAL-64-atti-fonti` (stacked su `feat/TAL-72-tetto-tempo-scraper`)
 
 ## 🎯 Obiettivo
 
@@ -44,7 +44,7 @@ approfondisce quella segnalazione — non certezza, solo ipotesi plausibile.
 - [x] Notebook ripetibile per jCityGov (`notebooks/tal64_dedup_jcitygov.ipynb`) — trovato che il CIG da solo dà falsi positivi (40% dei CIG copre più atti), rivista la chiave in `(ente_id, cig, numero)`, ambigua solo nel 6,2% dei casi
 - [x] Verificare se le gare Halley sono altrove (Tentativo 3) — no, sono già nell'Albo Pretorio; il gap AT reale sono i concorsi
 - [x] Fattibilità download+estrazione PDF per Halley (Tentativo 4) — fattibile, riusa `engine.pdf_text.estrai_testo()`, numero estraibile su 3/5 PDF di prova, CIG assente per natura (concorsi)
-- [ ] Rivedere la chiave di fallback `(tipo, numero, data_atto)` della spec
+- [x] Rivedere la chiave di fallback `(tipo, numero, data_atto)` della spec
       rimuovendo `data_atto` (mai popolato su nessuna delle due piattaforme) —
       usare `(ente_id, cig, numero)` con fallback `(ente_id, tipo, numero)`,
       escludendo sempre `numero="0"` (sentinella)
@@ -55,11 +55,14 @@ approfondisce quella segnalazione — non certezza, solo ipotesi plausibile.
       [TAL-65](TAL-65.md): CIG padre/derivato scambiati o persi in 3 punti
       del codice (`utils.py`, `entita.py`, `catena.py`), non solo un
       placeholder isolato; 3585+235 atti corretti sul DB reale
-- [ ] Gestire esplicitamente l'ambiguità residua della chiave jCityGov
+- [x] Gestire esplicitamente l'ambiguità residua della chiave jCityGov
       (6,2% dei casi) in `inserisci_atto()` — non deduplicare se la chiave
       non è univoca, inserire comunque come atto nuovo
-- [ ] Solo dopo le decisioni sopra: implementare lo schema definitivo
-      (`atti`/`atti_fonti`) e la migrazione
+- [x] Implementare `atti_fonti` e la migrazione — **fase 1, additiva** (Tentativo 5)
+- [ ] Fase 2: dashboard che linka `fonti_atto()[0]` invece di `atti.url_fonte`
+      (serve solo quando TAL-62 entra nel run)
+- [ ] Fase 2: `red_flags.atti_cig` → `atto_id` (bug di sincronizzazione TAL-63)
+- [ ] Fase 2 (da decidere con Dom): spostare davvero le colonne per-fonte fuori da `atti`
 
 ## 📋 Spec
 
@@ -345,3 +348,41 @@ implementato in produzione: serve (a) decidere se scaricare tutti gli atti
 o solo un sottoinsieme, (b) validare il pattern numero su un campione più
 ampio, (c) capire dove persistere il testo estratto (`testo_estratto` esiste
 già nello schema `atti`, mai popolato finora).
+
+### 2026-10-19 — Tentativo 5: `atti_fonti` additiva + dedup tra fonti (fase 1)
+
+**Approccio:** invece dello split completo della spec (colonne per-fonte tolte da
+`atti`), `atti_fonti` **affianca** `atti`: le colonne per-fonte restano in `atti`
+come *prima fonte di acquisizione*, `atti_fonti` registra tutte le pubblicazioni.
+Motivo: `url_fonte`/`data_pub`/`fonte_scraper`/`data_scadenza` sono lette in ~250
+righe di 26 file (catene, red flag, dashboard, ogni `COALESCE(data_atto,
+data_pub)`); riscriverle tutte senza poter verificare sul DB reale (sessione da
+cloud, Mac spento) era il rischio maggiore della card, e non serve per sbloccare
+TAL-62. **Deviazione dalla spec da confermare con Dom.**
+
+`inserisci_atto()` diventa find-or-create con `trova_stesso_atto()`:
+- **solo tra fonti diverse** — dentro lo stesso `fonte_scraper`, URL diverso
+  resta atto diverso come oggi. Aggiunta rispetto alla spec: senza questa
+  regola la chiave ambigua al 6,2% *dentro* l'Albo jCityGov avrebbe iniziato a
+  fondere atti distinti già al primo run notturno, prima ancora che TAL-62
+  entri in produzione;
+- con CIG: `(ente_id, cig, numero)` esatti, mai `cig_padre`;
+- senza CIG (su entrambi i lati): `(ente_id, tipo, numero)` **più lo stesso
+  anno** quando noto — aggiunta rispetto alla spec, perché la numerazione delle
+  determine riparte ogni anno;
+- `numero` assente o `"0"`: nessuna dedup; candidato non unico: atto nuovo;
+- stesso URL su fonte diversa (jCityGov Albo/AT): ora registrato come seconda
+  fonte invece di perso nell'IntegrityError.
+
+**Esito:** ✅ sui test (17 nuovi, 750 verdi). Benchmark su DB sintetico da 338k
+atti: prima migrazione 0,7s, init successivi 0,1s, 2000 insert in 1s.
+**Appreso / impatto in produzione oggi: nullo** finché TAL-62 non entra nel run —
+tutti gli scraper attivi scrivono ciascuno col proprio `fonte_scraper` e la
+regola "solo tra fonti diverse" li lascia esattamente come prima, salvo la riga
+in più in `atti_fonti`.
+**Da sapere per TAL-62:** un atto AT già noto dall'Albo ritorna `None`
+("già presente"), quindi conta per lo stop-on-known dello scraper AT — da
+considerare quando lo si collega a `run_scrapers.py`. Halley AT resta senza
+dedup finché non si decide la persistenza del testo PDF (TAL-62 #2): a livello
+di lista non ha né CIG né numero.
+

@@ -92,9 +92,11 @@ Altri comuni scraper attivi (non capoluogo): **Palma di Montechiaro** (jCityGov,
 dalla sezione Amministrazione Trasparente (D.lgs. 33/2013, ritenzione anni, non i
 15-30gg dell'Albo Pretorio) invece che dall'Albo Pretorio, con `fonte_scraper`
 distinto (`jcitygov_trasparenza`/`halley_trasparenza`). Verificato dal vivo su
-Ragusa e Aci Bonaccorsi. **Non collegata a `run_scrapers.py`**: mancano ancora la
-deduplicazione con l'Albo Pretorio (stesso atto, due URL) e la decisione su
-download/persistenza del testo — vedi [TAL-62](docs/cards/TAL-62.md).
+Ragusa e Aci Bonaccorsi. **Non collegata a `run_scrapers.py`**: la deduplicazione con l'Albo Pretorio
+c'è dal TAL-64 (`atti_fonti` + `trova_stesso_atto()` in `db.py`, solo tra fonti
+diverse), manca la decisione su download/persistenza del testo — senza, Halley
+AT non ha né CIG né numero e resta non deduplicabile. Vedi
+[TAL-62](docs/cards/TAL-62.md) e [TAL-64](docs/cards/TAL-64.md).
 
 Piattaforme generiche in più, riusabili per famiglia (TAL-49, 2026-07-07/08):
 - **`portalepa.py`** (stessa piattaforma di `siracusa.py`, parametrizzata): **18 comuni** — include **Caltagirone**, sbloccata qui nonostante sia bloccata su jCityGov (WAF/cert scaduto)

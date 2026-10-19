@@ -22,11 +22,31 @@ Causa misurata: il filtro è sull'**User-Agent** (`TALIA-bot/0.1` → 403; UA se
 
 ---
 
-> Aggiornato: 2026-10-19 (branch `feat/TAL-72-tetto-tempo-scraper`, **stacked**
-> su `feat/TAL-66-run-giornaliero-aggregati` = PR #20 ancora aperta). Sessione
+> Aggiornato: 2026-10-19 (catena di PR **stacked**: #20 TAL-66…71 → #21 TAL-72
+> `feat/TAL-72-tetto-tempo-scraper` → TAL-64 `feat/TAL-64-atti-fonti`). Sessione
 > da cloud, **senza accesso al Mac né a `talia.db`**: tutto verificato con i
 > test, niente misurato sul DB reale. La sessione precedente (TAL-60…65) è in
 > `main` come **PR #19** (`520d697`).
+
+---
+
+## Sessione 2026-10-19 (2) — TAL-64 `atti_fonti` + dedup tra fonti (fase 1)
+
+Branch `feat/TAL-64-atti-fonti`, stacked su TAL-72. **Fase 1 additiva**:
+`atti_fonti` affianca `atti` invece di sostituirne le colonne per-fonte
+(lette in ~250 righe di 26 file, non verificabili senza DB) — **deviazione
+dalla spec da confermare con Dom**, motivata nel Tentativo 5 della card.
+
+- `db.py`: tabella `atti_fonti` (unique su `atto_id, fonte_scraper,
+  url_fonte`), backfill 1:1 idempotente in `inizializza_db` (0,7s su 338k
+  atti sintetici, poi 0,1s), `trova_stesso_atto()`, `inserisci_atto()`
+  find-or-create, `fonti_atto()`.
+- Regola chiave: si deduplica **solo tra fonti diverse**. Gli scraper attivi
+  non cambiano comportamento: l'impatto reale arriva quando TAL-62 entra nel run.
+- 17 test nuovi, **750 verdi**.
+
+Al primo run sul Mac la migrazione gira da sola (dopo il backup di
+`run_daily.sh`): controllare `SELECT COUNT(*) FROM atti_fonti` = `COUNT(*) FROM atti`.
 
 ---
 
