@@ -3,19 +3,9 @@
 Kanban del team. Sposta le card tra le colonne aggiornando la tabella. Dettaglio di ogni card nei file
 `TAL-*.md` di questa cartella.
 
-batch + catene procedimenti v2 + download PDF on-demand + registro scraper unificato) e
-Modulo 3 (Dashboard Streamlit, +tab Statistiche/Mappa copertura). In corso: validazione
-fascicoli reali (TAL-12). Censimento Palermo/Trapani (TAL-50), registro unificato
-scraper (#11), download PDF on-demand (TAL-47), riapertura dopo revoca (TAL-48) e
-check-3 qualità motivazione LLM (TAL-11, PR #14) completati e mergiati in `main`.
-Ripulita la colonna Review (2026-07-25): 11 card verificate e spostate in Done, 3
-lasciate aperte con un gap specifico ancora documentato nella card (TAL-3 OCR, TAL-5
-associazione nome↔ruolo, TAL-9 incrocio tempistica graduatoria). I gap di TAL-5/TAL-9
-sono stati chiusi da TAL-53 (2026-08-07); resta aperto solo TAL-3 (OCR).
-PR #17 (TAL-53…TAL-58: Modulo 1 nome↔ruolo/graduatoria + fix RAG/LLM, Modulo 2
-Pachino/Barrafranca, Modulo 3 tab Statistiche/Mappa) mergiata in `main` il 2026-08-09.
-PR #18 (TAL-59: falsi positivi in riapertura_dopo_revoca) mergiata il 2026-08-13 — colonna
-Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 2026-08-16.
+> Aggiornata: 2026-10-19. Obiettivo corrente: **MVP** ("portare a terra"), criteri in
+> [wiki/16](../wiki/16-definizione-mvp.md). `main` contiene fino alla PR #24; le PR
+> #25-#32 sono in Review (dettaglio e ordine di merge in `HANDOFF.md`).
 
 ## Ruoli del team (anche se sei una persona sola: indossa il cappello giusto)
 
@@ -44,37 +34,44 @@ Review era rimasta indietro (mostrava ancora TAL-59 come aperta), corretto il 20
 | [TAL-51](TAL-51.md) | Scraper comuni Palermo/Trapani (TIER 1 + custom) | E3 | 🕷️ SCR | P2 |
 | [TAL-41](TAL-41.md) | Modulo 0: Registro Attori (gerarchia comuni + società in house) | E2 | 🕷️ SCR + 🔤 NLP | P2 |
 | [TAL-24](TAL-24.md) | Ground truth: sentenze annullamento | E2 | ⚖️ LEX | P2 |
-| [TAL-40](TAL-40.md) | README pubblico + contributing | E4 | 🧭 TL | P3 |
 | [TAL-52](TAL-52.md) | Deduplicazione atti tra scraper ridondanti (stesso comune, 2 piattaforme) | E2 | 🕷️ SCR | P3 |
 
 ### 📝 To Do (pronte da prendere)
 | ID | Titolo | Epica | Ruolo | Pri |
 |----|--------|-------|-------|-----|
-| [TAL-69](TAL-69.md) | Scraper "stagnanti": righe sì, nessun atto nuovo da settimane | E2 | 🕷️ SCR + ⚙️ OPS | P1 |
+| [TAL-76](TAL-76.md) | `concentrazione_diretti` segnala tutti gli enti: riprogettare la regola (disattivata in #26) | E2 | 🔤 NLP + ⚖️ LEX | P2 |
+
 
 ### 🔧 In Progress
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-62](TAL-62.md) | Scraper "Amministrazione Trasparente" (jCityGov + Halley) | 🕷️ SCR | branch `feat/TAL-60-streamlit-modulo1`; `scarica_atti_trasparenza()` implementata e verificata dal vivo su entrambe le piattaforme (Ragusa/jCityGov, Aci Bonaccorsi/Halley); riusa il motore "igrid" esistente su jCityGov, applicazione separata (Zend Framework) su Halley; **non ancora in produzione**: manca decisione su deduplicazione con l'Albo Pretorio e su download/persistenza del testo, nessun wiring in `run_scrapers.py` |
-| [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | 1/10: fascicolo reale AG analizzato, 3 bug corretti; candidati 2-3 pronti (PDF scaricati via TAL-48) |
+| [TAL-12](TAL-12.md) | Validazione su 10 fascicoli reali | ⚖️ LEX | **collo di bottiglia dell'MVP**: 1/10 validato; fascicoli 2-9 pronti con report automatico, serve la lettura di un giurista |
+
 
 ### 👀 Review
 | ID | Titolo | Ruolo | Note |
 |----|--------|-------|------|
-| [TAL-74](TAL-74.md) | PortalePA/SoluzioniPA: 24 comuni bloccati dal filtro sull'User-Agent | 🕷️ SCR | P0; branch `fix/TAL-74-portalepa-user-agent` (da `main`); 403 dal 2026-09-15 su ogni UA con "bot", non per IP; UA `Mozilla/5.0 (compatible; TALIA/0.1; +URL)` (identificabile), **24/24 verificati dal vivo**; nessuna richiesta al fornitore (decisione di Dom: non risponderebbe), bozza archiviata nella card; se un gestore chiede di fermarsi, si ferma |
-| [TAL-73](TAL-73.md) | Red flag di frazionamento: misurare i falsi positivi prima di pubblicare | 🔤 NLP + ⚖️ LEX | P1; branch `feat/TAL-73-diagnosi-frazionamento` (stacked su TAL-64); `scripts/diagnosi_frazionamento.py` (sola lettura): conta 5 ipotesi di FP strutturale — flag **superati** (nessuno ripulisce i flag del run precedente: ogni allungamento di finestra ne lascia uno vecchio), **contenuti**, **CIG contato più volte**, **lavori+forniture mescolati**, **oggetti eterogenei** — e scrive un campione stratificato ANAC/Albo/misto da etichettare; **misurato su `talia.db` il 2026-10-19**: 12.892/12.892 flag sono `solo_anac`, mediana 190 atti per flag (88% ≥100), importi medi 1,4k€ → non sono appalti spezzati ma volume ordinario; H1 (accumulo) **non** si conferma; lo script aveva H4/H5 inutili sui dati ANAC reali (corretto); manca l'etichettatura del campione (20 flag, un solo strato); **proposta: escludere SmartCIG dalla regola** — decisione di Dom |
-| [TAL-64](TAL-64.md) | Deduplicazione atti: `atti_fonti` + dedup tra fonti | 🕷️ SCR | P1; branch `feat/TAL-64-atti-fonti` (stacked su TAL-72); **fase 1 additiva**: `atti_fonti` affianca `atti` (le colonne per-fonte restano in `atti` come prima fonte — deviazione dalla spec da confermare), backfill 1:1 idempotente in `inizializza_db`, `inserisci_atto` find-or-create **solo tra fonti diverse** (`(ente,cig,numero)`, fallback `(ente,tipo,numero)`+stesso anno, mai `cig_padre`, `"0"` escluso, ambiguo → nuovo); stesso URL su fonte diversa ora registrato invece che perso; `fonti_atto()` ordina per durata del link; impatto sul run attuale nullo finché TAL-62 non entra; 750 test verdi |
-| [TAL-72](TAL-72.md) | Il run notturno supera le 24h e fa saltare i giorni successivi | ⚙️ OPS + 🕷️ SCR | P0; branch `feat/TAL-72-tetto-tempo-scraper` (PR stacked su #20); **tetto di tempo per scraper** (`--timeout-scraper`, default 1200s, esente con `--no-stop`) via `SIGALRM` — interrompe anche `recv` bloccate e loop di retry con `except Exception` (eccezione derivata da `BaseException`); gli atti già salvati restano e vengono contati; l'interruzione è registrata distinta dall'errore e **non** alza l'exit code; il report riconosce la **causa dominante** (≥60% dei falliti, ≥10) e la marca come locale se DNS/rete — il 31/08 avrebbe detto "225 dei 232 falliti: risoluzione DNS fallita"; 733 test verdi. **Manca la misura sul run reale** (query di verifica nella card) |
-| [TAL-66](TAL-66.md) | Run giornaliero automatico degli scraper (launchd) + riepilogo esiti | ⚙️ OPS | P0; branch `feat/TAL-66-run-giornaliero-aggregati`; l'ultimo run era del 2026-08-06 (**12 giorni**) con albi che espongono solo 15-30gg → perdita definitiva in corso; `run_daily.sh` (lock, caffeinate, backup DB via `sqlite3 .backup`, rotazione, notifica macOS) + `setup_launchd.sh` (`StartCalendarInterval`, non `StartInterval`+`KeepAlive` come Pathosphere: rilancerebbe in loop) + `run_report.py` che distingue **fallito / muto (0 atti, nessun errore) / fermo**; fix collaterale: `scraper_runs.errore` troncava via la riga dell'eccezione; agente installato (03:30) e run di recupero lanciato |
-| [TAL-67](TAL-67.md) | Dashboard: aggregati temporali per comune e provincia | 📊 FE | branch `feat/TAL-66-run-giornaliero-aggregati`; nuovo modulo `aggregati.py` (funzioni pure, nessuno Streamlit) + tab 📅 Aggregati: granularità giornaliera/settimanale/mensile/trimestrale/semestrale, filtro provincia/comune, **due assi tenuti distinti** (data atto via `COALESCE(data_atto,data_pub)` vs data ingestione), zeri espliciti nel grafico giornaliero, date corrotte escluse; verificato dal vivo con `AppTest` su `talia.db` reale |
-| [TAL-68](TAL-68.md) | Due scraper rotti in silenzio: `caccamo` (URBI) e `sangiuseppejato` (SSL) | 🕷️ SCR | branch `feat/TAL-66-run-giornaliero-aggregati`; **emersi da soli** dal primo `report_run.py` di TAL-66, non cercati — `caccamo` è il caso per cui esiste la categoria "muto": 5 run consecutivi a 0 atti senza mai un errore, dal 2026-07-14; il portale pretende una `Tipologia` esplicita (`""` = "Tutte" vale per ogni altro tenant URBI, non per questo) → `urbi.py` scopre le tipologie dalla select e ripete una ricerca per ciascuna, **da 0 a 181 atti**; `sangiuseppejato` catena cert incompleta → `skip_ssl=true` (14 atti); due difetti del primo fix trovati prima della messa in produzione: (1) lo stop-on-known usciva dall'intera scansione e dal secondo run lo scraper sarebbe tornato muto (trovato dal test), (2) costava 40 min per un solo comune dentro un run da 260 (trovato misurando, non assumendo) → tetto di 3 pagine per tipologia, sicuro perché l'albo elenca dal più recente: **2412s → 152s**; 713 test verdi |
-| [TAL-70](TAL-70.md) | Bonifica scraper: mai diagnosticati, Corleone, ANAC, stagnanti | 🕷️ SCR | branch `feat/TAL-66-run-giornaliero-aggregati`; **Corleone da `bloccato` ad attivo con +499 atti senza scrivere codice** (era annotato come WordPress/CPT, in realtà è URBI self-hosted); hspromila leggeva una sola delle due skin del portale → `_parse_legacy` + paginazione `__doPostBack`, **Floresta 0→40, Cianciana 0→70**; 6 casi senza colpa nostra annotati con la causa esatta (3 albi vuoti, 2 "Errore 5052" lato server, 1 vuoto); **ANAC risolto senza Playwright**: l'URL configurato era un *manifest* da 1288 byte, non il dataset — è questa la ragione della muta, non il WAF; i CSV mensili esistono (~40 MB zip), più due bug del tracciato (colonne `*_appaltante`, filtro su `sezione_regionale` che non matcha mai) → **12.400 atti da un solo mese**; stagnanti: gli albi sono fermi davvero, indagine sospesa dopo un WAF; 721 test verdi |
-| [TAL-71](TAL-71.md) | La fase red flags del run notturno girava 11 ore | 🕷️ SCR | P0; branch `feat/TAL-66-run-giornaliero-aggregati`; **regressione di TAL-70**: il run del 20/08 è finito dopo **18h**, quello del 21/08 terminato a mano dopo 17h — 98% CPU, quindi calcolo e non rete; `collega_per_contenimento` e `collega_per_oggetto_simile` sono O(n²) *per ente* e i 176.827 contratti SmartCIG si sono concentrati sui capoluoghi (**Palermo 37.709 atti, 94,7% ANAC**); il conteggio per strategia ha deciso il fix — `cig` 199.360 procedimenti, `oggetto_simile` 20.550, **`contenimento` 263**: 11 ore per 263 collegamenti, quindi non ottimizzare il loop ma **non eseguirlo** sui dati sbagliati → le due strategie fuzzy escludono `contratto_anac` (che resta nelle strategie 1-2, match esatto sul CIG); su Palermo **2,1s** e **10,0s**; 731 test verdi. Da guardare a parte: red flag da 665 a 13.964, e Agrigento muto da 2 run |
-| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | manca ancora un PDF scansionato campione in `data/samples/` per un test OCR automatizzato (OCR reale comunque validato ad-hoc su fascicoli TAL-12/48 con Tesseract installato) |
+| [TAL-75](TAL-75.md) | Fallimenti cronici residui: certificati Halley + ripasso dei transitori | 🕷️ SCR + ⚙️ OPS | **PR #25**; 13 Halley `skip_ssl` (13/13 dal vivo); ripasso a fine run dei falliti per timeout/reset entro `--budget-ripasso` (3600s) |
+| [TAL-77](TAL-77.md) | Testo degli atti jCityGov nuovi, estratto ogni notte | 🕷️ SCR + 🔤 NLP | **PR #27** (stacked su #25); `--testo-atti 400`; solo testo nativo, solo tipi utili alle regole, PDF non conservato, CIG dal testo solo se univoco; 35/40 dal vivo, ~2,5 s/atto |
+| [TAL-62](TAL-62.md) | Amministrazione Trasparente (jCityGov nel run, Halley no) | 🕷️ SCR | **PR #28** (stacked su #27); categorie per prefisso (menu gerarchici), stop per categoria; Acate +230 atti mai visti, Ragusa 0 |
+| [TAL-73](TAL-73.md) | Frazionamento: SmartCIG escluso, ricalcolo completo | 🔤 NLP + ⚖️ LEX | diagnosi in #23 (mergiata), correzione **PR #26** insieme alla disattivazione di TAL-76; sul DB reale 12.892 → 0 flag (nessun atto d'albo ha `importo_euro`) |
+| [TAL-69](TAL-69.md) | Scraper "stagnanti" nel report | 🕷️ SCR + ⚙️ OPS | **PR #29**; soglia `max(14, 3 × intervallo tipico)`, informativa; 15 stagnanti sul DB reale, gemelli TAL-52 annotati |
+| [TAL-78](TAL-78.md) | Backup del DB fuori dal disco (iCloud Drive) | ⚙️ OPS | **PR #30**; settimanale, zstd 1,1 GB → 60 MB, 4 copie |
+| [TAL-3](TAL-3.md) | Estrazione testo da PDF (nativo + OCR) | 🔤 NLP | **PR #31**: chiuso l'ultimo criterio (test OCR su scansione sintetica) |
+| [TAL-40](TAL-40.md) | README pubblico + contributing | 🧭 TL | **PR #32**; README, CONTRIBUTING, codice di condotta, 3 issue template |
+
 
 ### ✅ Done
 | ID | Titolo | Note |
 |----|--------|------|
+| [TAL-74](TAL-74.md) | PortalePA: 24 comuni bloccati dal filtro sull'User-Agent | PR #24 mergiata (2026-10-19); da verificare al primo run notturno |
+| [TAL-64](TAL-64.md) | `atti_fonti` + dedup tra fonti (fase 1 additiva) | PR #22 mergiata; fase 1 confermata come assetto stabile (2026-10-19) |
+| [TAL-72](TAL-72.md) | Tetto di tempo per scraper + causa dominante nel report | PR #21 mergiata; durata del primo run con tetto da misurare |
+| [TAL-66](TAL-66.md) | Run giornaliero automatico (launchd) + riepilogo esiti | PR #20 mergiata |
+| [TAL-67](TAL-67.md) | Dashboard: aggregati temporali per comune e provincia | PR #20 mergiata |
+| [TAL-68](TAL-68.md) | `caccamo` (URBI) e `sangiuseppejato` (SSL) rotti in silenzio | PR #20 mergiata |
+| [TAL-70](TAL-70.md) | Bonifica scraper: mai diagnosticati, Corleone, ANAC, stagnanti | PR #20 mergiata |
+| [TAL-71](TAL-71.md) | La fase red flags del run notturno girava 11 ore | PR #20 mergiata |
 | [TAL-60](TAL-60.md) | UI Streamlit per Modulo 1 (tab "Analisi fascicolo") | PR #19 mergiata (2026-08-16); catena di box "allega file + descrizione" (un documento alla volta), la descrizione concorre a `classifica_ruolo` e compare nel report; nessuna persistenza dei file; bug reale trovato solo con `AppTest.from_file` (import relativi rotti in modalità `streamlit run`); drive-by: rimossa doppia esecuzione di tab Statistiche/Mappa |
 | [TAL-65](TAL-65.md) | `estrai_cig()`: CIG padre/derivato scambiati o persi, colonna `cig_padre` | Trovato durante TAL-64 (Dom: "i CIG possono avere CIG padre e figli"); bug in 3 punti (`utils.py`, `entita.py`, `catena.py`), usato da 14/14 scraper — 578 atti con pattern padre/derivato, 127 falsi positivi (`cig='ORIGINARIO'`), 368 falsi negativi (`cig` NULL); tre regex distinte con lookahead invece di un'unica etichetta opzionale; nuova colonna `atti.cig_padre` + migrazione lazy; **backfill completo su talia.db reale**: 3820 atti corretti, 0 garbage residuo, 200 con `cig_padre` popolato; 12 nuovi test, 655 verdi (erano 643) |
 | [TAL-63](TAL-63.md) | jCityGov: `url_fonte` mai stato un permalink funzionante | P0, esplicabilità; segnalato da Dom cliccando un link reale; formato `mostraDettaglio` dava sempre errore server-side (verificato con Playwright, freddo e con sessione, e curl puro), formato vero `/display/<id>` trovato cliccando davvero il bottone del portale; **backfill completo eseguito e verificato**: 85.394 atti + 2019 voci in 341 `red_flags.atti_cig` (copia denormalizzata dell'URL, scoperta durante il backfill di prova su Acate) corrette, 14/14 campione casuale funzionante dopo il fix; Halley controllata in parallelo, nessun bug analogo |

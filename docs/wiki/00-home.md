@@ -26,6 +26,7 @@ Strumento civico open source per l'analisi di atti delle PA siciliane. Rileva **
 | [14 — Censimento albi](14-censimento-albi.md) | Copertura comune per comune: piattaforma, stato, note di ricognizione |
 | [14 — PDF on-demand](14-pdf-on-demand.md) | Download e estrazione testo dei PDF citati dai red flag |
 | [15 — Run automatico](15-run-automatico.md) | launchd giornaliero, perché in locale, riepilogo esiti e diagnosi |
+| [16 — Definizione di MVP](16-definizione-mvp.md) | Quando TALIA è "a terra": criteri misurabili, stato, cosa resta fuori |
 
 ## Link rapidi
 

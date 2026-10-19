@@ -3,7 +3,7 @@
 - **Epica:** E2 — Scraping pilota
 - **Ruolo:** 🕷️ SCR
 - **Priorità:** P1 (blocca la messa in produzione di TAL-62 — Amministrazione Trasparente)
-- **Stato:** Review — fase 1 (`atti_fonti` additiva + dedup tra fonti), vedi Tentativo 5
+- **Stato:** Done — PR #22 mergiata
 - **Branch:** `feat/TAL-64-atti-fonti` (stacked su `feat/TAL-72-tetto-tempo-scraper`)
 
 ## 🎯 Obiettivo
@@ -60,9 +60,14 @@ approfondisce quella segnalazione — non certezza, solo ipotesi plausibile.
       non è univoca, inserire comunque come atto nuovo
 - [x] Implementare `atti_fonti` e la migrazione — **fase 1, additiva** (Tentativo 5)
 - [ ] Fase 2: dashboard che linka `fonti_atto()[0]` invece di `atti.url_fonte`
-      (serve solo quando TAL-62 entra nel run)
+      (TAL-62 entra nel run con la PR #28; su jCityGov l'URL è lo stesso, quindi
+      diventa utile solo con una seconda fonte a URL diverso, es. Halley AT)
 - [ ] Fase 2: `red_flags.atti_cig` → `atto_id` (bug di sincronizzazione TAL-63)
-- [ ] Fase 2 (da decidere con Dom): spostare davvero le colonne per-fonte fuori da `atti`
+- [x] Fase 2: spostare davvero le colonne per-fonte fuori da `atti` → **no, per ora**
+      (decisione delegata da Dom, 2026-10-19): la deviazione additiva della fase 1 è
+      confermata come assetto stabile. Lo spostamento toccherebbe ~250 righe in 26 file
+      senza un beneficio misurato; si riapre solo se due fonti dello stesso atto
+      mostrano valori discordanti che contano (es. `data_pub` diversa usata da una regola).
 
 ## 📋 Spec
 
