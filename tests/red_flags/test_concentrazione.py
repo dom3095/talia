@@ -182,3 +182,27 @@ def test_campione_atti_max_5(db: sqlite3.Connection, ente_ct: int) -> None:
     risultati = rileva_concentrazione(db, anno=2026)
     assert len(risultati) == 1
     assert len(risultati[0].atti_campione) <= 5
+
+
+def test_regola_disattivata_nel_runner_e_flag_vecchi_cancellati() -> None:
+    """TAL-76: la regola è fuori dal run e i suoi flag non restano in DB."""
+    from talia.modulo2_scraping.db import (
+        EnteMetadato,
+        connetti,
+        inizializza_db,
+        salva_red_flag,
+        upsert_ente,
+    )
+    from talia.modulo2_scraping.red_flags.runner import REGOLE_DISATTIVATE, esegui_tutti
+
+    assert "concentrazione_diretti" in REGOLE_DISATTIVATE
+    db = connetti(":memory:")
+    inizializza_db(db)
+    ente = upsert_ente(db, EnteMetadato(denominazione="Comune di Test", codice_istat="999999"))
+    salva_red_flag(db, ente, "concentrazione_diretti", "media", "vecchio", periodo_da="2025")
+
+    rapporto = esegui_tutti(db)
+
+    assert rapporto.concentrazione["n_salvati"] == 0
+    n = db.execute("SELECT COUNT(*) FROM red_flags WHERE tipo_flag='concentrazione_diretti'")
+    assert n.fetchone()[0] == 0
