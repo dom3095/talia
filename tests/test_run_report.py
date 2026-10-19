@@ -342,3 +342,74 @@ def test_interrotti_esclusi_dal_calcolo_della_causa_dominante():
     falliti = [s for s in stati if s.fallito]
     assert len(falliti) == 2
     assert trova_causa_dominante(falliti) is None
+
+
+# ---------------------------------------------------------------------------
+# Stagnanti (TAL-69)
+# ---------------------------------------------------------------------------
+
+
+def _storico(conn, scraper_id, giorni_con_atti, *, ultimo_fa=0.1):
+    """Run quotidiani: inserimenti nei giorni indicati, 0 negli altri, righe sempre trovate."""
+    for g in range(max(giorni_con_atti) + 1, 0, -1):
+        _run(conn, scraper_id, giorni_fa=g + 0.1, inseriti=5 if g in giorni_con_atti else 0)
+    _run(conn, scraper_id, giorni_fa=ultimo_fa, inseriti=0)
+
+
+def test_stagnante_soglia_fissa(conn):
+    _storico(conn, "rometta", {40, 41, 42, 43})
+    r = riepiloga(conn)
+    assert [s.scraper_id for s in r.stagnanti] == ["rometta"]
+    assert r.stagnanti[0].giorni_senza_nuovi == 40
+    # Informativo: non fa suonare la notifica.
+    assert not r.ha_problemi
+
+
+def test_sano_non_stagnante(conn):
+    _storico(conn, "acate", {1, 2, 3, 5, 8})
+    assert riepiloga(conn).stagnanti == []
+
+
+def test_soglia_relativa_per_chi_pubblica_poco(conn):
+    """Enna pubblica ogni ~10 giorni: 20 giorni di silenzio sono normali per lei."""
+    _storico(conn, "enna", {20, 30, 40, 50, 60})
+    assert riepiloga(conn).stagnanti == []
+    # Ma 3 volte il suo intervallo tipico no.
+    c = connetti(":memory:")
+    inizializza_db(c)
+    _storico(c, "enna", {35, 45, 55, 65, 75})
+    (st,) = riepiloga(c).stagnanti
+    assert st.intervallo_tipico == 10 and st.soglia == 30
+
+
+def test_fallito_e_muto_non_sono_stagnanti(conn):
+    _storico(conn, "rotto", {40, 41, 42})
+    _run(conn, "rotto", giorni_fa=0.05, inseriti=0, errore="TimeoutError: timed out")
+    _storico(conn, "muto", {40, 41, 42})
+    _run(conn, "muto", giorni_fa=0.05, trovati=0, inseriti=0)
+    assert riepiloga(conn).stagnanti == []
+
+
+def test_gemello_segnalato_nel_report(conn):
+    from talia.modulo2_scraping.registry import EntryRegistro
+    from talia.modulo2_scraping.run_report import gemelli_da_registro
+
+    def e(slug, istat):
+        return EntryRegistro(
+            slug=slug,
+            denominazione=f"Comune {slug}",
+            codice_istat=istat,
+            modulo="halley",
+            piattaforma_tecnica="Halley EG",
+            base_url="https://x",
+            stato="attivo",
+        )
+
+    gemelli = gemelli_da_registro([e("favignana", "081009"), e("favignana_halley", "081009"),
+                                   e("acate", "088001")])  # fmt: skip
+    assert gemelli == {"favignana": "favignana_halley", "favignana_halley": "favignana"}
+
+    _storico(conn, "favignana", {40, 41, 42})
+    testo = formatta_markdown(riepiloga(conn, gemelli=gemelli))
+    assert "Stagnanti" in testo
+    assert "stesso comune di `favignana_halley`" in testo

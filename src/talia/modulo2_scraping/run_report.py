@@ -31,8 +31,10 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import statistics
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 
 from talia.modulo2_scraping.tetto_tempo import e_interruzione_tetto
 
@@ -53,6 +55,17 @@ QUOTA_CAUSA_DOMINANTE = 0.6
 #: …e almeno questo numero di scraper: con 3 falliti su 266, due errori uguali
 #: sono una coincidenza, non un guasto comune.
 MIN_FALLITI_CAUSA_DOMINANTE = 10
+
+
+#: Soglia minima per dire che uno scraper è "stagnante" (TAL-69): sopra la
+#: finestra tipica di pubblicazione di un albo, sotto il mese.
+GIORNI_STAGNANTE_MIN = 14
+#: …che si allarga per i comuni che pubblicano poco: stagnante = silenzioso da
+#: più di questo multiplo del suo intervallo tipico tra due giorni con atti
+#: nuovi. Enna (~3 atti/mese) con una soglia fissa risulterebbe sempre ferma.
+MULTIPLO_INTERVALLO_STAGNANTE = 3
+#: Finestra su cui si misura l'intervallo tipico.
+GIORNI_STORICO_STAGNANTE = 180
 
 
 @dataclass(frozen=True)
@@ -156,6 +169,68 @@ class StatoScraper:
         return not self.errore and self.completato_a is not None and self.n_trovati == 0
 
 
+@dataclass(frozen=True)
+class Stagnante:
+    """Scraper che gira e trova righe, ma non inserisce atti nuovi da troppo (TAL-69)."""
+
+    scraper_id: str
+    giorni_senza_nuovi: int
+    #: Mediana dei giorni tra due giorni con inserimenti; None se lo storico è troppo corto.
+    intervallo_tipico: float | None
+    soglia: float
+    #: Altro scraper dello stesso comune (TAL-52), se c'è: lo stagnante può
+    #: essere solo il doppione di un gemello che fa il lavoro.
+    gemello: str | None = None
+
+
+def trova_stagnanti(
+    conn: sqlite3.Connection,
+    ultimi: dict[str, StatoScraper],
+    *,
+    oggi: date | None = None,
+    gemelli: dict[str, str] | None = None,
+) -> list[Stagnante]:
+    """Scraper sani in ogni altra metrica ma senza atti nuovi da troppo tempo.
+
+    Uno stagnante gira, non dà errori e trova righe: semplicemente sono sempre
+    le stesse (albo fermo, pagina d'archivio al posto dell'albo vivo, scraper
+    gemello che fa il lavoro — TAL-52). La soglia è relativa al comune:
+    ``max(GIORNI_STAGNANTE_MIN, MULTIPLO × intervallo tipico)``.
+    """
+    # In UTC come `scraper_runs.avviato_a` (`utcnow`): con la data locale, dopo
+    # mezzanotte in Italia i giorni di silenzio risultavano uno in più.
+    oggi = oggi or datetime.now(UTC).date()
+    giorni_con_atti: dict[str, list[date]] = {}
+    for scraper_id, giorno in conn.execute(
+        """
+        SELECT scraper_id, date(avviato_a) FROM scraper_runs
+        WHERE  COALESCE(n_inseriti, 0) > 0
+        GROUP  BY scraper_id, date(avviato_a)
+        ORDER  BY scraper_id, date(avviato_a)
+        """
+    ):
+        giorni_con_atti.setdefault(scraper_id, []).append(date.fromisoformat(giorno))
+    primi_run = dict(
+        conn.execute("SELECT scraper_id, date(MIN(avviato_a)) FROM scraper_runs GROUP BY 1")
+    )
+
+    stagnanti = []
+    for sid, stato in sorted(ultimi.items()):
+        if stato.errore or stato.completato_a is None or stato.n_trovati == 0:
+            continue  # già fallito, interrotto o muto: lo dicono le altre sezioni
+        giorni = giorni_con_atti.get(sid, [])
+        ultimo = giorni[-1] if giorni else date.fromisoformat(primi_run[sid])
+        silenzio = (oggi - ultimo).days
+        recenti = [g for g in giorni if (oggi - g).days <= GIORNI_STORICO_STAGNANTE]
+        intervalli = [(b - a).days for a, b in zip(recenti, recenti[1:], strict=False)]
+        tipico = statistics.median(intervalli) if len(intervalli) >= 3 else None
+        soglia = max(GIORNI_STAGNANTE_MIN, MULTIPLO_INTERVALLO_STAGNANTE * (tipico or 0))
+        if silenzio > soglia:
+            gemello = (gemelli or {}).get(sid)
+            stagnanti.append(Stagnante(sid, silenzio, tipico, soglia, gemello))
+    return sorted(stagnanti, key=lambda s: -s.giorni_senza_nuovi)
+
+
 @dataclass
 class RiepilogoRun:
     """Quadro complessivo dell'ultimo giro di run."""
@@ -172,6 +247,8 @@ class RiepilogoRun:
     #: Fermati per tetto di tempo (TAL-72): informativi, non concorrono a
     #: `ha_problemi` — vedi la docstring del modulo.
     interrotti: list[StatoScraper] = field(default_factory=list)
+    #: Senza atti nuovi da troppo (TAL-69): informativi, non concorrono a `ha_problemi`.
+    stagnanti: list[Stagnante] = field(default_factory=list)
     #: Causa che spiega la gran parte dei falliti, se c'è (TAL-72).
     causa_dominante: CausaErrore | None = None
     atti_inseriti: int = 0
@@ -228,11 +305,26 @@ def _ultimi_run(conn: sqlite3.Connection) -> dict[str, StatoScraper]:
     }
 
 
+def gemelli_da_registro(entries) -> dict[str, str]:
+    """Slug → altro slug con lo stesso codice ISTAT, tra gli scraper attivi (TAL-52)."""
+    per_istat: dict[str, list[str]] = {}
+    for e in entries:
+        if e.stato == "attivo":
+            per_istat.setdefault(e.codice_istat, []).append(e.slug)
+    return {
+        slug: next(altro for altro in slugs if altro != slug)
+        for slugs in per_istat.values()
+        if len(slugs) > 1
+        for slug in slugs
+    }
+
+
 def riepiloga(
     conn: sqlite3.Connection,
     *,
     scraper_attesi: list[str] | None = None,
     giorni_stale: int = GIORNI_STALE_DEFAULT,
+    gemelli: dict[str, str] | None = None,
 ) -> RiepilogoRun:
     """Costruisce il riepilogo dello stato dei run.
 
@@ -271,6 +363,11 @@ def riepiloga(
             riepilogo.fermi.append(stato)
 
     riepilogo.totale -= len(riepilogo.non_previsti)
+    riepilogo.stagnanti = trova_stagnanti(
+        conn,
+        {k: v for k, v in ultimi.items() if attesi is None or k in attesi},
+        gemelli=gemelli,
+    )
     riepilogo.causa_dominante = trova_causa_dominante(riepilogo.falliti)
     if attesi:
         riepilogo.mai_eseguiti = sorted(attesi - set(ultimi))
@@ -374,6 +471,25 @@ def formatta_markdown(riepilogo: RiepilogoRun, *, giorni_stale: int = GIORNI_STA
             if len(elenco) > MAX_ELENCO:
                 righe.append(f"- … e altri {len(elenco) - MAX_ELENCO}")
             righe.append("")
+
+    if riepilogo.stagnanti:
+        righe.append(
+            f"## 🥶 Stagnanti: righe sì, atti nuovi no (informativo, {len(riepilogo.stagnanti)})"
+        )
+        for st in riepilogo.stagnanti[:MAX_ELENCO]:
+            di_solito = (
+                f"di solito ogni {st.intervallo_tipico:g}"
+                if st.intervallo_tipico
+                else "storico troppo corto"
+            )
+            gemello = f" — stesso comune di `{st.gemello}` (TAL-52)" if st.gemello else ""
+            righe.append(
+                f"- `{st.scraper_id}`: nessun atto nuovo da {st.giorni_senza_nuovi} giorni"
+                f" ({di_solito}){gemello}"
+            )
+        if len(riepilogo.stagnanti) > MAX_ELENCO:
+            righe.append(f"- … e altri {len(riepilogo.stagnanti) - MAX_ELENCO}")
+        righe.append("")
 
     if riepilogo.mai_eseguiti:
         mostrati = riepilogo.mai_eseguiti[:MAX_ELENCO]
