@@ -1,5 +1,15 @@
 # HANDOFF.md — Stato sessione
 
+## 2026-11-13 — Hotfix: backup notturni compressi, rotazione a 2
+
+> Branch `fix/backup-compressi`, senza card (hotfix).
+
+Il DB è cresciuto a ~1,3 GB: 7 backup in chiaro in `backups/` occupavano ~9 GB
+con il disco al 91%. `run_daily.sh` ora comprime ogni backup con gzip
+(`talia.db.YYYYMMDD.gz`, ripristino `gunzip -k`) e ne tiene 2. I backup vecchi
+in chiaro vengono ruotati via dal primo run. I `talia.db.bak-*` manuali nella
+root (lug-ago, ~1 GB) non sono toccati dallo script: cancellabili a mano.
+
 ## 2026-10-19 — TAL-74: 24 comuni PortalePA bloccati dall'User-Agent
 
 > Branch `fix/TAL-74-portalepa-user-agent` (PR #24), indipendente dalla catena #21-#23.

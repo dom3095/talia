@@ -45,10 +45,10 @@ fi
 # Svuotabile con TALIA_EXTRA_SCRAPERS="" se Playwright non è installato.
 EXTRA_SCRAPERS="${TALIA_EXTRA_SCRAPERS-agrigento pachino barrafranca}"
 
-# Quanti log e backup tenere (il DB reale è ~150 MB: senza rotazione il disco
-# si riempie in fretta).
+# Quanti log e backup tenere. Il DB reale è ~1,3 GB (2026-11): con 7 backup non
+# compressi erano ~9 GB su un disco al 91%. Ora 2 backup, compressi con gzip.
 MAX_LOG=30
-MAX_BACKUP=7
+MAX_BACKUP=2
 
 mkdir -p "$LOG_DIR" "$BACKUP_DIR"
 
@@ -117,11 +117,19 @@ notifica() {
                 # potuto buttare via un WAL non ancora riversato.
                 if [ "$MODO" = "delete" ]; then
                     rm -f "$BACKUP_FILE-shm" "$BACKUP_FILE-wal"
+                    # Compressione solo quando il backup è un file unico: con i
+                    # sidecar ancora presenti il .gz sarebbe incompleto. gzip
+                    # (non zstd) perché è di sistema su macOS e launchd non ha
+                    # /opt/homebrew nel PATH. Ripristino: gunzip -k <file>.gz
+                    if gzip -f "$BACKUP_FILE"; then
+                        BACKUP_FILE="$BACKUP_FILE.gz"
+                    fi
                 fi
                 echo "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
             fi
         else
-            cp "$DB_PATH" "$BACKUP_FILE" && echo "Backup (cp): $BACKUP_FILE"
+            cp "$DB_PATH" "$BACKUP_FILE" && gzip -f "$BACKUP_FILE" &&
+                echo "Backup (cp): $BACKUP_FILE.gz"
         fi
     fi
 
