@@ -55,8 +55,10 @@ Scelte del plist, e perché:
 1. **Lock** (`mkdir` atomico + PID, con riconoscimento del lock orfano): un
    run dura ~4h40m su 260 scraper — due run sovrapposti si contenderebbero lo
    stesso SQLite.
-2. **Backup del DB** in `backups/talia.db.YYYYMMDD` via `sqlite3 .backup`
-   (consistente in WAL, a differenza di `cp`), rotazione a 7 copie.
+2. **Backup del DB** in `backups/talia.db.YYYYMMDD.gz` via `sqlite3 .backup`
+   (consistente in WAL, a differenza di `cp`), compresso con gzip, rotazione a
+   2 copie (dal 2026-11-13: con il DB a ~1,3 GB, 7 copie in chiaro erano ~9 GB).
+   Ripristino: `gunzip -k backups/talia.db.YYYYMMDD.gz`.
 3. **`caffeinate -i python scripts/run_scrapers.py "$@"`** — gli argomenti
    passati allo script arrivano al runner, più
    `--extra-scrapers agrigento pachino barrafranca`.
